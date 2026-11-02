@@ -1,0 +1,208 @@
+// ==============================================================================
+// DineGo Frontend — API Client & Mock Data Service
+// ==============================================================================
+
+import type { MenuItem, Merchant, Topping, User } from '../types';
+
+export const API_BASE_URL = 'http://localhost:3000/api/v1';
+
+// Default mock current user
+export const CURRENT_USER: User = {
+  id: 'user-001-dinego',
+  email: 'khachhang@dinego.vn',
+  fullName: 'Nguyễn Văn An',
+  phoneNumber: '0987654321',
+  roles: ['CUSTOMER'],
+};
+
+// Initial Mock Restaurants
+export const MOCK_MERCHANTS: Merchant[] = [
+  {
+    id: 'merchant-pho-thin',
+    name: 'Phở Thìn Lò Đúc 1979',
+    slug: 'pho-thin-lo-duc',
+    address: '13 Lò Đúc, Hai Bà Trưng, Hà Nội',
+    phoneNumber: '0901234567',
+    coverUrl: 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=800&auto=format&fit=crop&q=80',
+    logoUrl: 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=100&auto=format&fit=crop&q=80',
+    rating: 4.9,
+    reviewCount: 1240,
+    deliveryTimeMin: 15,
+    deliveryTimeMax: 25,
+    isActive: true,
+    isOpen: true,
+    categories: ['Phở / Bún', 'Món Việt'],
+  },
+  {
+    id: 'merchant-com-tam',
+    name: 'Cơm Tấm Phúc Lộc Thọ',
+    slug: 'com-tam-phuc-loc-tho',
+    address: '236 Đinh Tiên Hoàng, Quận 1, TP. HCM',
+    phoneNumber: '0902345678',
+    coverUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=800&auto=format&fit=crop&q=80',
+    logoUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=100&auto=format&fit=crop&q=80',
+    rating: 4.8,
+    reviewCount: 890,
+    deliveryTimeMin: 20,
+    deliveryTimeMax: 30,
+    isActive: true,
+    isOpen: true,
+    categories: ['Cơm', 'Món Việt'],
+  },
+  {
+    id: 'merchant-gongcha',
+    name: 'Trà Sữa Gong Cha Premium',
+    slug: 'gong-cha-premium',
+    address: '175 Giảng Võ, Ba Đình, Hà Nội',
+    phoneNumber: '0903456789',
+    coverUrl: 'https://images.unsplash.com/photo-1558857563-b37cfb8cb36b?w=800&auto=format&fit=crop&q=80',
+    logoUrl: 'https://images.unsplash.com/photo-1558857563-b37cfb8cb36b?w=100&auto=format&fit=crop&q=80',
+    rating: 4.9,
+    reviewCount: 3410,
+    deliveryTimeMin: 10,
+    deliveryTimeMax: 20,
+    isActive: true,
+    isOpen: true,
+    categories: ['Trà sữa', 'Đồ uống'],
+  },
+  {
+    id: 'merchant-pizza',
+    name: 'Pizza Artisan & Pasta',
+    slug: 'pizza-artisan',
+    address: '88 Nguyễn Huệ, Bến Nghé, Quận 1, TP. HCM',
+    phoneNumber: '0904567890',
+    coverUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800&auto=format&fit=crop&q=80',
+    logoUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=100&auto=format&fit=crop&q=80',
+    rating: 4.7,
+    reviewCount: 560,
+    deliveryTimeMin: 25,
+    deliveryTimeMax: 35,
+    isActive: true,
+    isOpen: true,
+    categories: ['Pizza', 'Món Âu'],
+  },
+];
+
+// Sample Menu Dishes with Toppings
+export const MOCK_MENU_ITEMS: Record<string, MenuItem[]> = {
+  'merchant-pho-thin': [
+    {
+      id: 'dish-pho-1',
+      merchantId: 'merchant-pho-thin',
+      name: 'Phở Bò Tái Lăn Truyền Thống',
+      description: 'Thịt bò xào lăn thơm lừng với tỏi tươi và gừng, nước dùng ninh xương đậm đà nguyên bản.',
+      basePrice: 75000,
+      imageUrl: 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=500&auto=format&fit=crop&q=80',
+      categoryName: 'Phở Bò',
+      isActive: true,
+      isAvailable: true,
+      toppings: [
+        { id: 'top-quay', name: 'Quẩy giòn nóng hổi (2 cái)', price: 10000, isActive: true, isAvailable: true },
+        { id: 'top-trung', name: 'Trứng gà trần béo ngậy', price: 10000, isActive: true, isAvailable: true },
+        { id: 'top-thit-them', name: 'Thêm thịt bò tái lăn', price: 25000, isActive: true, isAvailable: true },
+      ],
+    },
+    {
+      id: 'dish-pho-2',
+      merchantId: 'merchant-pho-thin',
+      name: 'Phở Bò Đặc Biệt (Tái + Nạm + Gầu)',
+      description: 'Sự kết hợp hoàn hảo giữa thịt bò tái mềm, nạm giòn và gầu béo ngậy chuẩn vị phố cổ.',
+      basePrice: 90000,
+      imageUrl: 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=500&auto=format&fit=crop&q=80',
+      categoryName: 'Phở Bò',
+      isActive: true,
+      isAvailable: true,
+      toppings: [
+        { id: 'top-quay', name: 'Quẩy giòn nóng hổi (2 cái)', price: 10000, isActive: true, isAvailable: true },
+        { id: 'top-trung', name: 'Trứng gà trần béo ngậy', price: 10000, isActive: true, isAvailable: true },
+      ],
+    },
+  ],
+  'merchant-com-tam': [
+    {
+      id: 'dish-com-1',
+      merchantId: 'merchant-com-tam',
+      name: 'Cơm Tấm Sườn Bì Chả Đặc Biệt',
+      description: 'Sườn cốt lết nướng than hoa mềm ngọt, bì heo giòn dai, chả trứng hấp thơm nức.',
+      basePrice: 65000,
+      imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=500&auto=format&fit=crop&q=80',
+      categoryName: 'Cơm Tấm',
+      isActive: true,
+      isAvailable: true,
+      toppings: [
+        { id: 'top-op-la', name: 'Trứng ốp la lòng đào', price: 8000, isActive: true, isAvailable: true },
+        { id: 'top-cha', name: 'Thêm 1 miếng chả trứng', price: 12000, isActive: true, isAvailable: true },
+        { id: 'top-canh', name: 'Canh rong biển thịt bằm', price: 15000, isActive: true, isAvailable: true },
+      ],
+    },
+    {
+      id: 'dish-com-2',
+      merchantId: 'merchant-com-tam',
+      name: 'Cơm Tấm Đùi Gà Nướng Mật Ong',
+      description: 'Đùi gà góc tư ướp sốt mật ong rừng nướng vàng óng, ăn kèm đồ chua giòn ngọt.',
+      basePrice: 68000,
+      imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=500&auto=format&fit=crop&q=80',
+      categoryName: 'Cơm Gà',
+      isActive: true,
+      isAvailable: true,
+      toppings: [
+        { id: 'top-op-la', name: 'Trứng ốp la lòng đào', price: 8000, isActive: true, isAvailable: true },
+      ],
+    },
+  ],
+  'merchant-gongcha': [
+    {
+      id: 'dish-gc-1',
+      merchantId: 'merchant-gongcha',
+      name: 'Trà Sữa Trân Châu Đen Hoàng Gia',
+      description: 'Hồng trà Ceylon thượng hạng hòa quyện sữa tươi thanh trùng và trân châu đen dai giòn ngọt bùi.',
+      basePrice: 55000,
+      imageUrl: 'https://images.unsplash.com/photo-1558857563-b37cfb8cb36b?w=500&auto=format&fit=crop&q=80',
+      categoryName: 'Trà Sữa',
+      isActive: true,
+      isAvailable: true,
+      toppings: [
+        { id: 'top-kem-cheese', name: 'Lớp kem sữa Milk Foam béo ngậy', price: 12000, isActive: true, isAvailable: true },
+        { id: 'top-pudding', name: 'Pudding trứng thơm mịn', price: 10000, isActive: true, isAvailable: true },
+      ],
+    },
+  ],
+  'merchant-pizza': [
+    {
+      id: 'dish-pz-1',
+      merchantId: 'merchant-pizza',
+      name: 'Pizza 4 Loại Phô Mai (4 Cheese Gourmet)',
+      description: 'Kết hợp tuyệt mỹ giữa Mozzarella tươi, Gorgonzola thơm nồng, Parmesan giòn và Camembert béo ngậy kèm mật ong.',
+      basePrice: 185000,
+      imageUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop&q=80',
+      categoryName: 'Pizza',
+      isActive: true,
+      isAvailable: true,
+      toppings: [
+        { id: 'top-extra-cheese', name: 'Gấp đôi phô mai Mozzarella chảy', price: 30000, isActive: true, isAvailable: true },
+      ],
+    },
+  ],
+};
+
+// Available vouchers in DineGo system
+export const VALID_VOUCHERS: Record<string, { code: string; name: string; discount: number; minOrder: number }> = {
+  DINEGO50: {
+    code: 'DINEGO50',
+    name: 'Giảm 50.000đ cho đơn từ 100k',
+    discount: 50000,
+    minOrder: 100000,
+  },
+  FREESHIP: {
+    code: 'FREESHIP',
+    name: 'Miễn phí giao hàng (Giảm 25.000đ)',
+    discount: 25000,
+    minOrder: 50000,
+  },
+  MOMO10K: {
+    code: 'MOMO10K',
+    name: 'Ưu đãi thanh toán MoMo giảm 10.000đ',
+    discount: 10000,
+    minOrder: 40000,
+  },
+};
