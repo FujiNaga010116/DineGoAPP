@@ -77,7 +77,10 @@ export const AppContent: React.FC = () => {
     const saved = localStorage.getItem('dinego_orders');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
       } catch {
         return [INITIAL_SAMPLE_ORDER];
       }

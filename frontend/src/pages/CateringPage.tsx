@@ -672,3 +672,4 @@ export const CateringPage: React.FC = () => {
     </div>
   );
 };
+

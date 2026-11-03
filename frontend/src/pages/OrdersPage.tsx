@@ -107,15 +107,15 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                 </div>
 
                 <div style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
-                  {order.merchant.name} • {order.items.length} món
+                  {order.merchant?.name || 'DineGo Store'} • {(order.items || []).length} món
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
                   <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1.05rem' }}>
-                    {order.finalTotal.toLocaleString('vi-VN')}đ
+                    {(order.finalTotal || 0).toLocaleString('vi-VN')}đ
                   </span>
 
-                  {order.payment?.paymentMethod.includes('MOMO') && (
+                  {order.payment?.paymentMethod?.includes('MOMO') && (
                     <span
                       style={{
                         display: 'flex',
@@ -187,7 +187,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
                   {(['PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP', 'COMPLETED'] as OrderStatus[]).map((st, idx) => {
-                    const currentStep = STATUS_LABELS[selectedOrder.status].step;
+                    const currentStep = STATUS_LABELS[selectedOrder.status]?.step || 1;
                     const stepNum = idx + 1;
                     const isDone = currentStep >= stepNum;
 
@@ -241,18 +241,18 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
             <div style={{ marginBottom: 24 }}>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 10 }}>Danh sách món ăn</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {selectedOrder.items.map((item) => (
+                {(selectedOrder.items || []).map((item) => (
                   <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <span style={{ fontWeight: 700, color: '#fff' }}>{item.quantity}x {item.itemName}</span>
-                      {item.toppings.length > 0 && (
+                      {(item.toppings || []).length > 0 && (
                         <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                          + {item.toppings.map((t) => t.toppingName).join(', ')}
+                          + {(item.toppings || []).map((t) => t.toppingName).join(', ')}
                         </div>
                       )}
                     </div>
                     <span style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>
-                      {item.subtotal.toLocaleString('vi-VN')}đ
+                      {(item.subtotal || 0).toLocaleString('vi-VN')}đ
                     </span>
                   </div>
                 ))}
