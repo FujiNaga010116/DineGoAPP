@@ -4,7 +4,6 @@
 // ==============================================================================
 
 import {
-  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -15,7 +14,6 @@ import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.in
 import { UpdateDeliveryStatusDto, UpdateGpsLocationDto } from './dto/update-gps.dto.js';
 import type {
   Coordinates,
-  DeliveryStatus,
   LiveTrackingData,
   ShipperInfo,
 } from './interfaces/tracking.interface.js';

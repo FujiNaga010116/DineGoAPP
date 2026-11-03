@@ -11,7 +11,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import crypto from 'node:crypto';
-import { OrderStatus, PaymentMethod, PaymentStatus } from '../../common/enums/index.js';
+import { OrderStatus } from '../../common/enums/index.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface.js';
 import { AddGroupItemDto } from './dto/add-group-item.dto.js';

@@ -335,7 +335,6 @@ export class AiGuideService {
 
   async naturalLanguageSearch(dto: NaturalLanguageSearchDto) {
     const intent = this.parseNaturalIntent(dto.query);
-    const keywords = intent.keywords;
 
     const dishes = await this.prisma.menuItem.findMany({
       where: {

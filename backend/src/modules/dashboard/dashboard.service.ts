@@ -9,7 +9,6 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import crypto from 'node:crypto';
 import { OrderStatus, Role } from '../../common/enums/index.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface.js';
@@ -37,7 +36,7 @@ export class DashboardService {
   async getMerchantRevenueReport(
     merchantId: string,
     user: AuthenticatedUser,
-    query: DateRangeQueryDto,
+    _query: DateRangeQueryDto,
   ): Promise<RevenueSummary> {
     const merchant = await this.prisma.merchant.findUnique({
       where: { id: merchantId },

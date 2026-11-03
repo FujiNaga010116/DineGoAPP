@@ -14,13 +14,15 @@ RUN apk add --no-cache libc6-compat python3 make g++
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install dependencies
+# Install dependencies without failing Prisma postinstall
+ENV PRISMA_SKIP_POSTINSTALL_GENERATE=true
 RUN npm ci
 
 # Copy application source
 COPY . .
 
 # Generate Prisma Client for Linux
+ENV DATABASE_URL="sqlserver://localhost:1433;database=dinego_db;integratedSecurity=false;trustServerCertificate=true"
 RUN npx prisma generate
 
 # Build NestJS application
@@ -51,4 +53,3 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:3000/api/v1/health || exit 1
 
 CMD ["node", "dist/main"]
-

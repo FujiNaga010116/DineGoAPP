@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Role } from '../../common/enums/index.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
