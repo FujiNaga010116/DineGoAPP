@@ -3,7 +3,7 @@
 // Full Sign-In / Sign-Up / SMS OTP / Demo Accounts (User 1, 2, 3, Merchant, Driver, Admin)
 // ==============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Mail,
@@ -20,8 +20,27 @@ import {
   Bike,
   ArrowRight,
   UserPlus,
+  Settings,
+  ExternalLink,
 } from 'lucide-react';
 import type { Role, User } from '../../types';
+
+// Helper giải mã JWT Token chính thức trả về từ Google Identity Services
+function parseGoogleJwt(token: string) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return null;
+  }
+}
 
 export interface AuthModalProps {
   isOpen: boolean;
@@ -200,6 +219,66 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [otherGoogleName, setOtherGoogleName] = useState('');
   const [googleAuthLoading, setGoogleAuthLoading] = useState(false);
   const [selectedGoogleAccount, setSelectedGoogleAccount] = useState<any>(null);
+
+  // Google OAuth 2.0 Client ID Configuration (Từ .env hoặc người dùng dán vào)
+  const [googleClientId, setGoogleClientId] = useState<string>(() => {
+    return (
+      (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID ||
+      localStorage.getItem('dinego_google_client_id') ||
+      ''
+    );
+  });
+  const [showClientIdConfig, setShowClientIdConfig] = useState(false);
+  const [tempClientId, setTempClientId] = useState('');
+
+  // Tích hợp Google Identity Services (GIS) chính thức của Google
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const clientId = googleClientId.trim();
+    if (clientId && typeof window !== 'undefined' && (window as any).google?.accounts?.id) {
+      try {
+        (window as any).google.accounts.id.initialize({
+          client_id: clientId,
+          callback: (response: any) => {
+            if (response?.credential) {
+              const payload = parseGoogleJwt(response.credential);
+              if (payload) {
+                const realUser: User = {
+                  id: `usr-google-${payload.sub || Date.now()}`,
+                  email: payload.email,
+                  fullName: payload.name || payload.email.split('@')[0],
+                  phoneNumber: '0901234567',
+                  address: '45 Lê Duẩn, Bến Nghé, Quận 1, TP. HCM',
+                  roles: ['CUSTOMER'],
+                  avatarUrl: payload.picture,
+                };
+                onLoginSuccess(realUser);
+                setShowGoogleChooser(false);
+                onClose();
+              }
+            }
+          },
+        });
+
+        // Tự động render nút Google chính thức nếu container tồn tại
+        const btnDiv = document.getElementById('g_real_signin_btn');
+        if (btnDiv) {
+          btnDiv.innerHTML = '';
+          (window as any).google.accounts.id.renderButton(btnDiv, {
+            theme: 'outline',
+            size: 'large',
+            width: 380,
+            text: 'continue_with',
+            shape: 'pill',
+            locale: 'vi',
+          });
+        }
+      } catch (err) {
+        console.warn('Google Identity initialization notice:', err);
+      }
+    }
+  }, [isOpen, googleClientId]);
 
   if (!isOpen) return null;
 
@@ -1198,6 +1277,126 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       Sử dụng một tài khoản khác...
                     </div>
                   </div>
+                  {/* Google Client ID Real Connect Option */}
+                  <div
+                    onClick={() => setShowClientIdConfig(!showClientIdConfig)}
+                    style={{
+                      padding: '12px 28px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      cursor: 'pointer',
+                      borderBottom: '1px solid #F1F3F4',
+                      background: showClientIdConfig ? '#EFF6FF' : 'transparent',
+                      transition: 'background 0.15s ease',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: '50%',
+                        background: '#DBEAFE',
+                        color: '#1D4ED8',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Settings size={18} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1E40AF' }}>
+                        {googleClientId ? '✓ Đã kết nối Google Client ID' : 'Kết nối Google Client ID thật sự (Google Cloud)'}
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: '#6B7280' }}>
+                        {googleClientId ? `${googleClientId.substring(0, 24)}...` : 'Bật cửa sổ đăng nhập gốc accounts.google.com'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Client ID Input Box */}
+                  {showClientIdConfig && (
+                    <div style={{ padding: '16px 28px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                        Dán Google OAuth 2.0 Client ID:
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="VD: 123456789-xxx.apps.googleusercontent.com"
+                        value={tempClientId || googleClientId}
+                        onChange={(e) => setTempClientId(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          borderRadius: 8,
+                          border: '1.5px solid #CBD5E1',
+                          fontSize: '0.82rem',
+                          marginBottom: 8,
+                        }}
+                      />
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (tempClientId.trim()) {
+                              localStorage.setItem('dinego_google_client_id', tempClientId.trim());
+                              setGoogleClientId(tempClientId.trim());
+                              setShowClientIdConfig(false);
+                            }
+                          }}
+                          style={{
+                            flex: 1,
+                            padding: '8px',
+                            borderRadius: 8,
+                            background: '#1A73E8',
+                            color: '#fff',
+                            border: 'none',
+                            fontWeight: 700,
+                            fontSize: '0.82rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Lưu & Kích hoạt Google Thật
+                        </button>
+                        {googleClientId && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              localStorage.removeItem('dinego_google_client_id');
+                              setGoogleClientId('');
+                              setTempClientId('');
+                            }}
+                            style={{
+                              padding: '8px 12px',
+                              borderRadius: 8,
+                              background: '#EF4444',
+                              color: '#fff',
+                              border: 'none',
+                              fontWeight: 700,
+                              fontSize: '0.82rem',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Xóa
+                          </button>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: 8, lineHeight: 1.4 }}>
+                        💡 Tạo miễn phí trong 2 phút tại <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" style={{ color: '#1A73E8', textDecoration: 'underline' }}>Google Cloud Console</a> (Authorized JavaScript origin: <code>http://localhost:5173</code>).
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Real Google Button Container when Client ID is available */}
+                  {googleClientId && (
+                    <div style={{ padding: '16px 28px', textAlign: 'center', background: '#F0FDF4', borderBottom: '1px solid #BBF7D0' }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#15803D', marginBottom: 10 }}>
+                        Cửa sổ đăng nhập Google thật đã sẵn sàng:
+                      </div>
+                      <div id="g_real_signin_btn" style={{ display: 'flex', justifyContent: 'center' }}></div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Google Terms Footer */}
