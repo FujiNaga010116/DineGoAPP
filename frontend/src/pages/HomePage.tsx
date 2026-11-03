@@ -97,20 +97,20 @@ export const HomePage: React.FC<HomePageProps> = ({
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1.6fr 1fr',
-            gap: 16,
+            gridTemplateColumns: '1.65fr 1fr',
+            gap: 20,
           }}
         >
           {/* Main Giant Banner */}
           <div
             style={{
               background: 'linear-gradient(135deg, #00B14F 0%, #007A34 100%)',
-              borderRadius: 24,
-              padding: '36px 40px',
+              borderRadius: 22,
+              padding: '32px 36px',
               color: '#FFFFFF',
               position: 'relative',
               overflow: 'hidden',
-              boxShadow: '0 8px 24px rgba(0, 177, 79, 0.25)',
+              boxShadow: '0 8px 24px rgba(0, 177, 79, 0.22)',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'center',
@@ -124,7 +124,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 width: 260,
                 height: 260,
                 borderRadius: '50%',
-                background: 'rgba(255, 255, 255, 0.1)',
+                background: 'rgba(255, 255, 255, 0.08)',
                 pointerEvents: 'none',
               }}
             />
@@ -138,7 +138,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 color: '#00B14F',
                 padding: '4px 12px',
                 borderRadius: 20,
-                fontSize: '0.8rem',
+                fontSize: '0.78rem',
                 fontWeight: 800,
                 width: 'fit-content',
                 marginBottom: 12,
@@ -147,12 +147,12 @@ export const HomePage: React.FC<HomePageProps> = ({
               <Sparkles size={14} /> SIÊU ĐẠI TIỆC DINEGO x MOMO
             </div>
 
-            <h1 style={{ fontSize: '2.4rem', fontWeight: 900, lineHeight: 1.15, marginBottom: 12, letterSpacing: -0.5 }}>
+            <h1 style={{ fontSize: '2.1rem', fontWeight: 900, lineHeight: 1.2, marginBottom: 10, letterSpacing: -0.5 }}>
               Giảm 50% Đơn Đầu Tiên <br />
               <span style={{ color: '#FACC15' }}>Freeship Toàn Thành Phố</span>
             </h1>
 
-            <p style={{ fontSize: '0.95rem', opacity: 0.92, marginBottom: 20, maxWidth: 440 }}>
+            <p style={{ fontSize: '0.92rem', opacity: 0.92, marginBottom: 20, maxWidth: 480, lineHeight: 1.5 }}>
               Nhập mã <strong>DINEGO50</strong> khi thanh toán qua MoMo All-in-One Gateway. Thức ăn nóng hổi giao tận nơi chỉ 20 phút!
             </p>
 
@@ -164,10 +164,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                   background: '#FFFFFF',
                   color: '#00B14F',
                   fontWeight: 800,
-                  fontSize: '0.95rem',
-                  padding: '12px 24px',
+                  fontSize: '0.92rem',
+                  padding: '11px 22px',
                   borderRadius: 14,
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)',
                 }}
               >
                 Đặt món ngay <ArrowRight size={16} />
@@ -177,13 +177,14 @@ export const HomePage: React.FC<HomePageProps> = ({
                 onClick={() => onNavigate('catering')}
                 className="btn"
                 style={{
-                  background: 'rgba(0, 0, 0, 0.25)',
+                  background: 'rgba(0, 0, 0, 0.22)',
                   color: '#FFFFFF',
                   fontWeight: 700,
-                  fontSize: '0.95rem',
-                  padding: '12px 20px',
+                  fontSize: '0.92rem',
+                  padding: '11px 20px',
                   borderRadius: 14,
                   backdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
                 }}
               >
                 Đặt mâm cỗ tiệc
@@ -199,28 +200,37 @@ export const HomePage: React.FC<HomePageProps> = ({
               style={{
                 background: 'linear-gradient(135deg, #1E1B4B 0%, #312E81 100%)',
                 borderRadius: 20,
-                padding: '22px 24px',
+                padding: '20px 22px',
                 color: '#fff',
                 cursor: 'pointer',
-                boxShadow: '0 4px 16px rgba(49, 46, 129, 0.2)',
+                boxShadow: '0 4px 16px rgba(49, 46, 129, 0.18)',
                 position: 'relative',
                 overflow: 'hidden',
                 flex: 1,
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'center',
+                transition: 'transform 0.2s, box-shadow 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 8px 24px rgba(49, 46, 129, 0.28)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'none';
+                e.currentTarget.style.boxShadow = '0 4px 16px rgba(49, 46, 129, 0.18)';
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <Compass size={18} color="#A78BFA" />
-                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#A78BFA', textTransform: 'uppercase' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+                <Compass size={17} color="#A78BFA" />
+                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#A78BFA', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                   AI Culinary Guide
                 </span>
               </div>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: 4 }}>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: 4 }}>
                 Chưa biết hôm nay ăn gì?
               </h3>
-              <p style={{ fontSize: '0.82rem', opacity: 0.85 }}>
+              <p style={{ fontSize: '0.82rem', opacity: 0.85, lineHeight: 1.45, margin: 0 }}>
                 Chat với AI để nhận gợi ý món ăn chuẩn vị 3 miền theo khẩu vị và ngân sách.
               </p>
             </div>
@@ -232,26 +242,35 @@ export const HomePage: React.FC<HomePageProps> = ({
                 background: 'linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%)',
                 border: '1.5px solid #FDBA74',
                 borderRadius: 20,
-                padding: '22px 24px',
+                padding: '20px 22px',
                 color: '#9A3412',
                 cursor: 'pointer',
-                boxShadow: '0 4px 16px rgba(255, 87, 34, 0.1)',
+                boxShadow: '0 4px 16px rgba(255, 87, 34, 0.08)',
                 flex: 1,
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'center',
+                transition: 'transform 0.2s, box-shadow 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 8px 24px rgba(255, 87, 34, 0.16)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'none';
+                e.currentTarget.style.boxShadow = '0 4px 16px rgba(255, 87, 34, 0.08)';
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <Users size={18} color="#EA580C" />
-                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#EA580C', textTransform: 'uppercase' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+                <Users size={17} color="#EA580C" />
+                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#EA580C', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                   Đặt Đơn Cùng Nhóm
                 </span>
               </div>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: 4, color: '#9A3412' }}>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: 4, color: '#9A3412' }}>
                 Đặt Cùng Bạn Bè & Chia Tiền
               </h3>
-              <p style={{ fontSize: '0.82rem', color: '#C2410C' }}>
+              <p style={{ fontSize: '0.82rem', color: '#C2410C', lineHeight: 1.45, margin: 0 }}>
                 Tạo phòng nhóm mã PIN 6 số, chọn món cùng lúc và Split Bill tự động siêu vui.
               </p>
             </div>
@@ -273,9 +292,10 @@ export const HomePage: React.FC<HomePageProps> = ({
         <div
           style={{
             display: 'flex',
-            gap: 20,
+            gap: 28,
             overflowX: 'auto',
-            paddingBottom: 10,
+            paddingBottom: 12,
+            scrollbarWidth: 'none',
           }}
         >
           {CATEGORIES.map((cat) => {
@@ -291,24 +311,26 @@ export const HomePage: React.FC<HomePageProps> = ({
                   }
                 }}
                 className="category-item-circle"
-                style={{ minWidth: 84 }}
+                style={{ minWidth: 96, flexShrink: 0 }}
               >
                 <div
                   className="circle-icon"
                   style={{
                     borderColor: isSelected ? '#00B14F' : '#E5E7EB',
                     background: isSelected ? '#F0FDF4' : '#FFFFFF',
-                    boxShadow: isSelected ? '0 6px 16px rgba(0, 177, 79, 0.2)' : 'var(--shadow-xs)',
+                    boxShadow: isSelected ? '0 6px 16px rgba(0, 177, 79, 0.25)' : 'var(--shadow-xs)',
+                    transform: isSelected ? 'scale(1.05)' : 'none',
                   }}
                 >
-                  <span>{cat.icon}</span>
+                  <span style={{ fontSize: '2rem' }}>{cat.icon}</span>
                 </div>
                 <span
                   style={{
-                    fontSize: '0.82rem',
+                    fontSize: '0.86rem',
                     fontWeight: isSelected ? 800 : 600,
-                    color: isSelected ? '#00B14F' : '#4B5563',
+                    color: isSelected ? '#00B14F' : '#374151',
                     textAlign: 'center',
+                    marginTop: 2,
                   }}
                 >
                   {cat.name}

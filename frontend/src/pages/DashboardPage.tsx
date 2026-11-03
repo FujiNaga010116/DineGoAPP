@@ -401,9 +401,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           {/* Merchant Navigation Sub-Tabs */}
           <div
             style={{
-              display: 'flex',
-              gap: 10,
+              display: 'inline-flex',
+              gap: 8,
               marginBottom: 24,
+              background: '#FFFFFF',
+              padding: 6,
+              borderRadius: 16,
+              border: '1px solid var(--border)',
+              boxShadow: 'var(--shadow-xs)',
               flexWrap: 'wrap',
             }}
           >
@@ -413,21 +418,31 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                padding: '10px 18px',
+                padding: '8px 18px',
                 borderRadius: 12,
-                background: merchantSubTab === 'orders' ? 'var(--primary)' : '#FFFFFF',
-                color: merchantSubTab === 'orders' ? '#FFFFFF' : 'var(--text-main)',
-                border: '1.5px solid',
-                borderColor: merchantSubTab === 'orders' ? 'var(--primary)' : 'var(--border)',
+                background: merchantSubTab === 'orders' ? 'var(--primary)' : 'transparent',
+                color: merchantSubTab === 'orders' ? '#FFFFFF' : 'var(--text-secondary)',
+                border: 'none',
                 fontWeight: 700,
-                fontSize: '0.9rem',
+                fontSize: '0.88rem',
                 cursor: 'pointer',
-                boxShadow: merchantSubTab === 'orders' ? '0 4px 14px rgba(0, 177, 79, 0.3)' : 'var(--shadow-sm)',
                 transition: 'all 0.2s',
               }}
             >
-              <ChefHat size={18} />
-              <span>Bếp Trực Tiếp & Đơn Hàng ({orders.filter((o) => ['PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'].includes(o.status)).length})</span>
+              <ChefHat size={16} />
+              <span>Bếp Trực Tiếp</span>
+              <span
+                style={{
+                  background: merchantSubTab === 'orders' ? 'rgba(255, 255, 255, 0.25)' : 'var(--bg-subtle)',
+                  color: merchantSubTab === 'orders' ? '#FFFFFF' : 'var(--text-main)',
+                  padding: '2px 8px',
+                  borderRadius: 10,
+                  fontSize: '0.78rem',
+                  fontWeight: 800,
+                }}
+              >
+                {orders.filter((o) => ['PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'].includes(o.status)).length}
+              </span>
             </button>
 
             <button
@@ -436,21 +451,31 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                padding: '10px 18px',
+                padding: '8px 18px',
                 borderRadius: 12,
-                background: merchantSubTab === 'menu' ? 'var(--primary)' : '#FFFFFF',
-                color: merchantSubTab === 'menu' ? '#FFFFFF' : 'var(--text-main)',
-                border: '1.5px solid',
-                borderColor: merchantSubTab === 'menu' ? 'var(--primary)' : 'var(--border)',
+                background: merchantSubTab === 'menu' ? 'var(--primary)' : 'transparent',
+                color: merchantSubTab === 'menu' ? '#FFFFFF' : 'var(--text-secondary)',
+                border: 'none',
                 fontWeight: 700,
-                fontSize: '0.9rem',
+                fontSize: '0.88rem',
                 cursor: 'pointer',
-                boxShadow: merchantSubTab === 'menu' ? '0 4px 14px rgba(0, 177, 79, 0.3)' : 'var(--shadow-sm)',
                 transition: 'all 0.2s',
               }}
             >
-              <UtensilsCrossed size={18} />
-              <span>Quản Lý Menu Theo Phiên Chợ (Bật/Tắt Món)</span>
+              <UtensilsCrossed size={16} />
+              <span>Thực Đơn Đi Chợ</span>
+              <span
+                style={{
+                  background: merchantSubTab === 'menu' ? 'rgba(255, 255, 255, 0.25)' : 'var(--bg-subtle)',
+                  color: merchantSubTab === 'menu' ? '#FFFFFF' : 'var(--text-main)',
+                  padding: '2px 8px',
+                  borderRadius: 10,
+                  fontSize: '0.78rem',
+                  fontWeight: 800,
+                }}
+              >
+                {merchantDishes.length} món
+              </span>
             </button>
 
             <button
@@ -459,21 +484,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                padding: '10px 18px',
+                padding: '8px 18px',
                 borderRadius: 12,
-                background: merchantSubTab === 'kyc' ? 'var(--primary)' : '#FFFFFF',
-                color: merchantSubTab === 'kyc' ? '#FFFFFF' : 'var(--text-main)',
-                border: '1.5px solid',
-                borderColor: merchantSubTab === 'kyc' ? 'var(--primary)' : 'var(--border)',
+                background: merchantSubTab === 'kyc' ? 'var(--primary)' : 'transparent',
+                color: merchantSubTab === 'kyc' ? '#FFFFFF' : 'var(--text-secondary)',
+                border: 'none',
                 fontWeight: 700,
-                fontSize: '0.9rem',
+                fontSize: '0.88rem',
                 cursor: 'pointer',
-                boxShadow: merchantSubTab === 'kyc' ? '0 4px 14px rgba(0, 177, 79, 0.3)' : 'var(--shadow-sm)',
                 transition: 'all 0.2s',
               }}
             >
-              <ShieldCheck size={18} />
-              <span>Hồ Sơ Xác Thực Mặt Bằng (KYC)</span>
+              <ShieldCheck size={16} />
+              <span>Hồ Sơ Quán & KYC</span>
             </button>
           </div>
 

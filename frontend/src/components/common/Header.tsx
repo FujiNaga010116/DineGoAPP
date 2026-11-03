@@ -102,77 +102,93 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Main Navigation Bar */}
-      <div className="container header-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 74 }}>
+      <div className="container header-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 76, gap: 16 }}>
         {/* Brand Logo */}
         <div
           className="brand-logo"
-          style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
+          style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}
           onClick={() => onNavigate('home')}
         >
           <div
             style={{
-              width: 42,
-              height: 42,
+              width: 40,
+              height: 40,
               borderRadius: 12,
               background: 'linear-gradient(135deg, #00B14F 0%, #00873C 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#fff',
-              boxShadow: '0 4px 12px rgba(0, 177, 79, 0.35)',
+              boxShadow: '0 4px 12px rgba(0, 177, 79, 0.3)',
             }}
           >
-            <Flame size={24} />
+            <Flame size={22} />
           </div>
           <div>
-            <div style={{ fontSize: '1.45rem', fontWeight: 900, color: '#111827', letterSpacing: -0.5 }}>
+            <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#111827', letterSpacing: -0.5, lineHeight: 1.1 }}>
               Dine<span style={{ color: '#00B14F' }}>Go</span>
             </div>
-            <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#00B14F', letterSpacing: 1.5, marginTop: -4 }}>
+            <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#00B14F', letterSpacing: 1.5, marginTop: 1 }}>
               DELIVERY & FEAST
             </div>
           </div>
         </div>
 
         {/* Navigation Tabs (Sprint 1 to 5) */}
-        <nav className="nav-links">
+        <nav
+          className="nav-links"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            background: 'rgba(243, 244, 246, 0.65)',
+            padding: '4px 6px',
+            borderRadius: 24,
+            border: '1px solid rgba(229, 231, 235, 0.8)',
+          }}
+        >
           <button
             className={`nav-item ${currentTab === 'home' || currentTab === 'restaurant' ? 'active' : ''}`}
             onClick={() => onNavigate('home')}
+            style={{ padding: '7px 13px', fontSize: '0.86rem' }}
           >
-            <Sparkles size={16} />
+            <Sparkles size={15} />
             Khám phá
           </button>
 
           <button
             className={`nav-item ${currentTab === 'catering' ? 'active' : ''}`}
             onClick={() => onNavigate('catering')}
+            style={{ padding: '7px 13px', fontSize: '0.86rem' }}
           >
-            <UtensilsCrossed size={16} />
+            <UtensilsCrossed size={15} />
             Mâm cỗ tiệc
           </button>
 
           <button
             className={`nav-item ${currentTab === 'group-order' ? 'active' : ''}`}
             onClick={() => onNavigate('group-order')}
+            style={{ padding: '7px 13px', fontSize: '0.86rem' }}
           >
-            <Users size={16} />
+            <Users size={15} />
             Đặt nhóm
           </button>
 
           <button
             className={`nav-item ${currentTab === 'ai-guide' ? 'active' : ''}`}
             onClick={() => onNavigate('ai-guide')}
+            style={{ padding: '7px 13px', fontSize: '0.86rem' }}
           >
-            <Compass size={16} />
+            <Compass size={15} />
             AI Guide
           </button>
 
           <button
             className={`nav-item ${currentTab === 'tracking' ? 'active' : ''}`}
             onClick={() => onNavigate('tracking')}
+            style={{ padding: '7px 13px', fontSize: '0.86rem' }}
           >
-            <Bike size={16} />
+            <Bike size={15} />
             Lộ trình giao
           </button>
 
@@ -185,8 +201,9 @@ export const Header: React.FC<HeaderProps> = ({
                 onNavigate('orders');
               }
             }}
+            style={{ padding: '7px 13px', fontSize: '0.86rem' }}
           >
-            <Clock size={16} />
+            <Clock size={15} />
             Đơn của tôi
           </button>
 
@@ -195,15 +212,22 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               className={`nav-item ${currentTab === 'dashboard' ? 'active' : ''}`}
               onClick={() => onNavigate('dashboard')}
+              style={{
+                padding: '7px 13px',
+                fontSize: '0.86rem',
+                color: currentTab === 'dashboard' ? '#FFFFFF' : '#8B5CF6',
+                background: currentTab === 'dashboard' ? '#8B5CF6' : 'rgba(139, 92, 246, 0.1)',
+                borderColor: 'rgba(139, 92, 246, 0.25)',
+              }}
             >
-              <BarChart3 size={16} />
+              <BarChart3 size={15} />
               Quản trị sàn
             </button>
           )}
         </nav>
 
         {/* Right Section: Cart + Auth Buttons / User Profile */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           {/* Mở Quán Bán Hàng (Đối tác Nhà Hàng) */}
           {onOpenMerchantRegisterModal && (
             <button
@@ -211,19 +235,26 @@ export const Header: React.FC<HeaderProps> = ({
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '8px 14px',
-                borderRadius: 12,
-                background: 'rgba(245, 158, 11, 0.12)',
+                gap: 5,
+                padding: '7px 12px',
+                borderRadius: 20,
+                background: 'rgba(245, 158, 11, 0.1)',
                 color: '#D97706',
-                border: '1.5px solid rgba(245, 158, 11, 0.35)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
                 fontWeight: 700,
-                fontSize: '0.82rem',
+                fontSize: '0.8rem',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(245, 158, 11, 0.18)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(245, 158, 11, 0.1)';
               }}
             >
-              <Store size={15} /> Mở Quán Bán Hàng
+              <Store size={14} /> Mở Quán
             </button>
           )}
 
@@ -232,6 +263,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="cart-btn"
             onClick={() => onNavigate('checkout')}
             title="Xem giỏ hàng"
+            style={{ padding: '8px 14px', borderRadius: 20 }}
           >
             <ShoppingBag size={18} />
             {cartCount > 0 && <span className="cart-count">{cartCount}</span>}
