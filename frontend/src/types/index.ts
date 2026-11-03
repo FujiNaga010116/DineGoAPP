@@ -9,6 +9,7 @@ export type OrderStatus =
   | 'CONFIRMED'
   | 'PREPARING'
   | 'READY_FOR_PICKUP'
+  | 'DELIVERING'
   | 'COMPLETED'
   | 'CANCELLED';
 

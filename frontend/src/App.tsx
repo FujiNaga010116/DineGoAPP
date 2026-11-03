@@ -16,6 +16,7 @@ import { TrackingPage } from './pages/TrackingPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { AuthModal } from './components/common/AuthModal';
 import { ReviewModal } from './components/common/ReviewModal';
+import { RoleSwitcherBar } from './components/common/RoleSwitcherBar';
 import { CartProvider } from './context/CartContext';
 import { MOCK_MERCHANTS, CURRENT_USER } from './api/client';
 import type { Merchant, Order, OrderStatus, User } from './types';
@@ -213,6 +214,11 @@ export const AppContent: React.FC = () => {
           <CheckoutPage
             onBack={() => setCurrentTab('restaurant')}
             onOrderPlaced={handleOrderPlaced}
+            currentUser={currentUser}
+            onOpenAuthModal={(mode) => {
+              setAuthModalMode(mode || 'login');
+              setIsAuthModalOpen(true);
+            }}
           />
         )}
 
@@ -239,13 +245,55 @@ export const AppContent: React.FC = () => {
         )}
 
         {/* Sprint 4: GPS Shipper Real-Time Tracking */}
-        {currentTab === 'tracking' && <TrackingPage />}
+        {currentTab === 'tracking' && (
+          <TrackingPage
+            activeOrder={orders[0] || null}
+            onUpdateOrderStatus={handleUpdateOrderStatus}
+            isDriverMode={currentUser?.roles?.includes('DRIVER') || false}
+            onOpenReviewModal={(order) => setReviewModalOrder(order)}
+            onSwitchToMerchant={() => {
+              setCurrentTab('dashboard');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onExploreFood={() => setCurrentTab('home')}
+          />
+        )}
 
         {/* Sprint 5: Dashboard & Moderation & Reconciliation */}
-        {currentTab === 'dashboard' && <DashboardPage currentUser={currentUser} />}
+        {currentTab === 'dashboard' && (
+          <DashboardPage
+            currentUser={currentUser}
+            onOpenAuthModal={() => {
+              setAuthModalMode('login');
+              setIsAuthModalOpen(true);
+            }}
+            orders={orders}
+            onUpdateOrderStatus={handleUpdateOrderStatus}
+            onSwitchToDriver={() => {
+              setCurrentTab('tracking');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
+        )}
       </main>
 
       <Footer />
+
+      {/* Interactive Floating Multi-Role Switcher Bar */}
+      <RoleSwitcherBar
+        currentUser={currentUser}
+        onSelectUser={(user) => {
+          setCurrentUser(user);
+          localStorage.setItem('dinego_user', JSON.stringify(user));
+        }}
+        onNavigateTab={(tab) => {
+          setCurrentTab(tab);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        latestOrder={orders[0] || null}
+        onUpdateOrderStatus={handleUpdateOrderStatus}
+        onOpenReviewModal={(order) => setReviewModalOrder(order)}
+      />
 
       {/* Sprint 1: Auth & Role Switcher Modal */}
       <AuthModal

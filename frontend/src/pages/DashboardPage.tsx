@@ -23,15 +23,30 @@ import {
   Star,
   Clock,
   Sparkles,
+  ChefHat,
+  Bike,
+  PackageCheck,
+  UtensilsCrossed,
+  MapPin,
+  Phone,
 } from 'lucide-react';
-import type { Role, User } from '../types';
+import type { Role, User, Order, OrderStatus } from '../types';
 
 interface DashboardPageProps {
   currentUser: User | null;
   onOpenAuthModal?: () => void;
+  orders?: Order[];
+  onUpdateOrderStatus?: (orderId: string, newStatus: OrderStatus) => void;
+  onSwitchToDriver?: () => void;
 }
 
-export const DashboardPage: React.FC<DashboardPageProps> = ({ currentUser, onOpenAuthModal }) => {
+export const DashboardPage: React.FC<DashboardPageProps> = ({
+  currentUser,
+  onOpenAuthModal,
+  orders = [],
+  onUpdateOrderStatus,
+  onSwitchToDriver,
+}) => {
   const isDefaultAdmin = currentUser?.roles?.includes('ADMIN') ?? false;
   const [viewMode, setViewMode] = useState<'merchant' | 'admin'>(isDefaultAdmin ? 'admin' : 'merchant');
 
@@ -281,6 +296,328 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ currentUser, onOpe
       {/* VIEW: MERCHANT DASHBOARD */}
       {viewMode === 'merchant' && (
         <div>
+          {/* Live Kitchen & Order Reception Console */}
+          <div
+            style={{
+              background: '#FFFFFF',
+              border: '1.5px solid var(--border)',
+              borderRadius: 20,
+              padding: '24px',
+              marginBottom: 28,
+              boxShadow: 'var(--shadow-md)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 12,
+                marginBottom: 20,
+                borderBottom: '1px solid var(--border)',
+                paddingBottom: 16,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 14,
+                    background: 'rgba(245, 158, 11, 0.15)',
+                    color: '#D97706',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <ChefHat size={22} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                    Khu Vực Bếp & Nhận Đơn Trực Tiếp (Kitchen Live Console)
+                  </h2>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '2px 0 0 0' }}>
+                    Đơn hàng mới nhận từ khách hàng cần nhà hàng chế biến và đóng gói
+                  </p>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 14px',
+                  borderRadius: 20,
+                  background: 'rgba(0, 177, 79, 0.1)',
+                  color: 'var(--primary)',
+                  fontSize: '0.82rem',
+                  fontWeight: 800,
+                }}
+              >
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: 'var(--primary)',
+                    display: 'inline-block',
+                  }}
+                />
+                Đang trực tuyến • Sẵn sàng nhận đơn
+              </div>
+            </div>
+
+            {orders.filter((o) => ['PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'].includes(o.status)).length === 0 ? (
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '36px 20px',
+                  background: 'var(--bg-main)',
+                  borderRadius: 16,
+                  border: '1px dashed var(--border)',
+                }}
+              >
+                <UtensilsCrossed size={36} color="var(--text-muted)" style={{ margin: '0 auto 10px auto' }} />
+                <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '1rem', marginBottom: 4 }}>
+                  Chưa có đơn hàng nào đang chờ nấu trong bếp
+                </div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  Khi khách hàng đặt món trên ứng dụng DineGo, chuông báo và thông tin đơn sẽ xuất hiện tại đây ngay lập tức.
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {orders
+                  .filter((o) => ['PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'].includes(o.status))
+                  .map((order) => {
+                    const foodNetPayout = Math.round(order.subtotal * 0.85);
+                    const commissionFee = Math.round(order.subtotal * 0.15);
+
+                    return (
+                      <div
+                        key={order.id}
+                        style={{
+                          border: '1.5px solid var(--border)',
+                          borderRadius: 16,
+                          padding: '18px 20px',
+                          background: order.status === 'PREPARING' ? 'rgba(124, 58, 237, 0.03)' : '#FFFFFF',
+                          boxShadow: 'var(--shadow-sm)',
+                        }}
+                      >
+                        {/* Order Header */}
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                            gap: 10,
+                            marginBottom: 14,
+                            borderBottom: '1px solid var(--border)',
+                            paddingBottom: 12,
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--text-main)' }}>
+                              #{order.orderNumber}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: '0.78rem',
+                                padding: '3px 10px',
+                                borderRadius: 8,
+                                fontWeight: 800,
+                                background:
+                                  order.status === 'PREPARING'
+                                    ? '#EDE9FE'
+                                    : order.status === 'READY_FOR_PICKUP'
+                                    ? '#D1FAE5'
+                                    : '#FEF3C7',
+                                color:
+                                  order.status === 'PREPARING'
+                                    ? '#7C3AED'
+                                    : order.status === 'READY_FOR_PICKUP'
+                                    ? '#059669'
+                                    : '#D97706',
+                              }}
+                            >
+                              {order.status === 'PENDING' || order.status === 'CONFIRMED'
+                                ? '🔔 Đơn Mới Đến • Chờ Làm'
+                                : order.status === 'PREPARING'
+                                ? '👨‍🍳 Bếp Đang Nấu'
+                                : '📦 Chờ Shipper Lấy Món'}
+                            </span>
+                          </div>
+
+                          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                            <Clock size={13} style={{ display: 'inline', marginRight: 4 }} />
+                            {new Date(order.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
+
+                        {/* Customer & Address Details */}
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                            gap: 12,
+                            marginBottom: 14,
+                            background: 'var(--bg-main)',
+                            padding: '12px 14px',
+                            borderRadius: 12,
+                          }}
+                        >
+                          <div style={{ fontSize: '0.85rem' }}>
+                            <strong style={{ color: 'var(--text-main)' }}>Khách nhận:</strong> {order.recipientName}{' '}
+                            <span style={{ color: 'var(--text-muted)' }}>({order.recipientPhone})</span>
+                          </div>
+                          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                            <MapPin size={14} style={{ display: 'inline', marginRight: 4, color: 'var(--primary)' }} />
+                            {order.deliveryAddress}
+                          </div>
+                        </div>
+
+                        {/* Items List */}
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8 }}>
+                            DANH SÁCH MÓN CẦN NẤU:
+                          </div>
+                          {order.items.map((item, idx) => (
+                            <div
+                              key={idx}
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '6px 0',
+                                borderBottom: idx < order.items.length - 1 ? '1px dashed var(--border)' : 'none',
+                                fontSize: '0.9rem',
+                              }}
+                            >
+                              <div>
+                                <span style={{ fontWeight: 800, color: 'var(--primary)', marginRight: 8 }}>
+                                  {item.quantity}x
+                                </span>
+                                <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{item.itemName}</span>
+                                {item.toppings && item.toppings.length > 0 && (
+                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: 24 }}>
+                                    + {item.toppings.map((t) => t.toppingName).join(', ')}
+                                  </div>
+                                )}
+                              </div>
+                              <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>
+                                {item.subtotal.toLocaleString('vi-VN')}đ
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Financial Settlement Breakdown for Merchant */}
+                        <div
+                          style={{
+                            background: 'rgba(0, 177, 79, 0.05)',
+                            border: '1px solid rgba(0, 177, 79, 0.2)',
+                            borderRadius: 12,
+                            padding: '12px 16px',
+                            marginBottom: 16,
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                            gap: 12,
+                          }}
+                        >
+                          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                            Giá món: <strong style={{ color: 'var(--text-main)' }}>{order.subtotal.toLocaleString('vi-VN')}đ</strong> • 
+                            Phí sàn (15% BR-42): <strong style={{ color: '#EF4444' }}>-{commissionFee.toLocaleString('vi-VN')}đ</strong>
+                          </div>
+                          <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--primary)' }}>
+                            Ví quán thực nhận (85%): +{foodNetPayout.toLocaleString('vi-VN')}đ
+                          </div>
+                        </div>
+
+                        {/* Merchant Action Buttons */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
+                          {(order.status === 'PENDING' || order.status === 'CONFIRMED') && (
+                            <button
+                              onClick={() => onUpdateOrderStatus?.(order.id, 'PREPARING')}
+                              className="btn btn-primary"
+                              style={{
+                                padding: '10px 20px',
+                                fontSize: '0.9rem',
+                                fontWeight: 800,
+                                borderRadius: 12,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 8,
+                              }}
+                            >
+                              <ChefHat size={18} />
+                              <span>Nhận Đơn & Bắt Tay Vào Nấu (PREPARING)</span>
+                            </button>
+                          )}
+
+                          {order.status === 'PREPARING' && (
+                            <button
+                              onClick={() => onUpdateOrderStatus?.(order.id, 'READY_FOR_PICKUP')}
+                              style={{
+                                background: '#7C3AED',
+                                color: '#FFFFFF',
+                                padding: '10px 20px',
+                                fontSize: '0.9rem',
+                                fontWeight: 800,
+                                borderRadius: 12,
+                                border: 'none',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                boxShadow: '0 4px 14px rgba(124, 58, 237, 0.3)',
+                              }}
+                            >
+                              <PackageCheck size={18} />
+                              <span>Món Đã Xong • Bàn Giao Shipper (READY FOR PICKUP)</span>
+                            </button>
+                          )}
+
+                          {order.status === 'READY_FOR_PICKUP' && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                              <span style={{ fontSize: '0.85rem', color: '#0284C7', fontWeight: 700 }}>
+                                🛵 Đang phát tín hiệu tìm Shipper gần nhất (bán kính 2km)...
+                              </span>
+                              {onSwitchToDriver && (
+                                <button
+                                  onClick={onSwitchToDriver}
+                                  style={{
+                                    background: '#0284C7',
+                                    color: '#FFFFFF',
+                                    padding: '8px 16px',
+                                    fontSize: '0.82rem',
+                                    fontWeight: 700,
+                                    borderRadius: 10,
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                  }}
+                                >
+                                  <Bike size={16} /> Chuyển sang màn hình Tài Xế
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+
           {/* Revenue KPI Cards */}
           <div
             style={{

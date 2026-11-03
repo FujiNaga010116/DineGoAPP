@@ -3,7 +3,7 @@
 // GrabFood Live Shipper Tracking, Route Simulation, Driver Profile & Geofence
 // ==============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Bike,
   MapPin,
@@ -18,7 +18,11 @@ import {
   Home,
   Sparkles,
   RotateCcw,
+  ChefHat,
+  PackageCheck,
+  Star,
 } from 'lucide-react';
+import type { Order, OrderStatus } from '../types';
 
 type TrackingStatus =
   | 'ASSIGNED'
@@ -43,22 +47,58 @@ interface TrackingState {
   etaMinutes: number;
 }
 
-export const TrackingPage: React.FC = () => {
+export interface TrackingPageProps {
+  activeOrder?: Order | null;
+  onUpdateOrderStatus?: (orderId: string, newStatus: OrderStatus) => void;
+  isDriverMode?: boolean;
+  onOpenReviewModal?: (order: Order) => void;
+  onSwitchToMerchant?: () => void;
+  onExploreFood?: () => void;
+}
+
+export const TrackingPage: React.FC<TrackingPageProps> = ({
+  activeOrder,
+  onUpdateOrderStatus,
+  isDriverMode = false,
+  onOpenReviewModal,
+  onSwitchToMerchant,
+  onExploreFood,
+}) => {
   const [tracking, setTracking] = useState<TrackingState>({
-    orderNumber: 'DG20261103-TRK88',
-    restaurantName: 'Cơm Tấm Sài Gòn 1985',
-    restaurantAddress: '123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1',
-    customerAddress: '45 Lê Duẩn, Bến Nghé, Quận 1, TP. HCM',
+    orderNumber: activeOrder?.orderNumber || 'DG20261103-TRK88',
+    restaurantName: activeOrder?.merchant?.name || 'Cơm Tấm Sài Gòn 1985',
+    restaurantAddress: activeOrder?.merchant?.address || '123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1',
+    customerAddress: activeOrder?.deliveryAddress || '45 Lê Duẩn, Bến Nghé, Quận 1, TP. HCM',
     driverName: 'Nguyễn Quốc Tuấn',
     driverPhone: '0909 888 999',
     licensePlate: '59-B1 888.26',
     driverRating: 4.9,
-    status: 'DELIVERING',
+    status: activeOrder?.status === 'COMPLETED' ? 'DELIVERED' : activeOrder?.status === 'DELIVERING' ? 'DELIVERING' : activeOrder?.status === 'READY_FOR_PICKUP' ? 'ARRIVED_AT_STORE' : 'ASSIGNED',
     currentLat: 10.778,
     currentLng: 106.702,
     distanceKm: 1.2,
     etaMinutes: 7,
   });
+
+  useEffect(() => {
+    if (activeOrder) {
+      setTracking((prev) => ({
+        ...prev,
+        orderNumber: activeOrder.orderNumber,
+        restaurantName: activeOrder.merchant.name,
+        restaurantAddress: activeOrder.merchant.address,
+        customerAddress: activeOrder.deliveryAddress,
+        status:
+          activeOrder.status === 'COMPLETED'
+            ? 'DELIVERED'
+            : activeOrder.status === 'DELIVERING'
+            ? 'DELIVERING'
+            : activeOrder.status === 'READY_FOR_PICKUP'
+            ? 'ARRIVED_AT_STORE'
+            : 'ASSIGNED',
+      }));
+    }
+  }, [activeOrder?.status, activeOrder?.orderNumber]);
 
   const handleNextStatus = () => {
     if (tracking.status === 'ASSIGNED') {
@@ -68,6 +108,9 @@ export const TrackingPage: React.FC = () => {
         distanceKm: 2.1,
         etaMinutes: 12,
       }));
+      if (activeOrder && onUpdateOrderStatus) {
+        onUpdateOrderStatus(activeOrder.id, 'READY_FOR_PICKUP');
+      }
     } else if (tracking.status === 'ARRIVED_AT_STORE') {
       setTracking((prev) => ({
         ...prev,
@@ -75,6 +118,9 @@ export const TrackingPage: React.FC = () => {
         distanceKm: 1.4,
         etaMinutes: 8,
       }));
+      if (activeOrder && onUpdateOrderStatus) {
+        onUpdateOrderStatus(activeOrder.id, 'DELIVERING');
+      }
     } else if (tracking.status === 'DELIVERING') {
       setTracking((prev) => ({
         ...prev,
@@ -89,6 +135,9 @@ export const TrackingPage: React.FC = () => {
         distanceKm: 0,
         etaMinutes: 0,
       }));
+      if (activeOrder && onUpdateOrderStatus) {
+        onUpdateOrderStatus(activeOrder.id, 'COMPLETED');
+      }
     }
   };
 
@@ -449,6 +498,89 @@ export const TrackingPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Driver Active Console (When user is viewing as Driver or E2E mode) */}
+          {(isDriverMode || (activeOrder && ['READY_FOR_PICKUP', 'DELIVERING'].includes(activeOrder.status))) && (
+            <div
+              style={{
+                marginTop: 20,
+                background: 'linear-gradient(135deg, #06B6D4 0%, #0284C7 100%)',
+                color: '#FFFFFF',
+                borderRadius: 16,
+                padding: '20px',
+                boxShadow: '0 8px 24px rgba(6, 182, 212, 0.25)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Bike size={22} />
+                  <span style={{ fontWeight: 800, fontSize: '1.05rem' }}>Bảng Điều Khiển Tài Xế (Driver Console)</span>
+                </div>
+                <span style={{ background: 'rgba(255, 255, 255, 0.2)', padding: '3px 10px', borderRadius: 8, fontSize: '0.75rem', fontWeight: 800 }}>
+                  Thu nhập cuốc: +{(activeOrder?.deliveryFee || 25000).toLocaleString('vi-VN')}đ
+                </span>
+              </div>
+
+              <p style={{ fontSize: '0.88rem', opacity: 0.95, marginBottom: 16 }}>
+                Điểm lấy hàng: <strong>{tracking.restaurantName}</strong> • Giao tới: <strong>{tracking.customerAddress}</strong>
+              </p>
+
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {(!activeOrder || activeOrder.status === 'READY_FOR_PICKUP' || tracking.status === 'ARRIVED_AT_STORE') && (
+                  <button
+                    onClick={() => {
+                      setTracking((prev) => ({ ...prev, status: 'DELIVERING' }));
+                      if (activeOrder && onUpdateOrderStatus) {
+                        onUpdateOrderStatus(activeOrder.id, 'DELIVERING');
+                      }
+                    }}
+                    style={{
+                      background: '#FFFFFF',
+                      color: '#0284C7',
+                      fontWeight: 800,
+                      padding: '10px 18px',
+                      borderRadius: 12,
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '0.88rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    <PackageCheck size={18} /> Đã Nhận Món Tại Quán • Bắt Đầu Giao
+                  </button>
+                )}
+
+                {(tracking.status === 'DELIVERING' || activeOrder?.status === 'DELIVERING') && (
+                  <button
+                    onClick={() => {
+                      setTracking((prev) => ({ ...prev, status: 'DELIVERED' }));
+                      if (activeOrder && onUpdateOrderStatus) {
+                        onUpdateOrderStatus(activeOrder.id, 'COMPLETED');
+                      }
+                    }}
+                    style={{
+                      background: '#10B981',
+                      color: '#FFFFFF',
+                      fontWeight: 800,
+                      padding: '10px 20px',
+                      borderRadius: 12,
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '0.9rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)',
+                    }}
+                  >
+                    <CheckCircle2 size={18} /> Đã Giao Tới Khách Hàng • Nhận Cước Phí
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Simulation Controls for E2E testing */}
           <div
             style={{
@@ -487,6 +619,128 @@ export const TrackingPage: React.FC = () => {
               )}
             </div>
           </div>
+
+          {/* Financial Settlement & Meal Received Card (When Delivered / Completed) */}
+          {(tracking.status === 'DELIVERED' || activeOrder?.status === 'COMPLETED') && (
+            <div
+              style={{
+                marginTop: 24,
+                background: 'linear-gradient(135deg, #F0FDF4 0%, #FFFFFF 100%)',
+                border: '2px solid #00B14F',
+                borderRadius: 20,
+                padding: '24px',
+                boxShadow: '0 10px 30px rgba(0, 177, 79, 0.15)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 14,
+                    background: '#00B14F',
+                    color: '#FFFFFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <CheckCircle2 size={26} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.3rem', fontWeight: 900, color: '#166534', margin: 0 }}>
+                    Đơn Hàng Giao Thành Công & Quyết Toán Thu Nhập Minh Bạch
+                  </h3>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.88rem', color: '#15803D' }}>
+                    Người dùng đã nhận được bữa ăn ngon lành • Doanh thu & cước phí đã tự động quyết toán vào ví Quán và ví Shipper
+                  </p>
+                </div>
+              </div>
+
+              {/* 3-Party Financial Settlement Breakdown */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                  gap: 16,
+                  marginBottom: 20,
+                }}
+              >
+                {/* 1. Nhà hàng */}
+                <div style={{ background: '#FFFFFF', padding: 18, borderRadius: 14, border: '1.5px solid #BBF7D0' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#D97706', marginBottom: 4 }}>
+                    🏪 VÍ QUÁN ĂN (CƠM TẤM SÀI GÒN)
+                  </div>
+                  <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#D97706' }}>
+                    +{(activeOrder ? Math.round(activeOrder.subtotal * 0.85) : 110500).toLocaleString('vi-VN')}đ
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                    Tiền món ăn thực nhận 85% (sau khấu trừ 15% hoa hồng sàn DineGo)
+                  </div>
+                </div>
+
+                {/* 2. Tài xế Shipper */}
+                <div style={{ background: '#FFFFFF', padding: 18, borderRadius: 14, border: '1.5px solid #BBF7D0' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0284C7', marginBottom: 4 }}>
+                    🛵 VÍ TÀI XẾ (NGUYỄN QUỐC TUẤN)
+                  </div>
+                  <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0284C7' }}>
+                    +{(activeOrder ? activeOrder.deliveryFee + 10000 : 25000).toLocaleString('vi-VN')}đ
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                    Nhận trọn 100% cước phí giao hàng ({activeOrder ? activeOrder.deliveryFee.toLocaleString('vi-VN') : '15.000'}đ) + Tiền tip khách tặng (10.000đ)
+                  </div>
+                </div>
+
+                {/* 3. Khách Hàng */}
+                <div style={{ background: '#FFFFFF', padding: 18, borderRadius: 14, border: '1.5px solid #BBF7D0' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#00B14F', marginBottom: 4 }}>
+                    🍲 KHÁCH HÀNG ({activeOrder?.recipientName || 'NGUYỄN VĂN AN'})
+                  </div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#00B14F' }}>
+                    Bữa Ăn Nóng Hổi Ngon Miệng!
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                    Món ăn nóng hổi đúng hương vị • Thanh toán an toàn minh bạch
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons for Review */}
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                {onOpenReviewModal && activeOrder && (
+                  <button
+                    onClick={() => onOpenReviewModal(activeOrder)}
+                    className="btn btn-primary"
+                    style={{
+                      padding: '12px 24px',
+                      fontWeight: 800,
+                      borderRadius: 12,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    <Star size={18} fill="#FFFFFF" /> Đánh Giá 5 Sao Cho Quán & Tài Xế
+                  </button>
+                )}
+                {onExploreFood && (
+                  <button
+                    onClick={onExploreFood}
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '12px 20px',
+                      fontWeight: 700,
+                      borderRadius: 12,
+                    }}
+                  >
+                    Tiếp tục đặt món khác
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

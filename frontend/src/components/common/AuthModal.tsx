@@ -48,6 +48,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
       email: 'user1@dinego.vn',
       fullName: 'Nguyễn Văn An (User 1)',
       phoneNumber: '0901000004',
+      address: '45 Lê Duẩn, Phường Bến Nghé, Quận 1, TP. HCM',
       roles: ['CUSTOMER'],
       avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
     },
@@ -64,6 +65,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
       email: 'user2@dinego.vn',
       fullName: 'Trần Thị Bình (User 2)',
       phoneNumber: '0901000005',
+      address: '12 Nguyễn Thị Minh Khai, Phường Đa Kao, Quận 1, TP. HCM',
       roles: ['CUSTOMER'],
       avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80',
     },
@@ -80,6 +82,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
       email: 'user3@dinego.vn',
       fullName: 'Lê Hoàng Cường (User 3)',
       phoneNumber: '0901000006',
+      address: '88 Nguyễn Đình Chiểu, Phường 6, Quận 3, TP. HCM',
       roles: ['CUSTOMER'],
       avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80',
     },
@@ -96,6 +99,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
       email: 'merchant@dinego.vn',
       fullName: 'Chủ Quán Cơm Tấm Sài Gòn',
       phoneNumber: '0901000002',
+      address: '123 Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. HCM',
       roles: ['MERCHANT'],
       avatarUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=100&auto=format&fit=crop&q=80',
     },
@@ -111,7 +115,8 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
       id: 'u-driver-001',
       email: 'driver@dinego.vn',
       fullName: 'Tài Xế Nguyễn Quốc Tuấn',
-      phoneNumber: '0901000003',
+      phoneNumber: '0909888999',
+      address: 'Khu vực Trung tâm Quận 1 & Bình Thạnh, TP. HCM',
       roles: ['DRIVER'],
       avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&auto=format&fit=crop&q=80',
     },
@@ -128,6 +133,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
       email: 'admin@dinego.vn',
       fullName: 'Quản Trị Viên Hệ Thống',
       phoneNumber: '0901000001',
+      address: 'Trụ sở DineGo Tower, Quận 1, TP. HCM',
       roles: ['ADMIN'],
       avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80',
     },
@@ -152,6 +158,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [registerPhone, setRegisterPhone] = useState('');
+  const [registerAddress, setRegisterAddress] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
 
@@ -230,6 +237,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         email: emailOrPhone.includes('@') ? emailOrPhone.trim() : `${emailOrPhone.trim()}@dinego.vn`,
         fullName: fullName.trim(),
         phoneNumber: registerPhone || (emailOrPhone.includes('@') ? '0901234567' : emailOrPhone.trim()),
+        address: registerAddress.trim() || '45 Lê Duẩn, Bến Nghé, Quận 1, TP. HCM',
         roles: ['CUSTOMER'],
       };
       onLoginSuccess(newUser);
@@ -618,6 +626,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   placeholder="0987654321"
                   value={registerPhone}
                   onChange={(e) => setRegisterPhone(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '11px 14px',
+                    borderRadius: 12,
+                    border: '1.5px solid #E5E7EB',
+                    fontSize: '0.9rem',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>
+                  Địa chỉ nhận hàng mặc định
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ví dụ: 123 Lê Lợi, P. Bến Nghé, Quận 1, TP. HCM"
+                  value={registerAddress}
+                  onChange={(e) => setRegisterAddress(e.target.value)}
                   style={{
                     width: '100%',
                     padding: '11px 14px',

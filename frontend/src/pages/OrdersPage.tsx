@@ -30,10 +30,11 @@ interface OrdersPageProps {
 
 const STATUS_LABELS: Record<OrderStatus, { text: string; step: number; color: string; bg: string }> = {
   PENDING: { text: 'Chờ thanh toán', step: 1, color: '#D97706', bg: '#FEF3C7' },
-  CONFIRMED: { text: 'Đã xác nhận', step: 2, color: '#0284C7', bg: '#E0F2FE' },
+  CONFIRMED: { text: 'Quán đã nhận', step: 2, color: '#0284C7', bg: '#E0F2FE' },
   PREPARING: { text: 'Quán đang làm món', step: 3, color: '#7C3AED', bg: '#EDE9FE' },
-  READY_FOR_PICKUP: { text: 'Tài xế đang giao', step: 4, color: '#059669', bg: '#D1FAE5' },
-  COMPLETED: { text: 'Giao thành công', step: 5, color: '#00B14F', bg: 'rgba(0, 177, 79, 0.12)' },
+  READY_FOR_PICKUP: { text: 'Chờ Shipper lấy món', step: 4, color: '#D97706', bg: '#FEF3C7' },
+  DELIVERING: { text: 'Tài xế đang giao', step: 5, color: '#059669', bg: '#D1FAE5' },
+  COMPLETED: { text: 'Giao thành công', step: 6, color: '#00B14F', bg: 'rgba(0, 177, 79, 0.12)' },
   CANCELLED: { text: 'Đã hủy đơn', step: 0, color: '#DC2626', bg: '#FEE2E2' },
 };
 
@@ -51,7 +52,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
 
   const filteredOrders = orders.filter((order) => {
     if (filterTab === 'active') {
-      return ['PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'].includes(order.status);
+      return ['PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP', 'DELIVERING'].includes(order.status);
     }
     if (filterTab === 'completed') {
       return ['COMPLETED', 'CANCELLED'].includes(order.status);
@@ -574,7 +575,8 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                       PENDING: 'CONFIRMED',
                       CONFIRMED: 'PREPARING',
                       PREPARING: 'READY_FOR_PICKUP',
-                      READY_FOR_PICKUP: 'COMPLETED',
+                      READY_FOR_PICKUP: 'DELIVERING',
+                      DELIVERING: 'COMPLETED',
                       COMPLETED: 'COMPLETED',
                       CANCELLED: 'CANCELLED',
                     };

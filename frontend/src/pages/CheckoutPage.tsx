@@ -3,7 +3,7 @@
 // Address Card, Delivery Estimation, Food Summary, Vouchers, MoMo / COD Gateway
 // ==============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   MapPin,
@@ -20,29 +20,52 @@ import {
   ChevronRight,
   Plus,
   Minus,
+  Lock,
+  LogIn,
 } from 'lucide-react';
 import { CURRENT_USER } from '../api/client';
 import { useCart } from '../context/CartContext';
-import type { Order, PaymentMethod } from '../types';
+import type { Order, PaymentMethod, User } from '../types';
 
 interface CheckoutPageProps {
   onBack: () => void;
   onOrderPlaced: (order: Order) => void;
+  currentUser: User | null;
+  onOpenAuthModal: (mode?: 'login' | 'register') => void;
 }
 
-export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlaced }) => {
+export const CheckoutPage: React.FC<CheckoutPageProps> = ({
+  onBack,
+  onOrderPlaced,
+  currentUser,
+  onOpenAuthModal,
+}) => {
   const { cart, updateQuantity, removeItem, applyVoucher, removeVoucher, clearCart } =
     useCart();
 
-  const [address, setAddress] = useState('123 Lê Lợi, Phường Bến Nghé, Quận 1, TP. HCM');
-  const [recipientName, setRecipientName] = useState(CURRENT_USER.fullName);
-  const [recipientPhone, setRecipientPhone] = useState(CURRENT_USER.phoneNumber || '0987654321');
+  const [address, setAddress] = useState(
+    currentUser?.address || '123 Lê Lợi, Phường Bến Nghé, Quận 1, TP. HCM',
+  );
+  const [recipientName, setRecipientName] = useState(
+    currentUser?.fullName || CURRENT_USER.fullName,
+  );
+  const [recipientPhone, setRecipientPhone] = useState(
+    currentUser?.phoneNumber || CURRENT_USER.phoneNumber || '0987654321',
+  );
   const [customerNote, setCustomerNote] = useState('');
   const [voucherInput, setVoucherInput] = useState('');
   const [voucherMsg, setVoucherMsg] = useState<{ text: string; isError: boolean } | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('MOMO_QR');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showMomoModal, setShowMomoModal] = useState<Order | null>(null);
+
+  useEffect(() => {
+    if (currentUser) {
+      if (currentUser.fullName) setRecipientName(currentUser.fullName);
+      if (currentUser.phoneNumber) setRecipientPhone(currentUser.phoneNumber);
+      if (currentUser.address) setAddress(currentUser.address);
+    }
+  }, [currentUser]);
 
   const handleApplyVoucher = (codeToApply?: string) => {
     const code = (codeToApply || voucherInput).trim();
@@ -56,6 +79,10 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
 
   const handlePlaceOrder = () => {
     if (cart.items.length === 0) return;
+    if (!currentUser) {
+      onOpenAuthModal('login');
+      return;
+    }
     setIsSubmitting(true);
 
     const orderNumber = `DG20261103-${Math.random().toString(16).substring(2, 8).toUpperCase()}`;
@@ -210,6 +237,69 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
           DineGo Fast Delivery
         </span>
       </div>
+
+      {/* Guest Mode Warning Banner */}
+      {!currentUser && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #FEF2F2 0%, #FFF1F2 100%)',
+            border: '1.5px solid #FCA5A5',
+            borderRadius: 18,
+            padding: '18px 22px',
+            marginBottom: 24,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 16,
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                background: '#EF4444',
+                color: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Lock size={22} />
+            </div>
+            <div>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: '#991B1B' }}>
+                Yêu cầu đăng nhập để hoàn tất đặt món
+              </div>
+              <div style={{ fontSize: '0.85rem', color: '#B91C1C' }}>
+                Vui lòng đăng nhập hoặc đăng ký (Họ tên, SĐT và Địa chỉ giao hàng) để Quán và Shipper phục vụ bạn.
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => onOpenAuthModal('login')}
+            className="btn"
+            style={{
+              background: '#EF4444',
+              color: '#FFFFFF',
+              fontWeight: 700,
+              padding: '10px 18px',
+              borderRadius: 12,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            <LogIn size={16} /> Đăng nhập / Đăng ký ngay
+          </button>
+        </div>
+      )}
 
       <div
         style={{
@@ -772,7 +862,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
             <button
               onClick={handlePlaceOrder}
               disabled={isSubmitting}
-              className={paymentMethod === 'MOMO_QR' ? 'btn-momo' : 'btn btn-primary'}
+              className={paymentMethod === 'MOMO_QR' && currentUser ? 'btn-momo' : 'btn btn-primary'}
               style={{
                 width: '100%',
                 padding: '15px 20px',
@@ -784,16 +874,27 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
                 justifyContent: 'center',
                 gap: 10,
                 cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                background: !currentUser ? '#EF4444' : undefined,
+                color: '#FFFFFF',
               }}
             >
-              <Sparkles size={18} />
-              <span>
-                {isSubmitting
-                  ? 'Đang xử lý đơn hàng...'
-                  : paymentMethod === 'MOMO_QR'
-                  ? `Thanh toán MoMo • ${cart.finalTotal.toLocaleString('vi-VN')}đ`
-                  : `Xác nhận đặt đơn • ${cart.finalTotal.toLocaleString('vi-VN')}đ`}
-              </span>
+              {!currentUser ? (
+                <>
+                  <Lock size={18} />
+                  <span>Đăng nhập để đặt món • {cart.finalTotal.toLocaleString('vi-VN')}đ</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles size={18} />
+                  <span>
+                    {isSubmitting
+                      ? 'Đang xử lý đơn hàng...'
+                      : paymentMethod === 'MOMO_QR'
+                      ? `Thanh toán MoMo • ${cart.finalTotal.toLocaleString('vi-VN')}đ`
+                      : `Xác nhận đặt đơn • ${cart.finalTotal.toLocaleString('vi-VN')}đ`}
+                  </span>
+                </>
+              )}
             </button>
           </div>
         </div>
