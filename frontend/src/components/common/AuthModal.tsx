@@ -173,6 +173,34 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Google OAuth Chooser States (Phải khai báo trước if (!isOpen) return null theo Rule of Hooks)
+  const [showGoogleChooser, setShowGoogleChooser] = useState(false);
+  const [googleAccounts] = useState([
+    {
+      email: 'fujinaga010116@gmail.com',
+      name: 'Huỳnh Thế Long (FujiNaga)',
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
+      lastUsed: 'Đã dùng gần đây trên thiết bị này',
+    },
+    {
+      email: 'an.nguyen.dinego@gmail.com',
+      name: 'Nguyễn Văn An',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
+      lastUsed: 'Đã đăng nhập',
+    },
+    {
+      email: 'mai.tran.foodie@gmail.com',
+      name: 'Trần Thị Mai',
+      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&auto=format&fit=crop&q=80',
+      lastUsed: 'Đã đăng nhập',
+    },
+  ]);
+  const [isAddingOtherGoogle, setIsAddingOtherGoogle] = useState(false);
+  const [otherGoogleEmail, setOtherGoogleEmail] = useState('');
+  const [otherGoogleName, setOtherGoogleName] = useState('');
+  const [googleAuthLoading, setGoogleAuthLoading] = useState(false);
+  const [selectedGoogleAccount, setSelectedGoogleAccount] = useState<any>(null);
+
   if (!isOpen) return null;
 
   // Xử lý đăng nhập thông thường
@@ -288,34 +316,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     onLoginSuccess(userToLog);
     onClose();
   };
-
-  // Google OAuth Chooser States
-  const [showGoogleChooser, setShowGoogleChooser] = useState(false);
-  const [googleAccounts] = useState([
-    {
-      email: 'fujinaga010116@gmail.com',
-      name: 'Huỳnh Thế Long (FujiNaga)',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
-      lastUsed: 'Đã dùng gần đây trên thiết bị này',
-    },
-    {
-      email: 'an.nguyen.dinego@gmail.com',
-      name: 'Nguyễn Văn An',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
-      lastUsed: 'Đã đăng nhập',
-    },
-    {
-      email: 'mai.tran.foodie@gmail.com',
-      name: 'Trần Thị Mai',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&auto=format&fit=crop&q=80',
-      lastUsed: 'Đã đăng nhập',
-    },
-  ]);
-  const [isAddingOtherGoogle, setIsAddingOtherGoogle] = useState(false);
-  const [otherGoogleEmail, setOtherGoogleEmail] = useState('');
-  const [otherGoogleName, setOtherGoogleName] = useState('');
-  const [googleAuthLoading, setGoogleAuthLoading] = useState(false);
-  const [selectedGoogleAccount, setSelectedGoogleAccount] = useState<any>(null);
 
   // Kích hoạt màn hình chọn tài khoản Google (Google OAuth 2.0 Chooser)
   const handleGoogleLogin = () => {
