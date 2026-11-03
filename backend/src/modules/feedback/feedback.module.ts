@@ -14,3 +14,4 @@ import { FeedbackService } from './feedback.service.js';
   exports: [FeedbackService],
 })
 export class FeedbackModule {}
+

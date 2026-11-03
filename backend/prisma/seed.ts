@@ -118,10 +118,11 @@ async function main() {
       merchantId: sampleMerchant.id,
       categoryId: mainCategory.id,
       name: 'Cơm Tấm Sườn Cọng Nướng Than',
+      slug: 'com-tam-suon-cong-nuong-than',
       description: 'Sườn cọng ướp mật ong đậm đà nướng than hoa thơm lừng.',
-      price: 65000,
+      basePrice: 65000,
       isAvailable: true,
-      preparationTime: 15,
+      displayOrder: 1,
     },
   });
 
