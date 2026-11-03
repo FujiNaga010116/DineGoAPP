@@ -19,6 +19,7 @@ import {
   Store,
   Bike,
   ArrowRight,
+  UserPlus,
 } from 'lucide-react';
 import type { Role, User } from '../../types';
 
@@ -288,10 +289,81 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     onClose();
   };
 
-  // Đăng nhập Google
+  // Google OAuth Chooser States
+  const [showGoogleChooser, setShowGoogleChooser] = useState(false);
+  const [googleAccounts] = useState([
+    {
+      email: 'fujinaga010116@gmail.com',
+      name: 'Huỳnh Thế Long (FujiNaga)',
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
+      lastUsed: 'Đã dùng gần đây trên thiết bị này',
+    },
+    {
+      email: 'an.nguyen.dinego@gmail.com',
+      name: 'Nguyễn Văn An',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
+      lastUsed: 'Đã đăng nhập',
+    },
+    {
+      email: 'mai.tran.foodie@gmail.com',
+      name: 'Trần Thị Mai',
+      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&auto=format&fit=crop&q=80',
+      lastUsed: 'Đã đăng nhập',
+    },
+  ]);
+  const [isAddingOtherGoogle, setIsAddingOtherGoogle] = useState(false);
+  const [otherGoogleEmail, setOtherGoogleEmail] = useState('');
+  const [otherGoogleName, setOtherGoogleName] = useState('');
+  const [googleAuthLoading, setGoogleAuthLoading] = useState(false);
+  const [selectedGoogleAccount, setSelectedGoogleAccount] = useState<any>(null);
+
+  // Kích hoạt màn hình chọn tài khoản Google (Google OAuth 2.0 Chooser)
   const handleGoogleLogin = () => {
-    onLoginSuccess(DEMO_ACCOUNTS[0].user); // Login as User 1
-    onClose();
+    setIsAddingOtherGoogle(false);
+    setOtherGoogleEmail('');
+    setOtherGoogleName('');
+    setSelectedGoogleAccount(null);
+    setGoogleAuthLoading(false);
+    setShowGoogleChooser(true);
+  };
+
+  // Chọn tài khoản Google có sẵn
+  const handleSelectGoogleAccount = (acc: { email: string; name: string; avatar?: string }) => {
+    setSelectedGoogleAccount(acc);
+    setGoogleAuthLoading(true);
+
+    setTimeout(() => {
+      setGoogleAuthLoading(false);
+      const googleUser: User = {
+        id: `usr-google-${Date.now()}`,
+        email: acc.email.trim(),
+        fullName: acc.name.trim(),
+        phoneNumber: '0901234567',
+        address: '45 Lê Duẩn, Bến Nghé, Quận 1, TP. HCM',
+        roles: ['CUSTOMER'],
+        avatarUrl: acc.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.name)}&background=00B14F&color=fff`,
+      };
+      setShowGoogleChooser(false);
+      onLoginSuccess(googleUser);
+      onClose();
+    }, 700);
+  };
+
+  // Đăng nhập bằng tài khoản Google khác do người dùng tự gõ
+  const handleAddOtherGoogleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otherGoogleEmail.trim()) return;
+
+    const email = otherGoogleEmail.trim().includes('@')
+      ? otherGoogleEmail.trim()
+      : `${otherGoogleEmail.trim()}@gmail.com`;
+    const name = otherGoogleName.trim() || email.split('@')[0];
+
+    handleSelectGoogleAccount({
+      email,
+      name,
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=4285F4&color=fff`,
+    });
   };
 
   return (
@@ -705,6 +777,34 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               >
                 {loading ? 'Đang tạo tài khoản...' : 'Đăng ký ngay'}
               </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '6px 0', color: '#9CA3AF', fontSize: '0.8rem' }}>
+                <div style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
+                <span>Hoặc đăng ký nhanh với</span>
+                <div style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                className="btn btn-secondary"
+                style={{
+                  width: '100%',
+                  padding: '11px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 10,
+                  fontSize: '0.9rem',
+                }}
+              >
+                <img
+                  src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png"
+                  alt="Google"
+                  style={{ width: 18, height: 18 }}
+                />
+                <span>Tiếp tục với Google</span>
+              </button>
             </form>
           )}
 
@@ -856,6 +956,280 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* GOOGLE OAUTH 2.0 ACCOUNT CHOOSER DIALOG */}
+      {showGoogleChooser && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 20000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: 440,
+              background: '#FFFFFF',
+              borderRadius: 24,
+              boxShadow: '0 24px 64px rgba(0, 0, 0, 0.28)',
+              border: '1px solid #DADCE0',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            {/* Google Header */}
+            <div style={{ padding: '28px 28px 16px 28px', textAlign: 'center', borderBottom: '1px solid #F1F3F4' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                <svg width="32" height="32" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                  />
+                </svg>
+              </div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#202124', margin: 0, letterSpacing: -0.2 }}>
+                Đăng nhập bằng Google
+              </h3>
+              <p style={{ fontSize: '0.9rem', color: '#5F6368', margin: '4px 0 0 0' }}>
+                Chọn một tài khoản để tiếp tục đến <strong style={{ color: '#00B14F' }}>DineGo</strong>
+              </p>
+            </div>
+
+            {/* Google Loading Overlay */}
+            {googleAuthLoading ? (
+              <div style={{ padding: '48px 24px', textAlign: 'center' }}>
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    border: '3px solid #E8EAED',
+                    borderTop: '3px solid #4285F4',
+                    borderRight: '3px solid #34A853',
+                    borderBottom: '3px solid #FBBC05',
+                    borderRadius: '50%',
+                    animation: 'spin 0.8s linear infinite',
+                    margin: '0 auto 16px auto',
+                  }}
+                />
+                <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#202124' }}>
+                  Đang đồng bộ hồ sơ Google...
+                </div>
+                <div style={{ fontSize: '0.82rem', color: '#5F6368', marginTop: 4 }}>
+                  {selectedGoogleAccount?.email}
+                </div>
+              </div>
+            ) : isAddingOtherGoogle ? (
+              /* Add other account form */
+              <form onSubmit={handleAddOtherGoogleSubmit} style={{ padding: '24px 28px' }}>
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#3C4043', marginBottom: 6 }}>
+                    Email Google của bạn
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="vidu@gmail.com"
+                    value={otherGoogleEmail}
+                    onChange={(e) => setOtherGoogleEmail(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '12px 14px',
+                      borderRadius: 10,
+                      border: '1.5px solid #DADCE0',
+                      fontSize: '0.92rem',
+                      outline: 'none',
+                    }}
+                    autoFocus
+                  />
+                </div>
+
+                <div style={{ marginBottom: 20 }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#3C4043', marginBottom: 6 }}>
+                    Họ và tên hiển thị
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ví dụ: Huỳnh Thế Long"
+                    value={otherGoogleName}
+                    onChange={(e) => setOtherGoogleName(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '12px 14px',
+                      borderRadius: 10,
+                      border: '1.5px solid #DADCE0',
+                      fontSize: '0.92rem',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingOtherGoogle(false)}
+                    style={{
+                      flex: 1,
+                      padding: '11px',
+                      borderRadius: 10,
+                      background: '#F1F3F4',
+                      border: 'none',
+                      fontWeight: 600,
+                      fontSize: '0.88rem',
+                      color: '#3C4043',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Quay lại
+                  </button>
+                  <button
+                    type="submit"
+                    style={{
+                      flex: 1,
+                      padding: '11px',
+                      borderRadius: 10,
+                      background: '#1A73E8',
+                      border: 'none',
+                      fontWeight: 600,
+                      fontSize: '0.88rem',
+                      color: '#FFFFFF',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 6px rgba(26, 115, 232, 0.3)',
+                    }}
+                  >
+                    Tiếp theo
+                  </button>
+                </div>
+              </form>
+            ) : (
+              /* Account Chooser List */
+              <div>
+                <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+                  {googleAccounts.map((acc, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => handleSelectGoogleAccount(acc)}
+                      style={{
+                        padding: '14px 28px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 14,
+                        cursor: 'pointer',
+                        borderBottom: '1px solid #F1F3F4',
+                        transition: 'background 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#F8F9FA';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                      }}
+                    >
+                      <img
+                        src={acc.avatar}
+                        alt={acc.name}
+                        style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', border: '1px solid #E8EAED' }}
+                      />
+                      <div style={{ flex: 1, overflow: 'hidden' }}>
+                        <div style={{ fontSize: '0.92rem', fontWeight: 600, color: '#202124' }}>
+                          {acc.name}
+                        </div>
+                        <div style={{ fontSize: '0.82rem', color: '#5F6368', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {acc.email}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Add another account option */}
+                  <div
+                    onClick={() => setIsAddingOtherGoogle(true)}
+                    style={{
+                      padding: '14px 28px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 14,
+                      cursor: 'pointer',
+                      borderBottom: '1px solid #F1F3F4',
+                      transition: 'background 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#F8F9FA';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent';
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '50%',
+                        background: '#F1F3F4',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#5F6368',
+                      }}
+                    >
+                      <UserPlus size={18} />
+                    </div>
+                    <div style={{ fontSize: '0.92rem', fontWeight: 600, color: '#1A73E8' }}>
+                      Sử dụng một tài khoản khác...
+                    </div>
+                  </div>
+                </div>
+
+                {/* Google Terms Footer */}
+                <div style={{ padding: '16px 28px', background: '#FAFAFA' }}>
+                  <p style={{ fontSize: '0.74rem', color: '#5F6368', lineHeight: 1.45, margin: 0 }}>
+                    Để tiếp tục, Google sẽ chia sẻ tên, địa chỉ email và ảnh hồ sơ của bạn với <strong>DineGo</strong>. Xem Điều khoản dịch vụ và Chính sách quyền riêng tư.
+                  </p>
+                </div>
+
+                {/* Cancel button */}
+                <div style={{ padding: '12px 28px', borderTop: '1px solid #F1F3F4', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={() => setShowGoogleChooser(false)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#1A73E8',
+                      fontSize: '0.88rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: '8px 16px',
+                      borderRadius: 8,
+                    }}
+                  >
+                    Hủy bỏ
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
