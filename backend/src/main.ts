@@ -56,7 +56,7 @@ async function bootstrap() {
   });
 
   // 6. Start Application
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   logger.log(`========================================================`);
   logger.log(`🚀 DineGo Backend is running on: http://localhost:${port}/${apiPrefix}`);
   logger.log(`📚 Swagger OpenAPI Documentation: http://localhost:${port}/api/docs`);
