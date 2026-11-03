@@ -17,9 +17,10 @@ import { DashboardPage } from './pages/DashboardPage';
 import { AuthModal } from './components/common/AuthModal';
 import { ReviewModal } from './components/common/ReviewModal';
 import { RoleSwitcherBar } from './components/common/RoleSwitcherBar';
+import { MerchantRegistrationModal } from './components/common/MerchantRegistrationModal';
 import { CartProvider } from './context/CartContext';
-import { MOCK_MERCHANTS, CURRENT_USER } from './api/client';
-import type { Merchant, Order, OrderStatus, User } from './types';
+import { MOCK_MERCHANTS, MOCK_MENU_ITEMS, CURRENT_USER } from './api/client';
+import type { Merchant, MenuItem, Order, OrderStatus, User } from './types';
 import { QrCode, CheckCircle2 } from 'lucide-react';
 
 const INITIAL_SAMPLE_ORDER: Order = {
@@ -65,8 +66,42 @@ const INITIAL_SAMPLE_ORDER: Order = {
 
 export const AppContent: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<NavTab>('home');
-  const [selectedMerchant, setSelectedMerchant] = useState<Merchant>(MOCK_MERCHANTS[0]);
-  
+  const [merchants, setMerchants] = useState<Merchant[]>(() => {
+    const saved = localStorage.getItem('dinego_merchants');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {}
+    }
+    return MOCK_MERCHANTS;
+  });
+
+  const [selectedMerchant, setSelectedMerchant] = useState<Merchant>(() => {
+    return merchants[0] || MOCK_MERCHANTS[0];
+  });
+
+  const [allMenuItems, setAllMenuItems] = useState<Record<string, MenuItem[]>>(() => {
+    const saved = localStorage.getItem('dinego_menu_items');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') return parsed;
+      } catch {}
+    }
+    return MOCK_MENU_ITEMS;
+  });
+
+  const [isMerchantRegisterModalOpen, setIsMerchantRegisterModalOpen] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('dinego_merchants', JSON.stringify(merchants));
+  }, [merchants]);
+
+  useEffect(() => {
+    localStorage.setItem('dinego_menu_items', JSON.stringify(allMenuItems));
+  }, [allMenuItems]);
+
   // Mặc định khởi đầu ở chế độ Khách (Guest) chưa đăng nhập theo đúng yêu cầu thực tế
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('dinego_user');
@@ -104,6 +139,63 @@ export const AppContent: React.FC = () => {
     localStorage.setItem('dinego_orders', JSON.stringify(orders));
   }, [orders]);
 
+  const handleToggleDishAvailability = (dishId: string) => {
+    const mId = selectedMerchant.id;
+    const currentDishes = allMenuItems[mId] || MOCK_MENU_ITEMS[mId] || [];
+    const updated = currentDishes.map((d) =>
+      d.id === dishId ? { ...d, isAvailable: !d.isAvailable } : d,
+    );
+    setAllMenuItems((prev) => ({
+      ...prev,
+      [mId]: updated,
+    }));
+  };
+
+  const handleAddDish = (dish: MenuItem) => {
+    const mId = dish.merchantId || selectedMerchant.id;
+    const currentDishes = allMenuItems[mId] || MOCK_MENU_ITEMS[mId] || [];
+    setAllMenuItems((prev) => ({
+      ...prev,
+      [mId]: [dish, ...currentDishes],
+    }));
+  };
+
+  const handleUpdateDish = (dish: MenuItem) => {
+    const mId = dish.merchantId || selectedMerchant.id;
+    const currentDishes = allMenuItems[mId] || MOCK_MENU_ITEMS[mId] || [];
+    const updated = currentDishes.map((d) => (d.id === dish.id ? dish : d));
+    setAllMenuItems((prev) => ({
+      ...prev,
+      [mId]: updated,
+    }));
+  };
+
+  const handleDeleteDish = (dishId: string) => {
+    const mId = selectedMerchant.id;
+    const currentDishes = allMenuItems[mId] || MOCK_MENU_ITEMS[mId] || [];
+    setAllMenuItems((prev) => ({
+      ...prev,
+      [mId]: currentDishes.filter((d) => d.id !== dishId),
+    }));
+  };
+
+  const handleMerchantRegistered = (
+    newMerchant: Merchant,
+    newOwnerUser: User,
+    initialDishes: MenuItem[],
+  ) => {
+    setMerchants((prev) => [newMerchant, ...prev]);
+    setAllMenuItems((prev) => ({
+      ...prev,
+      [newMerchant.id]: initialDishes,
+    }));
+    setSelectedMerchant(newMerchant);
+    setCurrentUser(newOwnerUser);
+    localStorage.setItem('dinego_user', JSON.stringify(newOwnerUser));
+    setCurrentTab('dashboard');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleSelectMerchant = (merchant: Merchant) => {
     setSelectedMerchant(merchant);
     setCurrentTab('restaurant');
@@ -111,13 +203,13 @@ export const AppContent: React.FC = () => {
   };
 
   const handleSelectMerchantByName = (name: string) => {
-    const found = MOCK_MERCHANTS.find((m) =>
+    const found = merchants.find((m) =>
       m.name.toLowerCase().includes(name.toLowerCase()),
     );
     if (found) {
       handleSelectMerchant(found);
     } else {
-      handleSelectMerchant(MOCK_MERCHANTS[0]);
+      handleSelectMerchant(merchants[0] || MOCK_MERCHANTS[0]);
     }
   };
 
@@ -191,6 +283,7 @@ export const AppContent: React.FC = () => {
           setCurrentUser(null);
           localStorage.removeItem('dinego_user');
         }}
+        onOpenMerchantRegisterModal={() => setIsMerchantRegisterModalOpen(true)}
       />
 
       <main style={{ flexGrow: 1 }}>
@@ -199,6 +292,8 @@ export const AppContent: React.FC = () => {
           <HomePage
             onSelectMerchant={handleSelectMerchant}
             onNavigate={(tab: any) => setCurrentTab(tab)}
+            merchants={merchants}
+            onOpenMerchantRegisterModal={() => setIsMerchantRegisterModalOpen(true)}
           />
         )}
 
@@ -207,6 +302,7 @@ export const AppContent: React.FC = () => {
             merchant={selectedMerchant}
             onBack={() => setCurrentTab('home')}
             onGoToCheckout={() => setCurrentTab('checkout')}
+            menuItems={allMenuItems}
           />
         )}
 
@@ -273,6 +369,14 @@ export const AppContent: React.FC = () => {
               setCurrentTab('tracking');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
+            merchantDishes={allMenuItems[selectedMerchant.id] || MOCK_MENU_ITEMS[selectedMerchant.id] || []}
+            onToggleDishAvailability={handleToggleDishAvailability}
+            onAddDish={handleAddDish}
+            onUpdateDish={handleUpdateDish}
+            onDeleteDish={handleDeleteDish}
+            currentMerchant={selectedMerchant}
+            allMerchants={merchants}
+            onOpenMerchantRegisterModal={() => setIsMerchantRegisterModalOpen(true)}
           />
         )}
       </main>
@@ -293,6 +397,13 @@ export const AppContent: React.FC = () => {
         latestOrder={orders[0] || null}
         onUpdateOrderStatus={handleUpdateOrderStatus}
         onOpenReviewModal={(order) => setReviewModalOrder(order)}
+      />
+
+      {/* Merchant Onboarding & Anti-Fraud KYC Modal */}
+      <MerchantRegistrationModal
+        isOpen={isMerchantRegisterModalOpen}
+        onClose={() => setIsMerchantRegisterModalOpen(false)}
+        onRegistered={handleMerchantRegistered}
       />
 
       {/* Sprint 1: Auth & Role Switcher Modal */}

@@ -19,6 +19,8 @@ import {
   Compass,
   UtensilsCrossed,
   Users,
+  Store,
+  ShieldCheck,
 } from 'lucide-react';
 import { MOCK_MERCHANTS, MOCK_MENU_ITEMS } from '../api/client';
 import type { Merchant } from '../types';
@@ -26,6 +28,8 @@ import type { Merchant } from '../types';
 interface HomePageProps {
   onSelectMerchant: (merchant: Merchant) => void;
   onNavigate: (tab: any) => void;
+  merchants?: Merchant[];
+  onOpenMerchantRegisterModal?: () => void;
 }
 
 const CATEGORIES = [
@@ -39,7 +43,12 @@ const CATEGORIES = [
   { id: 'chay', name: 'Món chay', icon: '🥗' },
 ];
 
-export const HomePage: React.FC<HomePageProps> = ({ onSelectMerchant, onNavigate }) => {
+export const HomePage: React.FC<HomePageProps> = ({
+  onSelectMerchant,
+  onNavigate,
+  merchants,
+  onOpenMerchantRegisterModal,
+}) => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<'ALL' | 'NEARBY' | 'TOP_RATED' | 'PROMO'>('ALL');
@@ -59,8 +68,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectMerchant, onNavigate
     return () => clearInterval(timer);
   }, []);
 
+  const allMerchantsList = merchants || MOCK_MERCHANTS;
+
   // Filter restaurants
-  const filteredMerchants = MOCK_MERCHANTS.filter((m) => {
+  const filteredMerchants = allMerchantsList.filter((m) => {
     const matchSearch =
       m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       m.address.toLowerCase().includes(searchQuery.toLowerCase());
@@ -625,9 +636,70 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectMerchant, onNavigate
                   <Tag size={13} />
                   <span>Mã DINEGO50 • Freeship đơn từ 0đ qua MoMo</span>
                 </div>
+
+                {/* KYC Verified Tag */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                  <span style={{ fontSize: '0.72rem', background: '#DCFCE7', color: '#15803D', padding: '2px 6px', borderRadius: 4, fontWeight: 800 }}>
+                    ✓ KYC Mặt Bằng Thật
+                  </span>
+                  {merchant.ownerName && (
+                    <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>
+                      Đại diện: {merchant.ownerName.split('(')[0].trim()}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Merchant Recruitment / Onboarding Banner */}
+        <div
+          style={{
+            marginTop: 48,
+            background: 'linear-gradient(135deg, #111827 0%, #1F2937 100%)',
+            borderRadius: 24,
+            padding: '32px 36px',
+            color: '#FFFFFF',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 20,
+            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.25)',
+          }}
+        >
+          <div style={{ maxWidth: 600 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(0, 177, 79, 0.2)', color: '#00B14F', padding: '4px 12px', borderRadius: 20, fontSize: '0.8rem', fontWeight: 800, marginBottom: 12 }}>
+              <Store size={14} /> Dành Cho Chủ Quán Ăn Thực Tế
+            </div>
+            <h2 style={{ fontSize: '1.65rem', fontWeight: 900, margin: '0 0 8px 0', color: '#FFFFFF' }}>
+              Bạn Có Quán Ăn Thật? Hãy Mở Gian Hàng Cùng DineGo
+            </h2>
+            <p style={{ margin: 0, fontSize: '0.9rem', color: '#9CA3AF', lineHeight: 1.5 }}>
+              Cung cấp ảnh mặt tiền quán, địa chỉ và số điện thoại để thẩm định phòng chống gian lận. Quán của bạn sẽ được kích hoạt công cụ quản lý Menu theo ngày đi chợ, tiếp nhận đơn và nhận tiền doanh thu minh bạch!
+            </p>
+          </div>
+
+          {onOpenMerchantRegisterModal && (
+            <button
+              onClick={onOpenMerchantRegisterModal}
+              className="btn btn-primary"
+              style={{
+                padding: '14px 28px',
+                fontSize: '1rem',
+                fontWeight: 800,
+                borderRadius: 14,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                boxShadow: '0 8px 24px rgba(0, 177, 79, 0.4)',
+              }}
+            >
+              <ShieldCheck size={20} />
+              <span>Đăng Ký Mở Quán Ngay (Miễn Phí)</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

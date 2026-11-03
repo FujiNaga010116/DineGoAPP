@@ -29,8 +29,18 @@ import {
   UtensilsCrossed,
   MapPin,
   Phone,
+  ToggleLeft,
+  ToggleRight,
+  Plus,
+  Edit3,
+  Trash2,
+  Camera,
+  Search,
+  FileCheck,
+  X,
+  ExternalLink,
 } from 'lucide-react';
-import type { Role, User, Order, OrderStatus } from '../types';
+import type { Role, User, Order, OrderStatus, MenuItem, Merchant } from '../types';
 
 interface DashboardPageProps {
   currentUser: User | null;
@@ -38,6 +48,14 @@ interface DashboardPageProps {
   orders?: Order[];
   onUpdateOrderStatus?: (orderId: string, newStatus: OrderStatus) => void;
   onSwitchToDriver?: () => void;
+  merchantDishes?: MenuItem[];
+  onToggleDishAvailability?: (dishId: string) => void;
+  onAddDish?: (dish: MenuItem) => void;
+  onUpdateDish?: (dish: MenuItem) => void;
+  onDeleteDish?: (dishId: string) => void;
+  currentMerchant?: Merchant | null;
+  allMerchants?: Merchant[];
+  onOpenMerchantRegisterModal?: () => void;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
@@ -46,9 +64,93 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   orders = [],
   onUpdateOrderStatus,
   onSwitchToDriver,
+  merchantDishes = [],
+  onToggleDishAvailability,
+  onAddDish,
+  onUpdateDish,
+  onDeleteDish,
+  currentMerchant,
+  allMerchants = [],
+  onOpenMerchantRegisterModal,
 }) => {
   const isDefaultAdmin = currentUser?.roles?.includes('ADMIN') ?? false;
   const [viewMode, setViewMode] = useState<'merchant' | 'admin'>(isDefaultAdmin ? 'admin' : 'merchant');
+  const [merchantSubTab, setMerchantSubTab] = useState<'orders' | 'menu' | 'kyc'>('orders');
+
+  // Menu Search & Filter States
+  const [menuSearchQuery, setMenuSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('ALL');
+
+  // Dish Modal States (Add / Edit)
+  const [isDishModalOpen, setIsDishModalOpen] = useState(false);
+  const [editingDishId, setEditingDishId] = useState<string | null>(null);
+  const [formDishName, setFormDishName] = useState('');
+  const [formDishPrice, setFormDishPrice] = useState(55000);
+  const [formDishCategory, setFormDishCategory] = useState('Món Chính');
+  const [formDishDescription, setFormDishDescription] = useState('');
+  const [formDishImageUrl, setFormDishImageUrl] = useState('');
+  const [formDishIsAvailable, setFormDishIsAvailable] = useState(true);
+
+  const handleOpenAddDishModal = () => {
+    setEditingDishId(null);
+    setFormDishName('');
+    setFormDishPrice(55000);
+    setFormDishCategory('Món Chính');
+    setFormDishDescription('');
+    setFormDishImageUrl('https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80');
+    setFormDishIsAvailable(true);
+    setIsDishModalOpen(true);
+  };
+
+  const handleOpenEditDishModal = (dish: MenuItem) => {
+    setEditingDishId(dish.id);
+    setFormDishName(dish.name);
+    setFormDishPrice(dish.basePrice);
+    setFormDishCategory(dish.categoryName || dish.category || 'Món Chính');
+    setFormDishDescription(dish.description || '');
+    setFormDishImageUrl(dish.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80');
+    setFormDishIsAvailable(dish.isAvailable);
+    setIsDishModalOpen(true);
+  };
+
+  const handleSaveDish = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formDishName.trim()) return;
+
+    if (editingDishId) {
+      // Cập nhật món đã có
+      if (onUpdateDish) {
+        onUpdateDish({
+          id: editingDishId,
+          merchantId: currentMerchant?.id || 'merchant-com-tam',
+          name: formDishName.trim(),
+          basePrice: Number(formDishPrice) || 50000,
+          categoryName: formDishCategory,
+          description: formDishDescription.trim(),
+          imageUrl: formDishImageUrl,
+          isActive: true,
+          isAvailable: formDishIsAvailable,
+        });
+      }
+    } else {
+      // Thêm món mới
+      if (onAddDish) {
+        onAddDish({
+          id: `dish-custom-${Date.now()}`,
+          merchantId: currentMerchant?.id || 'merchant-com-tam',
+          name: formDishName.trim(),
+          basePrice: Number(formDishPrice) || 50000,
+          categoryName: formDishCategory,
+          description: formDishDescription.trim(),
+          imageUrl: formDishImageUrl,
+          isActive: true,
+          isAvailable: formDishIsAvailable,
+        });
+      }
+    }
+
+    setIsDishModalOpen(false);
+  };
 
   // Merchant Revenue State (U043)
   const [merchantRevenue] = useState({
@@ -296,17 +398,99 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       {/* VIEW: MERCHANT DASHBOARD */}
       {viewMode === 'merchant' && (
         <div>
-          {/* Live Kitchen & Order Reception Console */}
+          {/* Merchant Navigation Sub-Tabs */}
           <div
             style={{
-              background: '#FFFFFF',
-              border: '1.5px solid var(--border)',
-              borderRadius: 20,
-              padding: '24px',
-              marginBottom: 28,
-              boxShadow: 'var(--shadow-md)',
+              display: 'flex',
+              gap: 10,
+              marginBottom: 24,
+              flexWrap: 'wrap',
             }}
           >
+            <button
+              onClick={() => setMerchantSubTab('orders')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '10px 18px',
+                borderRadius: 12,
+                background: merchantSubTab === 'orders' ? 'var(--primary)' : '#FFFFFF',
+                color: merchantSubTab === 'orders' ? '#FFFFFF' : 'var(--text-main)',
+                border: '1.5px solid',
+                borderColor: merchantSubTab === 'orders' ? 'var(--primary)' : 'var(--border)',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                boxShadow: merchantSubTab === 'orders' ? '0 4px 14px rgba(0, 177, 79, 0.3)' : 'var(--shadow-sm)',
+                transition: 'all 0.2s',
+              }}
+            >
+              <ChefHat size={18} />
+              <span>Bếp Trực Tiếp & Đơn Hàng ({orders.filter((o) => ['PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'].includes(o.status)).length})</span>
+            </button>
+
+            <button
+              onClick={() => setMerchantSubTab('menu')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '10px 18px',
+                borderRadius: 12,
+                background: merchantSubTab === 'menu' ? 'var(--primary)' : '#FFFFFF',
+                color: merchantSubTab === 'menu' ? '#FFFFFF' : 'var(--text-main)',
+                border: '1.5px solid',
+                borderColor: merchantSubTab === 'menu' ? 'var(--primary)' : 'var(--border)',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                boxShadow: merchantSubTab === 'menu' ? '0 4px 14px rgba(0, 177, 79, 0.3)' : 'var(--shadow-sm)',
+                transition: 'all 0.2s',
+              }}
+            >
+              <UtensilsCrossed size={18} />
+              <span>Quản Lý Menu Theo Phiên Chợ (Bật/Tắt Món)</span>
+            </button>
+
+            <button
+              onClick={() => setMerchantSubTab('kyc')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '10px 18px',
+                borderRadius: 12,
+                background: merchantSubTab === 'kyc' ? 'var(--primary)' : '#FFFFFF',
+                color: merchantSubTab === 'kyc' ? '#FFFFFF' : 'var(--text-main)',
+                border: '1.5px solid',
+                borderColor: merchantSubTab === 'kyc' ? 'var(--primary)' : 'var(--border)',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                boxShadow: merchantSubTab === 'kyc' ? '0 4px 14px rgba(0, 177, 79, 0.3)' : 'var(--shadow-sm)',
+                transition: 'all 0.2s',
+              }}
+            >
+              <ShieldCheck size={18} />
+              <span>Hồ Sơ Xác Thực Mặt Bằng (KYC)</span>
+            </button>
+          </div>
+
+          {/* SUB-TAB 1: LIVE KITCHEN & REVENUE */}
+          {merchantSubTab === 'orders' && (
+            <div>
+              {/* Live Kitchen & Order Reception Console */}
+              <div
+                style={{
+                  background: '#FFFFFF',
+                  border: '1.5px solid var(--border)',
+                  borderRadius: 20,
+                  padding: '24px',
+                  marginBottom: 28,
+                  boxShadow: 'var(--shadow-md)',
+                }}
+              >
             <div
               style={{
                 display: 'flex',
@@ -834,6 +1018,492 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
       )}
 
+      {/* SUB-TAB 2: DAILY MENU & MARKET STOCK MANAGER */}
+      {merchantSubTab === 'menu' && (
+        <div>
+          {/* Market Stock Explanation Banner */}
+          <div
+            style={{
+              background: 'linear-gradient(135deg, #ECFDF5 0%, #FFFFFF 100%)',
+              border: '1.5px solid #A7F3D0',
+              borderRadius: 20,
+              padding: '22px 26px',
+              marginBottom: 24,
+              boxShadow: 'var(--shadow-sm)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 16,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 14,
+                  background: '#00B14F',
+                  color: '#FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <UtensilsCrossed size={24} />
+              </div>
+              <div>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#065F46', margin: 0 }}>
+                  Quản Lý Thực Đơn Linh Hoạt Theo Phiên Chợ (Daily Food Catalog)
+                </h2>
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.86rem', color: '#047857', maxWidth: 650 }}>
+                  Tùy tình hình đi chợ mỗi ngày, bạn có thể <strong>Bật / Tắt trạng thái có bán</strong> của từng món hoặc chỉnh sửa giá khi nguyên liệu biến động. Khách hàng chỉ có thể đặt những món bạn đang có sẵn, không lo quá tải hay rác database!
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleOpenAddDishModal}
+              className="btn btn-primary"
+              style={{
+                padding: '12px 22px',
+                fontWeight: 800,
+                fontSize: '0.92rem',
+                borderRadius: 12,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                boxShadow: '0 4px 14px rgba(0, 177, 79, 0.35)',
+              }}
+            >
+              <Plus size={18} /> Thêm Món Mới Vào Menu
+            </button>
+          </div>
+
+          {/* Menu Statistics Pills */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: 16,
+              marginBottom: 24,
+            }}
+          >
+            <div style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: 16, padding: '16px 20px', boxShadow: 'var(--shadow-sm)' }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Tổng số món trong Menu</div>
+              <div style={{ fontSize: '1.6rem', fontWeight: 900, color: 'var(--text-main)', marginTop: 4 }}>
+                {merchantDishes.length} món
+              </div>
+            </div>
+
+            <div style={{ background: '#FFFFFF', border: '1.5px solid #86EFAC', borderRadius: 16, padding: '16px 20px', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.1)' }}>
+              <div style={{ fontSize: '0.8rem', color: '#15803D', fontWeight: 700 }}>🟢 Hôm nay có bán (Đang phục vụ)</div>
+              <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#15803D', marginTop: 4 }}>
+                {merchantDishes.filter((d) => d.isAvailable).length} món
+              </div>
+              <div style={{ fontSize: '0.72rem', color: '#166534', marginTop: 2 }}>Khách hàng thấy và order được</div>
+            </div>
+
+            <div style={{ background: '#FFFFFF', border: '1.5px solid #FCA5A5', borderRadius: 16, padding: '16px 20px', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.08)' }}>
+              <div style={{ fontSize: '0.8rem', color: '#B91C1C', fontWeight: 700 }}>🔴 Tạm ngưng hôm nay (Do thiếu hàng)</div>
+              <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#DC2626', marginTop: 4 }}>
+                {merchantDishes.filter((d) => !d.isAvailable).length} món
+              </div>
+              <div style={{ fontSize: '0.72rem', color: '#991B1B', marginTop: 2 }}>Khóa đặt trên app, không làm rác data</div>
+            </div>
+          </div>
+
+          {/* Search & Filter Toolbar */}
+          <div
+            style={{
+              background: '#FFFFFF',
+              border: '1px solid var(--border)',
+              borderRadius: 16,
+              padding: '14px 20px',
+              marginBottom: 20,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 12,
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
+            <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
+              <Search size={16} color="#9CA3AF" style={{ position: 'absolute', left: 14, top: 12 }} />
+              <input
+                type="text"
+                placeholder="Tìm kiếm món ăn trong menu của quán..."
+                value={menuSearchQuery}
+                onChange={(e) => setMenuSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '9px 14px 9px 40px',
+                  borderRadius: 10,
+                  border: '1px solid var(--border)',
+                  fontSize: '0.88rem',
+                  outline: 'none',
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
+              {['ALL', 'Cơm', 'Phở', 'Canh', 'Đồ Uống'].map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: selectedCategory === cat ? 'var(--primary)' : 'var(--bg-main)',
+                    color: selectedCategory === cat ? '#FFFFFF' : 'var(--text-main)',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {cat === 'ALL' ? 'Tất cả' : cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Dishes Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 20 }}>
+            {merchantDishes
+              .filter((d) => {
+                const matchSearch = d.name.toLowerCase().includes(menuSearchQuery.toLowerCase());
+                const matchCat = selectedCategory === 'ALL' || (d.categoryName || '').includes(selectedCategory);
+                return matchSearch && matchCat;
+              })
+              .map((dish) => (
+                <div
+                  key={dish.id}
+                  style={{
+                    background: '#FFFFFF',
+                    border: `1.5px solid ${dish.isAvailable ? 'var(--border)' : '#FECACA'}`,
+                    borderRadius: 18,
+                    padding: 18,
+                    boxShadow: 'var(--shadow-sm)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: 14,
+                    opacity: dish.isAvailable ? 1 : 0.85,
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: 14 }}>
+                    <img
+                      src={dish.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80'}
+                      alt={dish.name}
+                      style={{ width: 90, height: 90, borderRadius: 14, objectFit: 'cover', flexShrink: 0 }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', background: 'rgba(0,177,79,0.1)', padding: '2px 8px', borderRadius: 6 }}>
+                          {dish.categoryName || 'Món Chính'}
+                        </span>
+                        <span style={{ fontSize: '1.05rem', fontWeight: 900, color: 'var(--text-main)' }}>
+                          {dish.basePrice.toLocaleString('vi-VN')}đ
+                        </span>
+                      </div>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 6px 0' }}>
+                        {dish.name}
+                      </h3>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        {dish.description || 'Nguyên liệu sạch, chế biến công phu chuẩn vị.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Daily Market Toggle & Edit/Delete Controls */}
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                    {/* Availability Toggle */}
+                    <button
+                      onClick={() => onToggleDishAvailability?.(dish.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '6px 12px',
+                        borderRadius: 20,
+                        border: dish.isAvailable ? '1.5px solid #86EFAC' : '1.5px solid #FCA5A5',
+                        background: dish.isAvailable ? '#DCFCE7' : '#FEE2E2',
+                        color: dish.isAvailable ? '#15803D' : '#DC2626',
+                        fontSize: '0.8rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {dish.isAvailable ? <ToggleRight size={18} color="#15803D" /> : <ToggleLeft size={18} color="#DC2626" />}
+                      <span>{dish.isAvailable ? '🟢 Hôm nay có bán' : '🔴 Tạm hết hôm nay'}</span>
+                    </button>
+
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        onClick={() => handleOpenEditDishModal(dish)}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: 8,
+                          border: '1px solid var(--border)',
+                          background: '#FFFFFF',
+                          color: 'var(--text-main)',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                      >
+                        <Edit3 size={14} /> Sửa
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Bạn có chắc muốn xóa món "${dish.name}" khỏi thực đơn?`)) {
+                            onDeleteDish?.(dish.id);
+                          }
+                        }}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: 8,
+                          border: '1px solid #FECACA',
+                          background: '#FFF5F5',
+                          color: '#DC2626',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                      >
+                        <Trash2 size={14} /> Xóa
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 3: STOREFRONT KYC VERIFICATION PROFILE */}
+      {merchantSubTab === 'kyc' && (
+        <div>
+          {/* Storefront Verification Details */}
+          <div
+            style={{
+              background: '#FFFFFF',
+              border: '1.5px solid var(--border)',
+              borderRadius: 20,
+              padding: '28px',
+              marginBottom: 24,
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(0, 177, 79, 0.15)', color: '#00B14F', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <ShieldCheck size={24} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                    Hồ Sơ Xác Thực Mặt Bằng Quán Ăn (KYC Anti-Fraud)
+                  </h2>
+                  <p style={{ margin: '3px 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    Thông tin đã được DineGo thẩm định thực tế để bảo vệ người tiêu dùng & shipper
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#DCFCE7', color: '#15803D', padding: '6px 14px', borderRadius: 20, fontWeight: 800, fontSize: '0.82rem' }}>
+                <CheckCircle2 size={16} /> ĐỐI TÁC CHÍNH THỨC ĐÃ XÁC MINH
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24 }}>
+              {/* Left: Info */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>TÊN QUÁN ĂN THỰC TẾ</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', marginTop: 2 }}>
+                    {currentMerchant?.name || 'Cơm Tấm Sài Gòn 1985'}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>CHỦ QUÁN / ĐẠI DIỆN PHÁP LÝ</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)', marginTop: 2 }}>
+                    {currentMerchant?.ownerName || 'Võ Thị Bích Thủy (Chủ Hộ Kinh Doanh)'}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>SỐ ĐIỆN THOẠI XÁC THỰC</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--primary)', marginTop: 2 }}>
+                    {currentMerchant?.phoneNumber || '0901000002'}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>ĐỊA CHỈ MẶT BẰNG KINH DOANH THỰC TẾ</div>
+                  <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginTop: 2 }}>
+                    <MapPin size={16} style={{ display: 'inline', marginRight: 6, color: 'var(--primary)' }} />
+                    {currentMerchant?.address || '123 Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. HCM'}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>GIẤY CHỨNG NHẬN / PHÁP LÝ</div>
+                  <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', marginTop: 2, background: 'var(--bg-main)', padding: '10px 14px', borderRadius: 10 }}>
+                    {currentMerchant?.businessLicenseImage || 'GPKD số 0318992819 - Chứng nhận An Toàn Vệ Sinh Thực Phẩm số 288/ATTP-Q1'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right: Storefront Photo */}
+              <div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: 8 }}>
+                  HÌNH ẢNH MẶT TIỀN QUÁN & BẢNG HIỆU THỰC ĐỊA:
+                </div>
+                <div style={{ borderRadius: 18, overflow: 'hidden', height: 260, position: 'relative', border: '2px solid #E5E7EB', boxShadow: 'var(--shadow-sm)' }}>
+                  <img
+                    src={currentMerchant?.storeFrontImage || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80'}
+                    alt="Mặt tiền quán"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                  <div style={{ position: 'absolute', bottom: 12, left: 12, background: 'rgba(0, 0, 0, 0.75)', color: '#FFFFFF', padding: '6px 12px', borderRadius: 10, fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <ShieldCheck size={16} color="#10B981" /> Mặt tiền đã được kiểm định chống quán ma
+                  </div>
+                </div>
+
+                {onOpenMerchantRegisterModal && (
+                  <button
+                    onClick={onOpenMerchantRegisterModal}
+                    className="btn btn-secondary"
+                    style={{ width: '100%', marginTop: 14, padding: '12px', fontWeight: 700, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                  >
+                    <Store size={16} /> Đăng Ký Thêm Chi Nhánh / Quán Mới
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )}
+
+  {/* Dish Modal: Add / Edit Dish */}
+  {isDishModalOpen && (
+    <div className="modal-overlay" style={{ zIndex: 10000 }}>
+      <div className="modal-box" style={{ maxWidth: 520, padding: '24px', borderRadius: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+            {editingDishId ? 'Chỉnh Sửa Món Ăn Trong Menu' : 'Thêm Món Mới Vào Menu'}
+          </h3>
+          <button onClick={() => setIsDishModalOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSaveDish} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: 4 }}>Tên món ăn *</label>
+            <input
+              type="text"
+              required
+              placeholder="Ví dụ: Cơm Sườn Cọng Nướng Muối Ớt"
+              value={formDishName}
+              onChange={(e) => setFormDishName(e.target.value)}
+              style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '0.9rem' }}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: 4 }}>Giá bán (VNĐ) *</label>
+              <input
+                type="number"
+                required
+                step="1000"
+                value={formDishPrice}
+                onChange={(e) => setFormDishPrice(Number(e.target.value))}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '0.9rem' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: 4 }}>Danh mục món</label>
+              <input
+                type="text"
+                placeholder="Ví dụ: Cơm Tấm, Canh, Đồ Uống"
+                value={formDishCategory}
+                onChange={(e) => setFormDishCategory(e.target.value)}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '0.9rem' }}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: 4 }}>Mô tả món ăn</label>
+            <textarea
+              rows={2}
+              placeholder="Nguyên liệu sạch, cách nấu đặc trưng..."
+              value={formDishDescription}
+              onChange={(e) => setFormDishDescription(e.target.value)}
+              style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '0.85rem' }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: 4 }}>Link ảnh món ăn</label>
+            <input
+              type="url"
+              placeholder="https://..."
+              value={formDishImageUrl}
+              onChange={(e) => setFormDishImageUrl(e.target.value)}
+              style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '0.85rem' }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0' }}>
+            <input
+              type="checkbox"
+              id="availCheck"
+              checked={formDishIsAvailable}
+              onChange={(e) => setFormDishIsAvailable(e.target.checked)}
+              style={{ width: 18, height: 18, accentColor: 'var(--primary)' }}
+            />
+            <label htmlFor="availCheck" style={{ fontSize: '0.88rem', fontWeight: 700, cursor: 'pointer' }}>
+              Hôm nay có bán món này (Đang sẵn sàng phục vụ)
+            </label>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+            <button
+              type="button"
+              onClick={() => setIsDishModalOpen(false)}
+              className="btn btn-secondary"
+              style={{ flex: 1, padding: '11px', borderRadius: 10, fontWeight: 700 }}
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              style={{ flex: 1, padding: '11px', borderRadius: 10, fontWeight: 800 }}
+            >
+              {editingDishId ? 'Cập Nhật Món' : 'Thêm Vào Menu'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )}
+
       {/* VIEW: ADMIN PLATFORM DASHBOARD */}
       {viewMode === 'admin' && (
         <div>
@@ -1002,6 +1672,86 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       Đã giải quyết xong
                     </span>
                   )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Admin KYC Anti-Fraud Review Table */}
+          <div
+            style={{
+              background: '#FFFFFF',
+              border: '1px solid var(--border)',
+              borderRadius: 20,
+              padding: '24px',
+              marginTop: 24,
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(0, 177, 79, 0.15)', color: '#00B14F', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <ShieldCheck size={24} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                    Thẩm Định Hồ Sơ Đối Tác Quán Ăn (Merchant Anti-Fraud KYC)
+                  </h3>
+                  <p style={{ margin: '3px 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    Kiểm tra ảnh chụp mặt tiền thật, chủ sở hữu và địa chỉ kinh doanh để phòng ngừa quán ma
+                  </p>
+                </div>
+              </div>
+
+              <span style={{ background: '#DCFCE7', color: '#15803D', padding: '6px 14px', borderRadius: 20, fontWeight: 800, fontSize: '0.82rem' }}>
+                ✓ 100% Đối Tác Đã Thẩm Định Thực Địa
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {allMerchants.map((m) => (
+                <div
+                  key={m.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '14px 18px',
+                    borderRadius: 14,
+                    background: 'var(--bg-main)',
+                    border: '1px solid var(--border)',
+                    flexWrap: 'wrap',
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <img
+                      src={m.storeFrontImage || m.coverUrl || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=200&auto=format&fit=crop&q=80'}
+                      alt={m.name}
+                      style={{ width: 64, height: 64, borderRadius: 12, objectFit: 'cover' }}
+                    />
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <strong style={{ fontSize: '1rem', color: 'var(--text-main)' }}>{m.name}</strong>
+                        <span style={{ fontSize: '0.72rem', background: '#DCFCE7', color: '#15803D', padding: '2px 8px', borderRadius: 6, fontWeight: 800 }}>
+                          ✓ KYC VERIFIED
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                        Chủ quán: <strong style={{ color: 'var(--text-main)' }}>{m.ownerName || 'Đại diện hợp pháp'}</strong> • SĐT: {m.phoneNumber}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                        <MapPin size={13} style={{ display: 'inline', marginRight: 4, color: 'var(--primary)' }} />
+                        {m.address}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 700, background: 'rgba(0,177,79,0.1)', padding: '6px 12px', borderRadius: 10 }}>
+                      Mặt Bằng Thật Đạt Chuẩn
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>

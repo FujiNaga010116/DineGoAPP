@@ -55,12 +55,19 @@ export interface MenuItem {
   toppings?: Topping[];
 }
 
+export type MerchantKycStatus = 'PENDING_APPROVAL' | 'VERIFIED' | 'REJECTED';
+
 export interface Merchant {
   id: string;
   name: string;
   slug: string;
   address: string;
   phoneNumber: string;
+  ownerName?: string;
+  storeFrontImage?: string;
+  businessLicenseImage?: string;
+  kycStatus?: MerchantKycStatus;
+  verifiedAt?: string;
   logoUrl?: string;
   coverUrl?: string;
   rating?: number;

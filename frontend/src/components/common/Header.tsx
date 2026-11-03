@@ -43,6 +43,7 @@ interface HeaderProps {
   currentUser: User | null;
   onOpenAuthModal: (mode?: 'login' | 'register') => void;
   onLogout: () => void;
+  onOpenMerchantRegisterModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -51,6 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onOpenAuthModal,
   onLogout,
+  onOpenMerchantRegisterModal,
 }) => {
   const { cartCount, cart } = useCart();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -201,7 +203,30 @@ export const Header: React.FC<HeaderProps> = ({
         </nav>
 
         {/* Right Section: Cart + Auth Buttons / User Profile */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* Mở Quán Bán Hàng (Đối tác Nhà Hàng) */}
+          {onOpenMerchantRegisterModal && (
+            <button
+              onClick={onOpenMerchantRegisterModal}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 14px',
+                borderRadius: 12,
+                background: 'rgba(245, 158, 11, 0.12)',
+                color: '#D97706',
+                border: '1.5px solid rgba(245, 158, 11, 0.35)',
+                fontWeight: 700,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <Store size={15} /> Mở Quán Bán Hàng
+            </button>
+          )}
+
           {/* Cart Button */}
           <button
             className="cart-btn"

@@ -33,12 +33,14 @@ interface RestaurantPageProps {
   merchant: Merchant;
   onBack: () => void;
   onGoToCheckout: () => void;
+  menuItems?: Record<string, MenuItem[]>;
 }
 
 export const RestaurantPage: React.FC<RestaurantPageProps> = ({
   merchant,
   onBack,
   onGoToCheckout,
+  menuItems,
 }) => {
   const { addItem, cartCount, cart } = useCart();
   const [selectedDish, setSelectedDish] = useState<MenuItem | null>(null);
@@ -49,7 +51,7 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('all');
 
-  const rawMenuItems = MOCK_MENU_ITEMS[merchant.id] ?? [];
+  const rawMenuItems = (menuItems && menuItems[merchant.id]) || MOCK_MENU_ITEMS[merchant.id] || [];
 
   // Group categories dynamically
   const categories = useMemo(() => {
@@ -340,6 +342,43 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
                 <span>{merchant.address}</span>
               </div>
 
+              {/* KYC Anti-Fraud Verification Badge & Owner Name */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  marginTop: 10,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <span
+                  style={{
+                    background: 'rgba(0, 177, 79, 0.1)',
+                    color: '#059669',
+                    padding: '4px 10px',
+                    borderRadius: 8,
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                  }}
+                >
+                  <ShieldCheck size={14} /> Quán Thực Tế Đã Thẩm Định KYC
+                </span>
+                {merchant.ownerName && (
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                    Chủ quán: <strong style={{ color: 'var(--text-main)' }}>{merchant.ownerName}</strong>
+                  </span>
+                )}
+                {merchant.phoneNumber && (
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                    Hotline: <strong style={{ color: 'var(--primary)' }}>{merchant.phoneNumber}</strong>
+                  </span>
+                )}
+              </div>
+
               {/* Promo Vouchers Ribbon */}
               <div
                 style={{
@@ -566,38 +605,55 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
                   >
                     {dish.description}
                   </p>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                     <span
                       style={{
                         fontSize: '1.15rem',
                         fontWeight: 800,
-                        color: 'var(--primary)',
+                        color: dish.isAvailable ? 'var(--primary)' : 'var(--text-muted)',
                       }}
                     >
                       {dish.basePrice.toLocaleString('vi-VN')}đ
                     </span>
-                    <button
-                      onClick={() => handleOpenDishModal(dish)}
-                      style={{
-                        background: 'var(--primary)',
-                        color: '#FFFFFF',
-                        border: 'none',
-                        width: 36,
-                        height: 36,
-                        borderRadius: 12,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        boxShadow: '0 4px 12px rgba(0, 177, 79, 0.3)',
-                        transition: 'transform 0.15s ease',
-                      }}
-                      onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.92)')}
-                      onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-                      title="Chọn món và tùy chỉnh topping"
-                    >
-                      <Plus size={20} />
-                    </button>
+
+                    {!dish.isAvailable ? (
+                      <span
+                        style={{
+                          background: '#FEE2E2',
+                          color: '#DC2626',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          padding: '5px 10px',
+                          borderRadius: 8,
+                          border: '1px solid #FCA5A5',
+                        }}
+                      >
+                        Tạm hết hôm nay
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleOpenDishModal(dish)}
+                        style={{
+                          background: 'var(--primary)',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          width: 36,
+                          height: 36,
+                          borderRadius: 12,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 12px rgba(0, 177, 79, 0.3)',
+                          transition: 'transform 0.15s ease',
+                        }}
+                        onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.92)')}
+                        onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                        title="Chọn món và tùy chỉnh topping"
+                      >
+                        <Plus size={20} />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -610,6 +666,7 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
                     overflow: 'hidden',
                     flexShrink: 0,
                     position: 'relative',
+                    opacity: dish.isAvailable ? 1 : 0.6,
                   }}
                 >
                   <img
@@ -617,6 +674,24 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
                     alt={dish.name}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   />
+                  {!dish.isAvailable && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        background: 'rgba(0, 0, 0, 0.45)',
+                        color: '#FFFFFF',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.75rem',
+                        fontWeight: 800,
+                        textAlign: 'center',
+                      }}
+                    >
+                      Hết hàng
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
