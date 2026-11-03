@@ -16,6 +16,7 @@ interface OrdersPageProps {
   onUpdateOrderStatus: (orderId: string, newStatus: OrderStatus) => void;
   onPayMoMo: (order: Order) => void;
   onExplore: () => void;
+  onOpenReviewModal?: (order: Order) => void;
 }
 
 const STATUS_LABELS: Record<OrderStatus, { text: string; step: number }> = {
@@ -32,6 +33,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
   onUpdateOrderStatus,
   onPayMoMo,
   onExplore,
+  onOpenReviewModal,
 }) => {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(
     orders.length > 0 ? orders[0].id : null,
@@ -347,7 +349,30 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                 </>
               )}
 
-              {/* Status Simulation Controls (Demo full pipeline) */}
+              {/* Completed order actions: Review & Complaints (Sprint 5) */}
+              {selectedOrder.status === 'COMPLETED' && (
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 10 }}>
+                  <button
+                    onClick={() => onOpenReviewModal && onOpenReviewModal(selectedOrder)}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: 10,
+                      background: 'rgba(255, 87, 34, 0.15)',
+                      border: '1px solid var(--primary)',
+                      color: 'var(--primary)',
+                      fontWeight: 700,
+                      fontSize: '0.9rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    ⭐ Đánh giá món ăn & Báo sự cố đơn hàng (Sprint 5)
+                  </button>
+                </div>
+              )}
               {selectedOrder.status !== 'CANCELLED' && selectedOrder.status !== 'COMPLETED' && (
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 6 }}>
                   <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 8 }}>

@@ -1,46 +1,53 @@
 // ==============================================================================
-// DineGo Frontend — Main Application Router & Container
+// DineGo Frontend — Main Application Container (Sprints 1 - 5 Full E2E Integration)
 // ==============================================================================
 
 import React, { useState, useEffect } from 'react';
-import { Header } from './components/common/Header';
+import { Header, type NavTab } from './components/common/Header';
 import { Footer } from './components/common/Footer';
 import { HomePage } from './pages/HomePage';
 import { RestaurantPage } from './pages/RestaurantPage';
 import { CheckoutPage } from './pages/CheckoutPage';
 import { OrdersPage } from './pages/OrdersPage';
+import { CateringPage } from './pages/CateringPage';
+import { GroupOrderPage } from './pages/GroupOrderPage';
+import { AiGuidePage } from './pages/AiGuidePage';
+import { TrackingPage } from './pages/TrackingPage';
+import { DashboardPage } from './pages/DashboardPage';
+import { AuthModal } from './components/common/AuthModal';
+import { ReviewModal } from './components/common/ReviewModal';
 import { CartProvider } from './context/CartContext';
-import { MOCK_MERCHANTS } from './api/client';
-import type { Merchant, Order, OrderStatus } from './types';
+import { MOCK_MERCHANTS, CURRENT_USER } from './api/client';
+import type { Merchant, Order, OrderStatus, User } from './types';
 import { QrCode, CheckCircle2 } from 'lucide-react';
 
 const INITIAL_SAMPLE_ORDER: Order = {
   id: 'ord-sample-01',
-  orderNumber: 'DG20261028-4D25CA',
-  status: 'CONFIRMED',
+  orderNumber: 'DG20261103-TRK88',
+  status: 'COMPLETED',
   subtotal: 150000,
   deliveryFee: 15000,
   discountAmount: 25000,
   finalTotal: 140000,
-  deliveryAddress: '13 Lò Đúc, Phường Phạm Đình Hổ, Hai Bà Trưng, Hà Nội',
+  deliveryAddress: '45 Lê Duẩn, Bến Nghé, Quận 1, TP. HCM',
   recipientName: 'Nguyễn Văn An',
-  recipientPhone: '0987654321',
+  recipientPhone: '0901000004',
   createdAt: new Date(Date.now() - 3600000).toISOString(),
   merchant: {
-    id: 'merchant-pho-thin',
-    name: 'Phở Thìn Lò Đúc 1979',
-    address: '13 Lò Đúc, Hai Bà Trưng, Hà Nội',
-    phoneNumber: '0901234567',
+    id: 'merchant-com-tam',
+    name: 'Cơm Tấm Sài Gòn 1985',
+    address: '123 Nguyễn Huệ, Quận 1, TP. HCM',
+    phoneNumber: '0901000002',
   },
   items: [
     {
       id: 'oi-1',
-      itemName: 'Phở Bò Tái Lăn Truyền Thống',
-      basePrice: 75000,
+      itemName: 'Cơm Tấm Sườn Cọng Nướng Than',
+      basePrice: 65000,
       quantity: 2,
-      subtotal: 150000,
+      subtotal: 130000,
       toppings: [
-        { id: 't-1', toppingName: 'Quẩy giòn nóng hổi', toppingPrice: 10000 },
+        { id: 't-1', toppingName: 'Trứng ốp la lòng đào', toppingPrice: 10000 },
       ],
     },
   ],
@@ -50,14 +57,22 @@ const INITIAL_SAMPLE_ORDER: Order = {
     paymentStatus: 'SUCCESS',
     amount: 140000,
     currency: 'VND',
-    transactionRef: 'MOMO-293810294',
+    transactionRef: 'MOMO-99887766',
     paidAt: new Date(Date.now() - 3500000).toISOString(),
   },
 };
 
 export const AppContent: React.FC = () => {
-  const [currentTab, setCurrentTab] = useState<'home' | 'restaurant' | 'checkout' | 'orders'>('home');
+  const [currentTab, setCurrentTab] = useState<NavTab>('home');
   const [selectedMerchant, setSelectedMerchant] = useState<Merchant>(MOCK_MERCHANTS[0]);
+  const [currentUser, setCurrentUser] = useState<User>({
+    id: 'u-customer-001',
+    email: 'customer@dinego.vn',
+    fullName: 'Nguyễn Văn An (Khách Hàng)',
+    phoneNumber: '0901000004',
+    roles: ['CUSTOMER'],
+  });
+
   const [orders, setOrders] = useState<Order[]>(() => {
     const saved = localStorage.getItem('dinego_orders');
     if (saved) {
@@ -69,7 +84,10 @@ export const AppContent: React.FC = () => {
     }
     return [INITIAL_SAMPLE_ORDER];
   });
+
   const [activeMomoPaymentOrder, setActiveMomoPaymentOrder] = useState<Order | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [reviewModalOrder, setReviewModalOrder] = useState<Order | null>(null);
 
   useEffect(() => {
     localStorage.setItem('dinego_orders', JSON.stringify(orders));
@@ -79,6 +97,17 @@ export const AppContent: React.FC = () => {
     setSelectedMerchant(merchant);
     setCurrentTab('restaurant');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleSelectMerchantByName = (name: string) => {
+    const found = MOCK_MERCHANTS.find((m) =>
+      m.name.toLowerCase().includes(name.toLowerCase()),
+    );
+    if (found) {
+      handleSelectMerchant(found);
+    } else {
+      handleSelectMerchant(MOCK_MERCHANTS[0]);
+    }
   };
 
   const handleOrderPlaced = (newOrder: Order) => {
@@ -136,16 +165,22 @@ export const AppContent: React.FC = () => {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Header currentTab={currentTab} onNavigate={(tab) => {
-        setCurrentTab(tab);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }} />
+      <Header
+        currentTab={currentTab}
+        onNavigate={(tab) => {
+          setCurrentTab(tab);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        currentUser={currentUser}
+        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+      />
 
       <main style={{ flexGrow: 1 }}>
+        {/* Sprint 1 & 2: Food delivery explore */}
         {currentTab === 'home' && (
           <HomePage
             onSelectMerchant={handleSelectMerchant}
-            onNavigate={(tab) => setCurrentTab(tab)}
+            onNavigate={(tab: any) => setCurrentTab(tab)}
           />
         )}
 
@@ -164,19 +199,64 @@ export const AppContent: React.FC = () => {
           />
         )}
 
+        {/* Sprint 2: My Orders */}
         {currentTab === 'orders' && (
           <OrdersPage
             orders={orders}
             onUpdateOrderStatus={handleUpdateOrderStatus}
             onPayMoMo={handlePayMoMo}
             onExplore={() => setCurrentTab('home')}
+            onOpenReviewModal={(order) => setReviewModalOrder(order)}
           />
         )}
+
+        {/* Sprint 3: Catering & Event Feast */}
+        {currentTab === 'catering' && <CateringPage />}
+
+        {/* Sprint 2: Real-time Group Ordering & Split Bill */}
+        {currentTab === 'group-order' && <GroupOrderPage />}
+
+        {/* Sprint 4: AI Local Culinary Guide */}
+        {currentTab === 'ai-guide' && (
+          <AiGuidePage onSelectMerchantByName={handleSelectMerchantByName} />
+        )}
+
+        {/* Sprint 4: GPS Shipper Real-Time Tracking */}
+        {currentTab === 'tracking' && <TrackingPage />}
+
+        {/* Sprint 5: Dashboard & Moderation & Reconciliation */}
+        {currentTab === 'dashboard' && <DashboardPage currentUser={currentUser} />}
       </main>
 
       <Footer />
 
-      {/* MoMo QR Modal Simulator */}
+      {/* Sprint 1: Auth & Role Switcher Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        currentUser={currentUser}
+        onSelectUser={(user) => {
+          setCurrentUser(user);
+          // Tự động chuyển tab phù hợp vai trò
+          if (user.roles.includes('ADMIN') || user.roles.includes('MERCHANT')) {
+            setCurrentTab('dashboard');
+          } else if (user.roles.includes('DRIVER')) {
+            setCurrentTab('tracking');
+          }
+        }}
+      />
+
+      {/* Sprint 5: Customer Review & Complaint Modal */}
+      <ReviewModal
+        isOpen={!!reviewModalOrder}
+        onClose={() => setReviewModalOrder(null)}
+        order={reviewModalOrder}
+        onSubmitted={(data) => {
+          console.log('[Review / Complaint Submitted]', data);
+        }}
+      />
+
+      {/* Sprint 6: MoMo Payment Simulator Modal */}
       {activeMomoPaymentOrder && (
         <div className="modal-overlay">
           <div className="modal-box" style={{ textAlign: 'center', maxWidth: 440 }}>
