@@ -16,7 +16,7 @@ COPY prisma ./prisma/
 
 # Install dependencies without failing Prisma postinstall
 ENV PRISMA_SKIP_POSTINSTALL_GENERATE=true
-RUN npm ci
+RUN npm install --prefer-offline --no-audit
 
 # Copy application source
 COPY . .
