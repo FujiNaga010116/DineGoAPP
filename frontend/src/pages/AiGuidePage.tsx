@@ -1,5 +1,6 @@
 // ==============================================================================
 // DineGo Frontend — AI Local Culinary Guide (Sprint 4 — U034 to U038)
+// GrabFood AI Culinary Assistant, Local RAG Recommendations & Quick Order Link
 // ==============================================================================
 
 import React, { useState } from 'react';
@@ -69,7 +70,7 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
     setInputPrompt('');
     setIsTyping(true);
 
-    // AI Simulation with Local RAG Knowledge (Phù hợp Sprint 4 RAG Engine)
+    // AI Simulation with Local RAG Knowledge
     setTimeout(() => {
       let aiResponseText = '';
       let dishes: any[] = [];
@@ -99,35 +100,35 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
             description: 'Sườn cọng nướng than hoa thơm lừng kèm bì chả đặc biệt.',
           },
         ];
-      } else if (lower.includes('miền trung') || lower.includes('cay') || lower.includes('huế')) {
+      } else if (lower.includes('miền trung') || lower.includes('cay') || lower.includes('bún bò')) {
         aiResponseText =
-          'Ẩm thực miền Trung nổi tiếng với vị cay nồng và mắm ruốc đặc trưng. Tôi gợi ý cho bạn món **Bún Bò Huế Cố Đô** với chả cua quết tay, giò heo mềm ngậy và nước lèo sả ớt đỏ rực thơm lừng.';
+          'Hương vị đậm đà, cay nồng của **Bún Bò Huế Cố Đô** chắc chắn sẽ làm hài lòng bạn! Nước dùng thơm dậy mùi sả cây, mắm ruốc nguyên chất và sa tế ớt hiểm cay xé lưỡi.';
         dishes = [
           {
-            name: 'Bún Bò Giò Chả Huế',
-            restaurant: 'Bún Bò O Phượng Gia Truyền',
-            price: 55000,
+            name: 'Bún Bò Huế Bắp Bò Gân Giòn',
+            restaurant: 'Bún Bò Huế Hương Giang',
+            price: 60000,
             region: 'Huế (Miền Trung)',
-            description: 'Nước lèo sả ruốc đậm đà, chả cua Huế tự làm tươi ngon.',
+            description: 'Nước dùng mắm ruốc thơm lừng, thịt bắp hoa hoa tươi giòn sần sật.',
           },
         ];
       } else {
         aiResponseText =
-          'Tôi đã hiểu yêu cầu của bạn! Hệ thống đề xuất bữa trưa dinh dưỡng với các món bán chạy nhất tại khu vực của bạn, đảm bảo hương vị tươi ngon và chuẩn vệ sinh an toàn thực phẩm:';
+          `DineGo AI đã tìm thấy gợi ý ẩm thực tuyệt vời phù hợp với yêu cầu: "${prompt}". Mời bạn thưởng thức các món đặc sản từ các nhà hàng đối tác được chấm 4.9 sao của chúng tôi!`;
         dishes = [
           {
-            name: 'Cơm Tấm Sườn Cọng Nướng Than',
+            name: 'Cơm Tấm Ba Rọi Nướng Mật Ong',
             restaurant: 'Cơm Tấm Sài Gòn 1985',
-            price: 65000,
-            region: 'Sài Gòn',
-            description: 'Món ăn quốc dân bán chạy nhất tuần này.',
+            price: 60000,
+            region: 'Đặc sản Sài Gòn',
+            description: 'Thịt ba chỉ nướng mật hoa rừng thơm phức, da giòn mềm tan.',
           },
           {
-            name: 'Phở Bò Tái Lăn Truyền Thống',
-            restaurant: 'Phở Thìn Lò Đúc 1979',
-            price: 75000,
-            region: 'Hà Nội',
-            description: 'Đậm vị truyền thống thơm gừng tỏi.',
+            name: 'Trà Sữa Trân Châu Hoàng Kim',
+            restaurant: 'Trà Sữa Phúc Long & Koi',
+            price: 55000,
+            region: 'Thức uống giải nhiệt',
+            description: 'Trà ô long thơm đậm vị sữa thanh nhẹ, trân châu dai mềm ngọt vừa.',
           },
         ];
       }
@@ -142,52 +143,62 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
 
       setMessages((prev) => [...prev, aiMsg]);
       setIsTyping(false);
-    }, 1000);
+    }, 700);
   };
 
   return (
-    <div className="container" style={{ padding: '32px 16px', maxWidth: 960 }}>
+    <div className="container" style={{ padding: '28px 16px', maxWidth: 960, paddingBottom: 60 }}>
       {/* Title */}
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
         <div
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 8,
-            padding: '6px 16px',
+            gap: 6,
+            padding: '4px 14px',
             borderRadius: 20,
-            background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(255, 87, 34, 0.2))',
-            color: '#A78BFA',
-            fontSize: '0.85rem',
+            background: 'rgba(0, 177, 79, 0.1)',
+            color: 'var(--primary)',
+            fontSize: '0.82rem',
             fontWeight: 700,
             marginBottom: 10,
           }}
         >
-          <Compass size={16} /> DineGo AI Local Guide (Sprint 4 — U034, U036)
+          <Sparkles size={15} /> Trợ Lý Ẩm Thực Thông Minh (Sprint 4 — RAG Engine)
         </div>
-        <h1 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: 8 }}>
-          Trợ Lý Ẩm Thực Thông Minh Bản Địa
+        <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 8px 0' }}>
+          DineGo AI Local Culinary Guide
         </h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-          Được huấn luyện trên kho tri thức ẩm thực 3 miền Bắc - Trung - Nam, giúp bạn chọn món ăn nhanh chuẩn vị nhất.
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', margin: 0 }}>
+          Hỏi đáp bằng ngôn ngữ tự nhiên. Khám phá văn hóa ẩm thực Bắc - Trung - Nam và nhận gợi ý chuẩn khẩu vị.
         </p>
       </div>
 
-      {/* Preset Chips */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginBottom: 20 }}>
+      {/* Preset Queries Pills */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginBottom: 24 }}>
         {PRESET_QUERIES.map((q, idx) => (
           <button
             key={idx}
             onClick={() => handleSend(q)}
             style={{
-              padding: '8px 14px',
-              borderRadius: 20,
-              background: 'var(--bg-card)',
+              background: '#FFFFFF',
               border: '1px solid var(--border)',
-              color: 'var(--text-secondary)',
+              borderRadius: 999,
+              padding: '7px 14px',
               fontSize: '0.82rem',
+              fontWeight: 600,
+              color: 'var(--text-main)',
               cursor: 'pointer',
+              boxShadow: 'var(--shadow-sm)',
               transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--primary)';
+              e.currentTarget.style.color = 'var(--primary)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border)';
+              e.currentTarget.style.color = 'var(--text-main)';
             }}
           >
             {q}
@@ -195,21 +206,21 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
         ))}
       </div>
 
-      {/* Chat Box */}
+      {/* Chat Container Card */}
       <div
         style={{
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-strong)',
+          background: '#FFFFFF',
+          border: '1px solid var(--border)',
           borderRadius: 20,
-          boxShadow: 'var(--shadow-lg)',
+          boxShadow: 'var(--shadow-md)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          height: 600,
+          height: 620,
         }}
       >
         {/* Messages Stream */}
-        <div style={{ flex: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ flex: 1, padding: 24, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
           {messages.map((m) => {
             const isAi = m.sender === 'ai';
             return (
@@ -225,18 +236,19 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
                 {isAi && (
                   <div
                     style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 10,
-                      background: 'linear-gradient(135deg, #8B5CF6, #EC4899)',
+                      width: 38,
+                      height: 38,
+                      borderRadius: 12,
+                      background: 'linear-gradient(135deg, #00B14F, #06B6D4)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: '#fff',
+                      color: '#FFFFFF',
                       flexShrink: 0,
+                      boxShadow: '0 4px 12px rgba(0, 177, 79, 0.3)',
                     }}
                   >
-                    <Bot size={20} />
+                    <Bot size={22} />
                   </div>
                 )}
 
@@ -244,12 +256,12 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
                   <div
                     style={{
                       padding: '14px 18px',
-                      borderRadius: 16,
-                      background: isAi ? 'var(--bg-card)' : 'var(--primary)',
-                      color: isAi ? 'var(--text-main)' : '#fff',
+                      borderRadius: 18,
+                      background: isAi ? 'var(--bg-main)' : 'var(--primary)',
+                      color: isAi ? 'var(--text-main)' : '#FFFFFF',
                       fontSize: '0.92rem',
                       lineHeight: 1.6,
-                      boxShadow: 'var(--shadow-sm)',
+                      border: isAi ? '1px solid var(--border)' : 'none',
                     }}
                   >
                     {m.text}
@@ -262,27 +274,40 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
                         <div
                           key={i}
                           style={{
-                            background: 'var(--bg-surface)',
-                            border: '1px solid var(--border-strong)',
+                            background: '#FFFFFF',
+                            border: '1.5px solid var(--border)',
                             borderRadius: 14,
                             padding: 14,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
                             gap: 12,
+                            boxShadow: 'var(--shadow-sm)',
                           }}
                         >
                           <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                              <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{dish.name}</span>
-                              <span style={{ fontSize: '0.72rem', background: 'rgba(255, 87, 34, 0.15)', color: 'var(--primary)', padding: '2px 8px', borderRadius: 6, fontWeight: 600 }}>
+                              <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-main)' }}>
+                                {dish.name}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: '0.72rem',
+                                  background: 'rgba(0, 177, 79, 0.1)',
+                                  color: 'var(--primary)',
+                                  padding: '2px 8px',
+                                  borderRadius: 6,
+                                  fontWeight: 700,
+                                }}
+                              >
                                 {dish.region}
                               </span>
                             </div>
-                            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                              🏪 {dish.restaurant} • <strong>{dish.price.toLocaleString()} đ</strong>
+                            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                              🏪 {dish.restaurant} •{' '}
+                              <strong style={{ color: 'var(--primary)' }}>{dish.price.toLocaleString()} đ</strong>
                             </div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 2 }}>
                               {dish.description}
                             </div>
                           </div>
@@ -291,10 +316,11 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
                             onClick={() => onSelectMerchantByName && onSelectMerchantByName(dish.restaurant)}
                             className="btn btn-primary"
                             style={{
-                              padding: '8px 14px',
+                              padding: '8px 16px',
                               fontSize: '0.82rem',
-                              fontWeight: 600,
+                              fontWeight: 700,
                               whiteSpace: 'nowrap',
+                              borderRadius: 10,
                               display: 'flex',
                               alignItems: 'center',
                               gap: 6,
@@ -315,18 +341,18 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
                 {!isAi && (
                   <div
                     style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 10,
-                      background: 'rgba(255, 255, 255, 0.1)',
+                      width: 38,
+                      height: 38,
+                      borderRadius: 12,
+                      background: 'rgba(0, 177, 79, 0.1)',
+                      color: 'var(--primary)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: '#fff',
                       flexShrink: 0,
                     }}
                   >
-                    <User size={18} />
+                    <User size={20} />
                   </div>
                 )}
               </div>
@@ -334,15 +360,15 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
           })}
 
           {isTyping && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-              <Bot size={18} color="#8B5CF6" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              <Bot size={18} color="var(--primary)" />
               <span>DineGo AI đang phân tích khẩu vị của bạn...</span>
             </div>
           )}
         </div>
 
         {/* Input Bar */}
-        <div style={{ padding: 16, borderTop: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+        <div style={{ padding: 16, borderTop: '1px solid var(--border)', background: '#FFFFFF' }}>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -359,16 +385,17 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
                 flex: 1,
                 padding: '12px 18px',
                 borderRadius: 14,
-                background: 'var(--bg-card)',
+                background: 'var(--bg-main)',
                 border: '1px solid var(--border)',
-                color: '#fff',
+                color: 'var(--text-main)',
                 fontSize: '0.92rem',
+                outline: 'none',
               }}
             />
             <button
               type="submit"
               className="btn btn-primary"
-              style={{ padding: '12px 20px', borderRadius: 14, display: 'flex', alignItems: 'center', gap: 8 }}
+              style={{ padding: '12px 22px', borderRadius: 14, display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700 }}
             >
               <Send size={18} />
               <span>Gửi</span>
@@ -379,4 +406,3 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
     </div>
   );
 };
-

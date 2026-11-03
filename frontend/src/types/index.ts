@@ -27,6 +27,8 @@ export interface User {
   email: string;
   fullName: string;
   phoneNumber?: string;
+  avatarUrl?: string;
+  address?: string;
   roles: Role[];
 }
 
@@ -45,6 +47,7 @@ export interface MenuItem {
   description?: string;
   basePrice: number;
   imageUrl?: string;
+  category?: string;
   categoryName?: string;
   isActive: boolean;
   isAvailable: boolean;

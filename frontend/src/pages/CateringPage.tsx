@@ -1,5 +1,6 @@
 // ==============================================================================
 // DineGo Frontend — Catering & Event Feast Page (Sprint 3 — U023 to U033)
+// GrabFood Catering Feast Experience, 72h Rule, 2-Stage Deposit, MoMo QR
 // ==============================================================================
 
 import React, { useState } from 'react';
@@ -16,6 +17,8 @@ import {
   DollarSign,
   UtensilsCrossed,
   Info,
+  MapPin,
+  Tag,
 } from 'lucide-react';
 
 interface FeastPackage {
@@ -103,27 +106,26 @@ interface BookingRecord {
 
 export const CateringPage: React.FC = () => {
   const [selectedPackage, setSelectedPackage] = useState<FeastPackage>(FEAST_PACKAGES[0]);
-  const [tableCount, setTableCount] = useState(5);
+  const [tableCount, setTableCount] = useState<number>(5);
   const [depositPercent, setDepositPercent] = useState<30 | 50>(30);
-  const [eventDate, setEventDate] = useState(() => {
-    // Mặc định cách hiện tại 4 ngày (thỏa mãn quy tắc trước 72 giờ BR-24)
-    const d = new Date();
-    d.setDate(d.getDate() + 4);
-    return d.toISOString().split('T')[0];
-  });
-  const [eventAddress, setEventAddress] = useState('45 Lê Duẩn, Bến Nghé, Quận 1, TP. HCM');
-  const [customerName, setCustomerName] = useState('Nguyễn Văn An');
-  const [customerPhone, setCustomerPhone] = useState('0901234567');
-  const [notes, setNotes] = useState('Yêu cầu thêm chén đũa dự phòng và nhân viên hỗ trợ dọn dẹp');
+
+  // Set default event date to 5 days ahead (strictly satisfies >= 72h requirement)
+  const defaultEventDate = new Date(Date.now() + 5 * 24 * 3600 * 1000)
+    .toISOString()
+    .split('T')[0];
+  const [eventDate, setEventDate] = useState<string>(defaultEventDate);
+  const [eventAddress, setEventAddress] = useState<string>(
+    'Trung tâm Hội nghị Tiệc cưới Riverside, 360 Bến Vân Đồn, Quận 4, TP. HCM',
+  );
 
   const [bookings, setBookings] = useState<BookingRecord[]>([
     {
       id: 'bk-sample-01',
-      bookingCode: 'DG-FEAST-782910',
+      bookingCode: 'DG-FEAST-902144',
       packageName: 'Mâm Cỗ Tân Gia Thịnh Vượng',
       tableCount: 6,
-      eventDate: '2026-11-10',
-      eventAddress: '15 Mai Chí Thọ, TP. Thủ Đức',
+      eventDate: defaultEventDate,
+      eventAddress: 'Biệt thự 12, Thảo Điền, TP. Thủ Đức',
       totalAmount: 14250000,
       depositAmount: 4275000,
       remainingAmount: 9975000,
@@ -134,19 +136,21 @@ export const CateringPage: React.FC = () => {
 
   const [activeMomoModal, setActiveMomoModal] = useState<BookingRecord | null>(null);
 
-  // Tính toán bảng giá theo BR-21 (Chiết khấu số lượng mâm)
+  // Financial calculations
   const grossTotal = selectedPackage.pricePerTable * tableCount;
   let discountRate = 0;
   if (tableCount >= 10) discountRate = 10;
   else if (tableCount >= 5) discountRate = 5;
 
-  const discountAmount = (grossTotal * discountRate) / 100;
+  const discountAmount = Math.round((grossTotal * discountRate) / 100);
   const netTotal = grossTotal - discountAmount;
   const depositAmount = Math.round((netTotal * depositPercent) / 100);
   const remainingAmount = netTotal - depositAmount;
 
-  // Kiểm tra quy tắc đặt trước 72h theo BR-24
-  const hoursUntilEvent = (new Date(eventDate).getTime() - Date.now()) / (1000 * 3600);
+  // 72h rule verification
+  const chosenTime = new Date(eventDate).getTime();
+  const now = Date.now();
+  const hoursUntilEvent = (chosenTime - now) / (1000 * 3600);
   const isValidAdvanceTime = hoursUntilEvent >= 72;
 
   const handleCreateBooking = () => {
@@ -203,38 +207,36 @@ export const CateringPage: React.FC = () => {
 
     if (confirmed) {
       setBookings(
-        bookings.map((b) => (b.id === bookingIdSafe(b.id, booking.id) ? { ...b, status: 'CANCELLED' } : b)),
+        bookings.map((b) => (b.id === booking.id ? { ...b, status: 'CANCELLED' } : b)),
       );
     }
   };
 
-  const bookingIdSafe = (id1: string, id2: string) => (id1 === id2 ? id1 : '');
-
   return (
-    <div className="container" style={{ padding: '32px 16px' }}>
+    <div className="container" style={{ padding: '28px 16px', maxWidth: 1160, paddingBottom: 60 }}>
       {/* Title */}
-      <div style={{ textAlign: 'center', marginBottom: 36 }}>
+      <div style={{ textAlign: 'center', marginBottom: 32 }}>
         <div
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 8,
-            padding: '6px 16px',
+            gap: 6,
+            padding: '4px 14px',
             borderRadius: 20,
-            background: 'var(--primary-light)',
+            background: 'rgba(0, 177, 79, 0.1)',
             color: 'var(--primary)',
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            marginBottom: 12,
+            fontSize: '0.82rem',
+            fontWeight: 700,
+            marginBottom: 10,
           }}
         >
-          <Sparkles size={16} /> Phân hệ Mâm Cỗ Sự Kiện & Đặt Cọc 2 Đợt (Sprint 3)
+          <Sparkles size={15} /> Dịch Vụ Mâm Cỗ Trọn Gói & Đặt Cọc 2 Giai Đoạn (Sprint 3)
         </div>
-        <h1 style={{ fontSize: '2.2rem', fontWeight: 800, marginBottom: 10 }}>
-          Dịch Vụ Nấu Cỗ & Mâm Tiệc Tại Gia Trọn Gói
+        <h1 style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 8px 0' }}>
+          Mâm Tiệc & Nấu Cỗ Tại Gia Chuyên Nghiệp
         </h1>
-        <p style={{ color: 'var(--text-secondary)', maxWidth: 640, margin: '0 auto', fontSize: '0.95rem' }}>
-          Tân gia, cưới hỏi, mừng thọ, liên hoan gia đình. Đầu bếp danh tiếng phục vụ tận nơi, bảo lãnh cọc qua MoMo minh bạch 100%.
+        <p style={{ color: 'var(--text-muted)', maxWidth: 640, margin: '0 auto', fontSize: '0.92rem', lineHeight: 1.5 }}>
+          Tân gia, cưới hỏi, thượng thọ, liên hoan công ty. Bếp trưởng phục vụ tận nơi, bảo chứng cọc qua MoMo minh bạch 100%.
         </p>
       </div>
 
@@ -242,11 +244,11 @@ export const CateringPage: React.FC = () => {
       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 28, alignItems: 'start' }}>
         {/* Left: Package List */}
         <div>
-          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <UtensilsCrossed size={20} color="var(--primary)" /> 1. Chọn Gói Mâm Cỗ Thực Đơn
+          <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <UtensilsCrossed size={18} color="var(--primary)" /> 1. Chọn Gói Thực Đơn Mâm Cỗ
           </h3>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {FEAST_PACKAGES.map((pkg) => {
               const isSelected = selectedPackage.id === pkg.id;
               return (
@@ -254,31 +256,32 @@ export const CateringPage: React.FC = () => {
                   key={pkg.id}
                   onClick={() => setSelectedPackage(pkg)}
                   style={{
-                    background: isSelected ? 'var(--bg-card-hover)' : 'var(--bg-card)',
+                    background: '#FFFFFF',
                     border: `2px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}`,
-                    borderRadius: 16,
+                    borderRadius: 18,
                     padding: 20,
                     cursor: 'pointer',
                     transition: 'all 0.2s',
-                    position: 'relative',
+                    boxShadow: isSelected ? '0 6px 20px rgba(0, 177, 79, 0.15)' : 'var(--shadow-sm)',
                   }}
                 >
                   <div style={{ display: 'flex', gap: 16 }}>
                     <img
                       src={pkg.imageUrl}
                       alt={pkg.name}
-                      style={{ width: 110, height: 110, borderRadius: 12, objectFit: 'cover' }}
+                      style={{ width: 110, height: 110, borderRadius: 14, objectFit: 'cover' }}
                     />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <h4 style={{ fontSize: '1.1rem', fontWeight: 700, color: isSelected ? 'var(--primary)' : '#fff' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+                        <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
                           {pkg.name}
                         </h4>
-                        <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary)' }}>
-                          {pkg.pricePerTable.toLocaleString()} đ<span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>/mâm</span>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--primary)' }}>
+                          {pkg.pricePerTable.toLocaleString()} đ
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>/mâm</span>
                         </div>
                       </div>
-                      <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '6px 0 10px' }}>
+                      <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '6px 0 10px', lineHeight: 1.4 }}>
                         {pkg.description} ({pkg.guestCountPerTable} người/mâm)
                       </p>
 
@@ -288,18 +291,19 @@ export const CateringPage: React.FC = () => {
                           <span
                             key={i}
                             style={{
-                              fontSize: '0.75rem',
+                              fontSize: '0.74rem',
                               padding: '2px 8px',
                               borderRadius: 6,
-                              background: 'rgba(255, 255, 255, 0.05)',
-                              color: 'var(--text-secondary)',
+                              background: 'var(--bg-main)',
+                              color: 'var(--text-muted)',
+                              fontWeight: 600,
                             }}
                           >
                             • {dish}
                           </span>
                         ))}
                         {pkg.dishes.length > 4 && (
-                          <span style={{ fontSize: '0.75rem', color: 'var(--primary)', padding: '2px 4px' }}>
+                          <span style={{ fontSize: '0.74rem', color: 'var(--primary)', fontWeight: 700, padding: '2px 4px' }}>
                             +{pkg.dishes.length - 4} món nữa...
                           </span>
                         )}
@@ -315,24 +319,24 @@ export const CateringPage: React.FC = () => {
         {/* Right: Quote Calculator & Booking Box */}
         <div
           style={{
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border-strong)',
+            background: '#FFFFFF',
+            border: '1px solid var(--border)',
             borderRadius: 20,
             padding: 24,
-            boxShadow: 'var(--shadow-lg)',
+            boxShadow: 'var(--shadow-md)',
             position: 'sticky',
             top: 90,
           }}
         >
-          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: 18, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <DollarSign size={20} color="var(--primary)" /> 2. Tính Báo Giá & Đặt Cọc (BR-21, 24)
+          <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <DollarSign size={18} color="var(--primary)" /> 2. Báo Giá & Đặt Cọc 2 Đợt (BR-21, 24)
           </h3>
 
-          {/* Table count */}
+          {/* Table count slider */}
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Số lượng mâm cỗ:</label>
-              <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '1rem' }}>{tableCount} mâm</span>
+              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>Quy mô đặt mâm:</label>
+              <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1rem' }}>{tableCount} mâm</span>
             </div>
             <input
               type="range"
@@ -342,17 +346,17 @@ export const CateringPage: React.FC = () => {
               onChange={(e) => setTableCount(Number(e.target.value))}
               style={{ width: '100%', accentColor: 'var(--primary)', cursor: 'pointer' }}
             />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              <span>2 mâm (Gia đình)</span>
-              <span>5 mâm (Giảm 5%)</span>
-              <span>10 mâm (Giảm 10%)</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+              <span>2 mâm (Nhỏ)</span>
+              <span>5 mâm (-5%)</span>
+              <span>10 mâm (-10%)</span>
               <span>30 mâm</span>
             </div>
           </div>
 
           {/* Deposit percent choice */}
           <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: 8 }}>
               Tỷ lệ đặt cọc đợt 1 (MoMo):
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -361,38 +365,40 @@ export const CateringPage: React.FC = () => {
                 onClick={() => setDepositPercent(30)}
                 style={{
                   padding: '10px',
-                  borderRadius: 10,
-                  background: depositPercent === 30 ? 'var(--primary-light)' : 'var(--bg-card)',
-                  border: `1px solid ${depositPercent === 30 ? 'var(--primary)' : 'var(--border)'}`,
+                  borderRadius: 12,
+                  background: depositPercent === 30 ? 'rgba(0, 177, 79, 0.1)' : 'var(--bg-main)',
+                  border: `1.5px solid ${depositPercent === 30 ? 'var(--primary)' : 'var(--border)'}`,
                   color: depositPercent === 30 ? 'var(--primary)' : 'var(--text-main)',
-                  fontWeight: 600,
+                  fontWeight: 700,
                   fontSize: '0.85rem',
+                  cursor: 'pointer',
                 }}
               >
-                Cọc 30% ({Math.round((netTotal * 0.3)).toLocaleString()} đ)
+                Cọc 30% ({Math.round(netTotal * 0.3).toLocaleString()} đ)
               </button>
               <button
                 type="button"
                 onClick={() => setDepositPercent(50)}
                 style={{
                   padding: '10px',
-                  borderRadius: 10,
-                  background: depositPercent === 50 ? 'var(--primary-light)' : 'var(--bg-card)',
-                  border: `1px solid ${depositPercent === 50 ? 'var(--primary)' : 'var(--border)'}`,
+                  borderRadius: 12,
+                  background: depositPercent === 50 ? 'rgba(0, 177, 79, 0.1)' : 'var(--bg-main)',
+                  border: `1.5px solid ${depositPercent === 50 ? 'var(--primary)' : 'var(--border)'}`,
                   color: depositPercent === 50 ? 'var(--primary)' : 'var(--text-main)',
-                  fontWeight: 600,
+                  fontWeight: 700,
                   fontSize: '0.85rem',
+                  cursor: 'pointer',
                 }}
               >
-                Cọc 50% ({Math.round((netTotal * 0.5)).toLocaleString()} đ)
+                Cọc 50% ({Math.round(netTotal * 0.5).toLocaleString()} đ)
               </button>
             </div>
           </div>
 
           {/* Event Date */}
           <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
-              Ngày tổ chức tiệc (Quy định trước $\ge 72$ giờ):
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: 6 }}>
+              Ngày tổ chức tiệc (Quy định trước ≥ 72 giờ):
             </label>
             <input
               type="date"
@@ -400,24 +406,27 @@ export const CateringPage: React.FC = () => {
               onChange={(e) => setEventDate(e.target.value)}
               style={{
                 width: '100%',
-                padding: '10px 12px',
-                borderRadius: 10,
-                background: 'var(--bg-card)',
-                border: `1px solid ${isValidAdvanceTime ? 'var(--border)' : 'var(--danger)'}`,
-                color: '#fff',
+                padding: '10px 14px',
+                borderRadius: 12,
+                background: 'var(--bg-main)',
+                border: `1px solid ${isValidAdvanceTime ? 'var(--border)' : '#EF4444'}`,
+                color: 'var(--text-main)',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                outline: 'none',
               }}
             />
             {!isValidAdvanceTime && (
-              <div style={{ color: 'var(--danger)', fontSize: '0.75rem', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <AlertCircle size={14} /> Cần đặt trước ít nhất 72 giờ để bếp chuẩn bị nguyên liệu tươi sống!
+              <div style={{ color: '#EF4444', fontSize: '0.78rem', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
+                <AlertCircle size={14} /> Cần đặt trước ít nhất 72 giờ để bếp trưởng chuẩn bị nguyên liệu tươi ngon!
               </div>
             )}
           </div>
 
           {/* Event Address */}
           <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
-              Địa chỉ tổ chức tiệc:
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: 6 }}>
+              Địa chỉ tổ chức tiệc tại gia:
             </label>
             <input
               type="text"
@@ -426,39 +435,40 @@ export const CateringPage: React.FC = () => {
               placeholder="Số nhà, Tên đường, Quận, TP"
               style={{
                 width: '100%',
-                padding: '10px 12px',
-                borderRadius: 10,
-                background: 'var(--bg-card)',
+                padding: '10px 14px',
+                borderRadius: 12,
+                background: 'var(--bg-main)',
                 border: '1px solid var(--border)',
-                color: '#fff',
-                fontSize: '0.85rem',
+                color: 'var(--text-main)',
+                fontSize: '0.9rem',
+                outline: 'none',
               }}
             />
           </div>
 
           {/* Financial Breakdown */}
-          <div style={{ background: 'var(--bg-card)', padding: 14, borderRadius: 12, marginBottom: 18 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: 6 }}>
-              <span style={{ color: 'var(--text-secondary)' }}>Đơn giá:</span>
-              <span>{grossTotal.toLocaleString()} đ</span>
+          <div style={{ background: 'var(--bg-main)', padding: 16, borderRadius: 14, marginBottom: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: 6, color: 'var(--text-muted)' }}>
+              <span>Đơn giá niêm yết:</span>
+              <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{grossTotal.toLocaleString()} đ</span>
             </div>
             {discountRate > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#10B981', marginBottom: 6 }}>
-                <span>Ưu đãi số lượng lớn ({discountRate}%):</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--primary)', fontWeight: 700, marginBottom: 6 }}>
+                <span>Ưu đãi mâm lớn ({discountRate}%):</span>
                 <span>-{discountAmount.toLocaleString()} đ</span>
               </div>
             )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem', fontWeight: 700, borderTop: '1px solid var(--border)', paddingTop: 8, marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem', fontWeight: 800, borderTop: '1px solid var(--border)', paddingTop: 8, marginBottom: 8, color: 'var(--text-main)' }}>
               <span>Tổng chi phí tiệc:</span>
               <span>{netTotal.toLocaleString()} đ</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: 'var(--primary)', fontWeight: 700 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.92rem', color: 'var(--primary)', fontWeight: 800 }}>
               <span>Tiền cọc đợt 1 ({depositPercent}%):</span>
               <span>{depositAmount.toLocaleString()} đ</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
               <span>Còn lại thanh toán khi tiệc xong:</span>
-              <span>{remainingAmount.toLocaleString()} đ</span>
+              <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{remainingAmount.toLocaleString()} đ</span>
             </div>
           </div>
 
@@ -466,17 +476,17 @@ export const CateringPage: React.FC = () => {
           <button
             onClick={handleCreateBooking}
             className="btn btn-primary"
-            style={{ width: '100%', padding: '14px', fontSize: '1rem', fontWeight: 700 }}
+            style={{ width: '100%', padding: '14px', fontSize: '1rem', fontWeight: 800, borderRadius: 14 }}
           >
-            Tiến hành Đặt Tiệc & Đặt Cọc
+            Tiến hành Đặt Tiệc & Đặt Cọc MoMo
           </button>
         </div>
       </div>
 
       {/* Bookings History Section */}
       <div style={{ marginTop: 48 }}>
-        <h3 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: 16 }}>
-          Lịch Sử & Tiến Trình Mâm Cỗ Của Bạn ({bookings.length})
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: 16 }}>
+          Lịch Sử & Tiến Trình Đặt Tiệc Của Bạn ({bookings.length})
         </h3>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 16 }}>
@@ -484,36 +494,37 @@ export const CateringPage: React.FC = () => {
             <div
               key={b.id}
               style={{
-                background: 'var(--bg-surface)',
+                background: '#FFFFFF',
                 border: '1px solid var(--border)',
-                borderRadius: 16,
-                padding: 18,
+                borderRadius: 18,
+                padding: 20,
+                boxShadow: 'var(--shadow-sm)',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '0.95rem' }}>{b.bookingCode}</span>
+                <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.98rem' }}>{b.bookingCode}</span>
                 <span
                   style={{
-                    fontSize: '0.75rem',
+                    fontSize: '0.78rem',
                     padding: '4px 10px',
-                    borderRadius: 20,
-                    fontWeight: 600,
+                    borderRadius: 8,
+                    fontWeight: 700,
                     background:
                       b.status === 'COMPLETED'
-                        ? 'rgba(16, 185, 129, 0.15)'
+                        ? '#D1FAE5'
                         : b.status === 'DEPOSIT_PAID'
-                        ? 'rgba(6, 182, 212, 0.15)'
+                        ? '#E0F2FE'
                         : b.status === 'CANCELLED'
-                        ? 'rgba(239, 68, 68, 0.15)'
-                        : 'rgba(245, 158, 11, 0.15)',
+                        ? '#FEE2E2'
+                        : '#FEF3C7',
                     color:
                       b.status === 'COMPLETED'
-                        ? '#10B981'
+                        ? '#059669'
                         : b.status === 'DEPOSIT_PAID'
-                        ? '#06B6D4'
+                        ? '#0284C7'
                         : b.status === 'CANCELLED'
-                        ? '#EF4444'
-                        : '#F59E0B',
+                        ? '#DC2626'
+                        : '#D97706',
                   }}
                 >
                   {b.status === 'PENDING_DEPOSIT' && 'Chờ cọc MoMo'}
@@ -523,22 +534,24 @@ export const CateringPage: React.FC = () => {
                 </span>
               </div>
 
-              <div style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: 6 }}>{b.packageName}</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+              <div style={{ fontSize: '0.98rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: 6 }}>
+                {b.packageName}
+              </div>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 4 }}>
                 📅 Ngày tiệc: <strong>{b.eventDate}</strong> • Quy mô: <strong>{b.tableCount} mâm</strong>
               </div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 12 }}>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 12 }}>
                 📍 {b.eventAddress}
               </div>
 
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                 <div>
-                  <div style={{ color: 'var(--text-secondary)' }}>Tiền cọc:</div>
-                  <div style={{ fontWeight: 700, color: '#10B981' }}>{b.depositAmount.toLocaleString()} đ</div>
+                  <div style={{ color: 'var(--text-muted)' }}>Tiền cọc:</div>
+                  <div style={{ fontWeight: 800, color: 'var(--primary)' }}>{b.depositAmount.toLocaleString()} đ</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ color: 'var(--text-secondary)' }}>Còn lại:</div>
-                  <div style={{ fontWeight: 700 }}>{b.remainingAmount.toLocaleString()} đ</div>
+                  <div style={{ color: 'var(--text-muted)' }}>Còn lại:</div>
+                  <div style={{ fontWeight: 800, color: 'var(--text-main)' }}>{b.remainingAmount.toLocaleString()} đ</div>
                 </div>
               </div>
 
@@ -548,7 +561,7 @@ export const CateringPage: React.FC = () => {
                   <button
                     onClick={() => setActiveMomoModal(b)}
                     className="btn btn-primary"
-                    style={{ flex: 1, padding: '8px', fontSize: '0.85rem' }}
+                    style={{ flex: 1, padding: '8px', fontSize: '0.85rem', fontWeight: 700 }}
                   >
                     Thanh toán cọc MoMo
                   </button>
@@ -557,7 +570,7 @@ export const CateringPage: React.FC = () => {
                   <button
                     onClick={() => handleSettleRemaining(b.id)}
                     className="btn btn-secondary"
-                    style={{ flex: 1, padding: '8px', fontSize: '0.85rem', color: '#10B981' }}
+                    style={{ flex: 1, padding: '8px', fontSize: '0.85rem', fontWeight: 700 }}
                   >
                     Quyết toán tại tiệc
                   </button>
@@ -568,10 +581,12 @@ export const CateringPage: React.FC = () => {
                     style={{
                       padding: '8px 12px',
                       borderRadius: 10,
-                      background: 'rgba(239, 68, 68, 0.1)',
-                      color: '#EF4444',
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
+                      background: '#FEE2E2',
+                      color: '#DC2626',
+                      border: 'none',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
                     }}
                   >
                     Hủy & Hoàn cọc
@@ -589,44 +604,45 @@ export const CateringPage: React.FC = () => {
           style={{
             position: 'fixed',
             inset: 0,
-            zIndex: 9999,
-            background: 'rgba(0,0,0,0.8)',
-            backdropFilter: 'blur(8px)',
+            background: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: 20,
+            zIndex: 1000,
+            padding: 16,
           }}
         >
           <div
             style={{
               width: '100%',
               maxWidth: 440,
-              background: 'var(--bg-surface)',
-              border: '2px solid var(--momo)',
+              background: '#FFFFFF',
               borderRadius: 20,
-              padding: 24,
+              padding: 28,
               textAlign: 'center',
+              boxShadow: 'var(--shadow-xl)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--momo)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--momo)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
                 M
               </div>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--momo)' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--momo)', margin: 0 }}>
                 MoMo Payment Gateway
               </h3>
             </div>
 
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 16 }}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 16 }}>
               Quét mã QR để đặt cọc đợt 1 cho mã tiệc: <strong>{activeMomoModal.bookingCode}</strong>
             </p>
 
             <div
               style={{
-                background: '#fff',
+                background: '#F8FAFC',
                 padding: 16,
                 borderRadius: 16,
+                border: '1px solid #E2E8F0',
                 display: 'inline-block',
                 margin: '0 auto 16px',
               }}
@@ -638,31 +654,30 @@ export const CateringPage: React.FC = () => {
               />
             </div>
 
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#fff', marginBottom: 4 }}>
+            <div style={{ fontSize: '1.45rem', fontWeight: 900, color: '#D82D8B', marginBottom: 4 }}>
               {activeMomoModal.depositAmount.toLocaleString()} VND
             </div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 20 }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 20 }}>
               Nội dung chuyển: <code>{activeMomoModal.bookingCode}</code>
             </div>
 
             <button
               onClick={() => handleConfirmMomoDeposit(activeMomoModal.id)}
-              className="btn"
+              className="btn-momo"
               style={{
                 width: '100%',
                 padding: '12px',
-                background: 'var(--momo)',
-                color: '#fff',
-                fontWeight: 700,
                 borderRadius: 12,
                 fontSize: '0.95rem',
+                fontWeight: 800,
+                marginBottom: 10,
               }}
             >
               Tôi đã chuyển tiền cọc MoMo thành công
             </button>
             <button
               onClick={() => setActiveMomoModal(null)}
-              style={{ background: 'transparent', color: 'var(--text-secondary)', marginTop: 10, fontSize: '0.85rem' }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', cursor: 'pointer' }}
             >
               Hủy bỏ
             </button>
@@ -672,4 +687,3 @@ export const CateringPage: React.FC = () => {
     </div>
   );
 };
-

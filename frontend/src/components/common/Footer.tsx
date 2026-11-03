@@ -1,87 +1,100 @@
 // ==============================================================================
-// DineGo Frontend — Footer Component
+// DineGo Frontend — Modern Slate Footer Component (GrabFood Market Style)
 // ==============================================================================
 
 import React from 'react';
-import { Flame, ShieldCheck, Zap, Database, Smartphone } from 'lucide-react';
+import { Flame, ShieldCheck, Zap, Database, Smartphone, Heart } from 'lucide-react';
 
 export const Footer: React.FC = () => {
   return (
-    <footer className="footer-wrap">
+    <footer style={{ background: '#0F172A', color: '#94A3B8', padding: '48px 0 28px', marginTop: 'auto' }}>
       <div className="container">
         <div
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: 40,
-            marginBottom: 40,
+            gap: 36,
+            marginBottom: 36,
           }}
         >
           {/* Brand Col */}
           <div>
-            <div className="brand-logo" style={{ marginBottom: 16 }}>
-              <Flame size={26} color="#FF5722" />
-              <div>
-                Dine<span className="brand-badge">Go</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  background: 'var(--primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#FFFFFF',
+                }}
+              >
+                <Flame size={22} />
               </div>
+              <span style={{ fontSize: '1.4rem', fontWeight: 900, color: '#FFFFFF', letterSpacing: '-0.5px' }}>
+                Dine<span style={{ color: 'var(--primary)' }}>Go</span>
+              </span>
             </div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: 20 }}>
-              Hệ thống đặt món và giao đồ ăn thông minh. Kiến trúc Clean Architecture, Modular Monolith, tích hợp MoMo All-in-One Gateway v2.
+            <p style={{ color: '#94A3B8', fontSize: '0.88rem', lineHeight: 1.6, marginBottom: 16 }}>
+              Nền tảng giao đồ ăn và mâm cỗ trực tuyến thế hệ mới. Trải nghiệm mượt mà theo tiêu chuẩn thị trường GrabFood, tích hợp MoMo Gateway v2.
             </p>
-            <div style={{ display: 'flex', gap: 12, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              <span>© 2026 DineGo Nhóm 17</span>
+            <div style={{ fontSize: '0.82rem', color: '#64748B' }}>
+              © 2026 DineGo Vietnam • Nhóm 17
             </div>
           </div>
 
           {/* Tech Spec */}
           <div>
-            <h4 style={{ color: '#fff', fontSize: '1rem', fontWeight: 700, marginBottom: 16 }}>
-              Công nghệ Backend
+            <h4 style={{ color: '#F8FAFC', fontSize: '0.98rem', fontWeight: 800, marginBottom: 14 }}>
+              Kiến Trúc Kỹ Thuật (Sprints 1 - 5)
             </h4>
-            <ul style={{ listStyle: 'none', color: 'var(--text-secondary)', fontSize: '0.88rem', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.86rem', display: 'flex', flexDirection: 'column', gap: 10 }}>
               <li style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Zap size={16} color="#FF5722" />
-                <span>NestJS 12 + TypeScript 5.8 (ESM)</span>
+                <Zap size={15} color="var(--primary)" />
+                <span style={{ color: '#CBD5E1' }}>NestJS 11 + TypeScript 5.7 (ESM)</span>
               </li>
               <li style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Database size={16} color="#3B82F6" />
-                <span>Microsoft SQL Server Express 2022 (SSMS)</span>
+                <Database size={15} color="#38BDF8" />
+                <span style={{ color: '#CBD5E1' }}>Microsoft SQL Server 2022/2025 (`dinego_db`)</span>
               </li>
               <li style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <ShieldCheck size={16} color="#10B981" />
-                <span>Prisma ORM (5 Active Migrations)</span>
+                <ShieldCheck size={15} color="#34D399" />
+                <span style={{ color: '#CBD5E1' }}>Prisma ORM v6 (18 Quan hệ thực thể)</span>
               </li>
               <li style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Smartphone size={16} color="#D82D8B" />
-                <span>MoMo All-in-One Gateway v2 (HMAC-SHA256)</span>
+                <Smartphone size={15} color="#F472B6" />
+                <span style={{ color: '#CBD5E1' }}>Cổng thanh toán MoMo OpenAPI v2 (HMAC-SHA256)</span>
               </li>
             </ul>
           </div>
 
-          {/* Phase status */}
+          {/* Sprints Summary */}
           <div>
-            <h4 style={{ color: '#fff', fontSize: '1rem', fontWeight: 700, marginBottom: 16 }}>
-              Tiến độ phát triển
+            <h4 style={{ color: '#F8FAFC', fontSize: '0.98rem', fontWeight: 800, marginBottom: 14 }}>
+              Tiến Độ Sprints Nghiệm Thu
             </h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.85rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10B981' }}>
-                <span>Phase 0–4: Auth, Catalog, Merchant</span>
-                <span>✓ Xong</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.84rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#34D399' }}>
+                <span>Sprint 1 & 2: Food Delivery & Cart</span>
+                <span>✓ Hoàn tất</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10B981' }}>
-                <span>Phase 5.1: Cart Engine</span>
-                <span>✓ Xong</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#34D399' }}>
+                <span>Sprint 2: Group Order & Split Bill</span>
+                <span>✓ Hoàn tất</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10B981' }}>
-                <span>Phase 5.2: Promotion Engine</span>
-                <span>✓ Xong</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#34D399' }}>
+                <span>Sprint 3: Catering Feast & Đặt cọc</span>
+                <span>✓ Hoàn tất</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10B981' }}>
-                <span>Phase 5.3: Order Engine</span>
-                <span>✓ Xong</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#34D399' }}>
+                <span>Sprint 4: AI Culinary Guide & GPS Tracking</span>
+                <span>✓ Hoàn tất</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#D82D8B', fontWeight: 700 }}>
-                <span>Phase 6: MoMo Payment Engine</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#38BDF8' }}>
+                <span>Sprint 5: Merchant/Admin Dashboard & MoMo</span>
                 <span>✓ Hoàn thành</span>
               </div>
             </div>
@@ -90,19 +103,21 @@ export const Footer: React.FC = () => {
 
         <div
           style={{
-            borderTop: '1px solid rgba(255, 255, 255, 0.05)',
-            paddingTop: 24,
+            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+            paddingTop: 20,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            fontSize: '0.82rem',
-            color: 'var(--text-muted)',
+            fontSize: '0.8rem',
+            color: '#64748B',
             flexWrap: 'wrap',
             gap: 12,
           }}
         >
-          <span>DineGo Frontend Prototype — Phục vụ mục đích xem trước và đối soát API hệ thống</span>
-          <span style={{ color: '#D82D8B', fontWeight: 600 }}>MoMo Sandbox Connected</span>
+          <div>DineGo Food Delivery Ecosystem • Đồ án tốt nghiệp / Bài tập lớn Nhóm 17</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span>Phát triển với tinh thần nghiêm túc và cầu thị</span>
+          </div>
         </div>
       </div>
     </footer>

@@ -65,12 +65,18 @@ const INITIAL_SAMPLE_ORDER: Order = {
 export const AppContent: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<NavTab>('home');
   const [selectedMerchant, setSelectedMerchant] = useState<Merchant>(MOCK_MERCHANTS[0]);
-  const [currentUser, setCurrentUser] = useState<User>({
-    id: 'u-customer-001',
-    email: 'customer@dinego.vn',
-    fullName: 'Nguyễn Văn An (Khách Hàng)',
-    phoneNumber: '0901000004',
-    roles: ['CUSTOMER'],
+  
+  // Mặc định khởi đầu ở chế độ Khách (Guest) chưa đăng nhập theo đúng yêu cầu thực tế
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const saved = localStorage.getItem('dinego_user');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return null;
+      }
+    }
+    return null;
   });
 
   const [orders, setOrders] = useState<Order[]>(() => {
@@ -90,6 +96,7 @@ export const AppContent: React.FC = () => {
 
   const [activeMomoPaymentOrder, setActiveMomoPaymentOrder] = useState<Order | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   const [reviewModalOrder, setReviewModalOrder] = useState<Order | null>(null);
 
   useEffect(() => {
@@ -175,7 +182,14 @@ export const AppContent: React.FC = () => {
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         currentUser={currentUser}
-        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onOpenAuthModal={(mode) => {
+          setAuthModalMode(mode || 'login');
+          setIsAuthModalOpen(true);
+        }}
+        onLogout={() => {
+          setCurrentUser(null);
+          localStorage.removeItem('dinego_user');
+        }}
       />
 
       <main style={{ flexGrow: 1 }}>
@@ -237,9 +251,11 @@ export const AppContent: React.FC = () => {
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
-        currentUser={currentUser}
-        onSelectUser={(user) => {
+        initialMode={authModalMode}
+        onLoginSuccess={(user) => {
           setCurrentUser(user);
+          localStorage.setItem('dinego_user', JSON.stringify(user));
+          setIsAuthModalOpen(false);
           // Tự động chuyển tab phù hợp vai trò
           if (user.roles.includes('ADMIN') || user.roles.includes('MERCHANT')) {
             setCurrentTab('dashboard');

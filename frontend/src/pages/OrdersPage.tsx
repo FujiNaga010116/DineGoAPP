@@ -1,5 +1,6 @@
 // ==============================================================================
-// DineGo Frontend — Orders Management & Live Tracking Page (Phase 5.3 + Phase 6)
+// DineGo Frontend — Orders Management & Tracking Page (GrabFood Style)
+// Status FSM Progress Stepper, Active vs Completed Tabs, Review & MoMo Actions
 // ==============================================================================
 
 import React, { useState } from 'react';
@@ -7,7 +8,15 @@ import {
   MapPin,
   Smartphone,
   Package,
-  XCircle,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  ChevronRight,
+  Sparkles,
+  Star,
+  RotateCcw,
+  Bike,
+  Store,
 } from 'lucide-react';
 import type { Order, OrderStatus } from '../types';
 
@@ -19,13 +28,13 @@ interface OrdersPageProps {
   onOpenReviewModal?: (order: Order) => void;
 }
 
-const STATUS_LABELS: Record<OrderStatus, { text: string; step: number }> = {
-  PENDING: { text: 'Chờ xác nhận / Chờ thanh toán', step: 1 },
-  CONFIRMED: { text: 'Đã xác nhận thanh toán', step: 2 },
-  PREPARING: { text: 'Quán đang chuẩn bị món', step: 3 },
-  READY_FOR_PICKUP: { text: 'Tài xế đang giao đến bạn', step: 4 },
-  COMPLETED: { text: 'Giao hàng thành công', step: 5 },
-  CANCELLED: { text: 'Đã hủy đơn', step: 0 },
+const STATUS_LABELS: Record<OrderStatus, { text: string; step: number; color: string; bg: string }> = {
+  PENDING: { text: 'Chờ thanh toán', step: 1, color: '#D97706', bg: '#FEF3C7' },
+  CONFIRMED: { text: 'Đã xác nhận', step: 2, color: '#0284C7', bg: '#E0F2FE' },
+  PREPARING: { text: 'Quán đang làm món', step: 3, color: '#7C3AED', bg: '#EDE9FE' },
+  READY_FOR_PICKUP: { text: 'Tài xế đang giao', step: 4, color: '#059669', bg: '#D1FAE5' },
+  COMPLETED: { text: 'Giao thành công', step: 5, color: '#00B14F', bg: 'rgba(0, 177, 79, 0.12)' },
+  CANCELLED: { text: 'Đã hủy đơn', step: 0, color: '#DC2626', bg: '#FEE2E2' },
 };
 
 export const OrdersPage: React.FC<OrdersPageProps> = ({
@@ -38,21 +47,46 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(
     orders.length > 0 ? orders[0].id : null,
   );
+  const [filterTab, setFilterTab] = useState<'all' | 'active' | 'completed'>('all');
 
-  const selectedOrder = orders.find((o) => o.id === selectedOrderId) || orders[0];
+  const filteredOrders = orders.filter((order) => {
+    if (filterTab === 'active') {
+      return ['PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'].includes(order.status);
+    }
+    if (filterTab === 'completed') {
+      return ['COMPLETED', 'CANCELLED'].includes(order.status);
+    }
+    return true;
+  });
+
+  const selectedOrder = orders.find((o) => o.id === selectedOrderId) || filteredOrders[0] || orders[0];
 
   if (orders.length === 0) {
     return (
       <div className="container" style={{ textAlign: 'center', padding: '80px 20px' }}>
-        <Package size={56} color="var(--text-muted)" style={{ margin: '0 auto 16px auto' }} />
-        <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: 10 }}>
+        <div
+          style={{
+            width: 80,
+            height: 80,
+            borderRadius: 999,
+            background: 'rgba(0, 177, 79, 0.1)',
+            color: 'var(--primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px auto',
+          }}
+        >
+          <Package size={40} />
+        </div>
+        <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: 10 }}>
           Bạn chưa có đơn hàng nào
         </h2>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
-          Hãy chọn món ăn yêu thích và đặt đơn ngay hôm nay.
+        <p style={{ color: 'var(--text-muted)', marginBottom: 24 }}>
+          Hãy chọn món ăn yêu thích và đặt đơn ngay hôm nay để trải nghiệm dịch vụ của DineGo.
         </p>
-        <button className="cart-btn" onClick={onExplore} style={{ margin: '0 auto' }}>
-          Khám phá nhà hàng
+        <button className="btn btn-primary" onClick={onExplore} style={{ margin: '0 auto', padding: '12px 28px' }}>
+          Khám phá nhà hàng ngay
         </button>
       </div>
     );
@@ -60,113 +94,233 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
 
   return (
     <div className="container" style={{ paddingTop: 20, paddingBottom: 60 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+      {/* Page Title & Filter Tabs */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 16,
+          marginBottom: 24,
+        }}
+      >
         <div>
-          <h1 style={{ fontSize: '2rem', fontWeight: 800, color: '#fff' }}>
+          <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
             Đơn hàng của tôi
           </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            Quản lý và theo dõi tiến trình {orders.length} đơn hàng thực tế
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '4px 0 0 0' }}>
+            Theo dõi tiến trình và lịch sử {orders.length} đơn hàng thực tế
           </p>
+        </div>
+
+        {/* Filter Pills */}
+        <div
+          style={{
+            display: 'flex',
+            background: '#FFFFFF',
+            padding: 4,
+            borderRadius: 14,
+            border: '1px solid var(--border)',
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          <button
+            onClick={() => setFilterTab('all')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 10,
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              background: filterTab === 'all' ? 'var(--primary)' : 'transparent',
+              color: filterTab === 'all' ? '#FFFFFF' : 'var(--text-muted)',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            Tất cả ({orders.length})
+          </button>
+          <button
+            onClick={() => setFilterTab('active')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 10,
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              background: filterTab === 'active' ? 'var(--primary)' : 'transparent',
+              color: filterTab === 'active' ? '#FFFFFF' : 'var(--text-muted)',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            Đang thực hiện ({orders.filter((o) => !['COMPLETED', 'CANCELLED'].includes(o.status)).length})
+          </button>
+          <button
+            onClick={() => setFilterTab('completed')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 10,
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              background: filterTab === 'completed' ? 'var(--primary)' : 'transparent',
+              color: filterTab === 'completed' ? '#FFFFFF' : 'var(--text-muted)',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            Lịch sử ({orders.filter((o) => ['COMPLETED', 'CANCELLED'].includes(o.status)).length})
+          </button>
         </div>
       </div>
 
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          gap: 32,
+          gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+          gap: 28,
         }}
       >
         {/* Left: Orders List */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {orders.map((order) => {
-            const isSelected = order.id === selectedOrderId;
-            const statusInfo = STATUS_LABELS[order.status] || { text: order.status, step: 1 };
-            const isMoMoSuccess = order.payment?.paymentStatus === 'SUCCESS';
+          {filteredOrders.length === 0 ? (
+            <div
+              style={{
+                background: '#FFFFFF',
+                borderRadius: 16,
+                padding: '40px 20px',
+                textAlign: 'center',
+                border: '1px solid var(--border)',
+                color: 'var(--text-muted)',
+              }}
+            >
+              Không có đơn hàng nào trong mục này.
+            </div>
+          ) : (
+            filteredOrders.map((order) => {
+              const isSelected = order.id === (selectedOrder?.id ?? selectedOrderId);
+              const statusInfo = STATUS_LABELS[order.status] || {
+                text: order.status,
+                step: 1,
+                color: '#64748B',
+                bg: '#F1F5F9',
+              };
+              const isMoMoSuccess = order.payment?.paymentStatus === 'SUCCESS';
 
-            return (
-              <div
-                key={order.id}
-                onClick={() => setSelectedOrderId(order.id)}
-                style={{
-                  background: isSelected ? 'var(--bg-card-hover)' : 'var(--bg-card)',
-                  border: `1px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}`,
-                  borderRadius: 'var(--radius-md)',
-                  padding: '18px 20px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  boxShadow: isSelected ? '0 4px 18px var(--primary-glow)' : 'none',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <span style={{ fontWeight: 800, color: '#fff' }}>#{order.orderNumber}</span>
-                  <span className={`status-pill status-${order.status}`}>
-                    {statusInfo.text}
-                  </span>
-                </div>
-
-                <div style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
-                  {order.merchant?.name || 'DineGo Store'} • {(order.items || []).length} món
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
-                  <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1.05rem' }}>
-                    {(order.finalTotal || 0).toLocaleString('vi-VN')}đ
-                  </span>
-
-                  {order.payment?.paymentMethod?.includes('MOMO') && (
+              return (
+                <div
+                  key={order.id}
+                  onClick={() => setSelectedOrderId(order.id)}
+                  style={{
+                    background: '#FFFFFF',
+                    border: `1.5px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}`,
+                    borderRadius: 16,
+                    padding: '18px 20px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: isSelected ? '0 6px 20px rgba(0, 177, 79, 0.15)' : 'var(--shadow-sm)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <span style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '0.98rem' }}>
+                      #{order.orderNumber}
+                    </span>
                     <span
                       style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
+                        padding: '4px 10px',
+                        borderRadius: 8,
                         fontSize: '0.78rem',
                         fontWeight: 700,
-                        color: isMoMoSuccess ? '#10B981' : '#D82D8B',
+                        color: statusInfo.color,
+                        background: statusInfo.bg,
                       }}
                     >
-                      <Smartphone size={13} />
-                      {isMoMoSuccess ? 'Đã thanh toán MoMo' : 'Chờ quét MoMo'}
+                      {statusInfo.text}
                     </span>
-                  )}
+                  </div>
+
+                  <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Store size={14} color="var(--primary)" />
+                    <strong>{order.merchant?.name || 'Nhà hàng DineGo'}</strong>
+                    <span>•</span>
+                    <span>{(order.items || []).length} món</span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                    <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1.05rem' }}>
+                      {(order.finalTotal || 0).toLocaleString('vi-VN')}đ
+                    </span>
+
+                    {order.payment?.paymentMethod?.includes('MOMO') && (
+                      <span
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          color: isMoMoSuccess ? '#059669' : '#D82D8B',
+                          background: isMoMoSuccess ? '#D1FAE5' : 'rgba(216, 45, 139, 0.1)',
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                        }}
+                      >
+                        <Smartphone size={13} />
+                        {isMoMoSuccess ? 'Đã trả qua MoMo' : 'Chờ quét MoMo'}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
 
         {/* Right: Selected Order Detail */}
         {selectedOrder && (
           <div
             style={{
-              background: 'var(--bg-card)',
+              background: '#FFFFFF',
               border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-lg)',
+              borderRadius: 20,
               padding: 28,
+              boxShadow: 'var(--shadow-md)',
             }}
           >
             <div
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center',
+                alignItems: 'flex-start',
                 paddingBottom: 20,
                 borderBottom: '1px solid var(--border)',
                 marginBottom: 20,
+                flexWrap: 'wrap',
+                gap: 12,
               }}
             >
               <div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Chi tiết đơn hàng</div>
-                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#fff' }}>
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600 }}>Chi tiết đơn hàng</div>
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-main)', margin: '4px 0' }}>
                   #{selectedOrder.orderNumber}
                 </h2>
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
                   Đặt lúc: {new Date(selectedOrder.createdAt).toLocaleString('vi-VN')}
                 </div>
               </div>
 
-              <span className={`status-pill status-${selectedOrder.status}`} style={{ fontSize: '0.9rem', padding: '6px 14px' }}>
+              <span
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: 10,
+                  fontSize: '0.85rem',
+                  fontWeight: 800,
+                  color: STATUS_LABELS[selectedOrder.status]?.color || '#64748B',
+                  background: STATUS_LABELS[selectedOrder.status]?.bg || '#F1F5F9',
+                }}
+              >
                 {STATUS_LABELS[selectedOrder.status]?.text || selectedOrder.status}
               </span>
             </div>
@@ -175,48 +329,56 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
             {selectedOrder.status !== 'CANCELLED' && (
               <div
                 style={{
-                  background: 'var(--bg-surface)',
-                  padding: 16,
-                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-main)',
+                  padding: '18px 20px',
+                  borderRadius: 16,
                   marginBottom: 24,
                   border: '1px solid var(--border)',
                 }}
               >
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 12 }}>
-                  Tiến trình đơn hàng (FSM):
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: 14 }}>
+                  Tiến trình đơn hàng trực tiếp:
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
                   {(['PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP', 'COMPLETED'] as OrderStatus[]).map((st, idx) => {
                     const currentStep = STATUS_LABELS[selectedOrder.status]?.step || 1;
                     const stepNum = idx + 1;
                     const isDone = currentStep >= stepNum;
+                    const isCurrent = currentStep === stepNum;
 
                     return (
                       <div key={st} style={{ textAlign: 'center', flex: 1, position: 'relative', zIndex: 1 }}>
                         <div
                           style={{
-                            width: 28,
-                            height: 28,
+                            width: 30,
+                            height: 30,
                             borderRadius: '50%',
-                            background: isDone ? 'var(--primary)' : 'var(--bg-card)',
-                            border: `2px solid ${isDone ? 'var(--primary)' : 'var(--border-strong)'}`,
-                            color: '#fff',
+                            background: isDone ? 'var(--primary)' : '#FFFFFF',
+                            border: `2.5px solid ${isDone ? 'var(--primary)' : '#CBD5E1'}`,
+                            color: isDone ? '#FFFFFF' : '#94A3B8',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             margin: '0 auto 6px auto',
-                            fontSize: '0.78rem',
+                            fontSize: '0.82rem',
                             fontWeight: 800,
+                            boxShadow: isCurrent ? '0 0 0 4px rgba(0, 177, 79, 0.2)' : 'none',
                           }}
                         >
                           {isDone ? '✓' : stepNum}
                         </div>
-                        <div style={{ fontSize: '0.7rem', color: isDone ? '#fff' : 'var(--text-muted)', fontWeight: 600 }}>
+                        <div
+                          style={{
+                            fontSize: '0.72rem',
+                            color: isDone ? 'var(--text-main)' : 'var(--text-muted)',
+                            fontWeight: isCurrent ? 800 : 600,
+                          }}
+                        >
                           {st === 'PENDING' && 'Đặt đơn'}
-                          {st === 'CONFIRMED' && 'Đã xác nhận'}
-                          {st === 'PREPARING' && 'Chuẩn bị'}
-                          {st === 'READY_FOR_PICKUP' && 'Đang giao'}
-                          {st === 'COMPLETED' && 'Hoàn tất'}
+                          {st === 'CONFIRMED' && 'Đã nhận'}
+                          {st === 'PREPARING' && 'Làm món'}
+                          {st === 'READY_FOR_PICKUP' && 'Giao hàng'}
+                          {st === 'COMPLETED' && 'Đã giao'}
                         </div>
                       </div>
                     );
@@ -226,32 +388,59 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
             )}
 
             {/* Delivery address */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20 }}>
-              <MapPin size={18} color="var(--primary)" style={{ flexShrink: 0, marginTop: 2 }} />
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 20 }}>
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  background: 'rgba(0, 177, 79, 0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <MapPin size={18} color="var(--primary)" />
+              </div>
               <div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Địa chỉ nhận hàng</div>
-                <div style={{ color: '#fff', fontWeight: 600 }}>{selectedOrder.deliveryAddress}</div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Địa chỉ nhận hàng</div>
+                <div style={{ color: 'var(--text-main)', fontWeight: 700, fontSize: '0.95rem' }}>{selectedOrder.deliveryAddress}</div>
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 2 }}>
                   {selectedOrder.recipientName} • {selectedOrder.recipientPhone}
                 </div>
               </div>
             </div>
 
             {/* Order Items */}
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 10 }}>Danh sách món ăn</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: 10 }}>
+                Danh sách món ăn
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {(selectedOrder.items || []).map((item) => (
-                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div
+                    key={item.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      background: 'var(--bg-main)',
+                      padding: '10px 14px',
+                      borderRadius: 12,
+                    }}
+                  >
                     <div>
-                      <span style={{ fontWeight: 700, color: '#fff' }}>{item.quantity}x {item.itemName}</span>
+                      <span style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.92rem' }}>
+                        {item.quantity}x {item.itemName}
+                      </span>
                       {(item.toppings || []).length > 0 && (
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 2 }}>
                           + {(item.toppings || []).map((t) => t.toppingName).join(', ')}
                         </div>
                       )}
                     </div>
-                    <span style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>
+                    <span style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '0.92rem' }}>
                       {(item.subtotal || 0).toLocaleString('vi-VN')}đ
                     </span>
                   </div>
@@ -259,152 +448,153 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
               </div>
             </div>
 
-            {/* Totals */}
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginBottom: 24 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: 6 }}>
+            {/* Cost Breakdown */}
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginBottom: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.88rem', marginBottom: 6 }}>
                 <span>Tạm tính</span>
-                <span>{selectedOrder.subtotal.toLocaleString('vi-VN')}đ</span>
+                <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{selectedOrder.subtotal.toLocaleString('vi-VN')}đ</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.88rem', marginBottom: 6 }}>
                 <span>Phí giao hàng</span>
-                <span>{selectedOrder.deliveryFee.toLocaleString('vi-VN')}đ</span>
+                <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{selectedOrder.deliveryFee.toLocaleString('vi-VN')}đ</span>
               </div>
               {selectedOrder.discountAmount > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10B981', fontSize: '0.9rem', marginBottom: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--primary)', fontSize: '0.88rem', fontWeight: 700, marginBottom: 6 }}>
                   <span>Giảm giá</span>
                   <span>-{selectedOrder.discountAmount.toLocaleString('vi-VN')}đ</span>
                 </div>
               )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.15rem', fontWeight: 800, color: '#fff', marginTop: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)', marginTop: 8 }}>
                 <span>Tổng tiền</span>
                 <span style={{ color: 'var(--primary)' }}>{selectedOrder.finalTotal.toLocaleString('vi-VN')}đ</span>
               </div>
             </div>
 
-            {/* Payment Section & Actions */}
+            {/* Payment Info Box */}
             <div
               style={{
-                background: 'var(--bg-surface)',
+                background: 'var(--bg-main)',
                 border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)',
-                padding: 16,
+                borderRadius: 14,
+                padding: '14px 18px',
                 marginBottom: 20,
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Cổng thanh toán</div>
-                  <div style={{ fontWeight: 700, color: '#fff' }}>
-                    {selectedOrder.payment?.paymentMethod || 'MOMO_QR'}
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Phương thức thanh toán</div>
+                  <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '0.92rem' }}>
+                    {selectedOrder.payment?.paymentMethod === 'MOMO_QR'
+                      ? '🌸 Ví MoMo All-in-One Gateway'
+                      : '💵 Tiền mặt khi nhận hàng (COD)'}
                   </div>
                   {selectedOrder.payment?.transactionRef && (
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
                       Mã GD: {selectedOrder.payment.transactionRef}
                     </div>
                   )}
                 </div>
 
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Trạng thái thanh toán</div>
-                  <div
+                {selectedOrder.payment?.paymentStatus === 'SUCCESS' ? (
+                  <span
                     style={{
+                      background: '#D1FAE5',
+                      color: '#059669',
+                      padding: '4px 10px',
+                      borderRadius: 8,
+                      fontSize: '0.78rem',
                       fontWeight: 800,
-                      color: selectedOrder.payment?.paymentStatus === 'SUCCESS' ? '#10B981' : '#F59E0B',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
                     }}
                   >
-                    {selectedOrder.payment?.paymentStatus === 'SUCCESS' ? 'ĐÃ THANH TOÁN' : 'CHỜ THANH TOÁN'}
-                  </div>
-                </div>
+                    <CheckCircle2 size={13} />
+                    Đã thanh toán
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      background: '#FEF3C7',
+                      color: '#D97706',
+                      padding: '4px 10px',
+                      borderRadius: 8,
+                      fontSize: '0.78rem',
+                      fontWeight: 800,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                  >
+                    <AlertCircle size={13} />
+                    Chờ thanh toán
+                  </span>
+                )}
               </div>
             </div>
 
-            {/* Contextual Action Buttons */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {selectedOrder.status === 'PENDING' && (
-                <>
-                  <button
-                    onClick={() => onPayMoMo(selectedOrder)}
-                    className="btn-momo"
-                    style={{ padding: '12px 20px' }}
-                  >
-                    <Smartphone size={18} />
-                    <span>Thanh toán ngay bằng MoMo (Quét QR)</span>
-                  </button>
-
-                  <button
-                    onClick={() => onUpdateOrderStatus(selectedOrder.id, 'CANCELLED')}
-                    style={{
-                      padding: '10px 18px',
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'transparent',
-                      color: 'var(--danger)',
-                      border: '1px solid rgba(239, 68, 68, 0.3)',
-                      fontWeight: 700,
-                      fontSize: '0.9rem',
-                    }}
-                  >
-                    <XCircle size={16} style={{ display: 'inline', marginRight: 6 }} />
-                    Hủy đơn hàng này
-                  </button>
-                </>
+            {/* Actions for Order */}
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {selectedOrder.status === 'PENDING' && selectedOrder.payment?.paymentMethod?.includes('MOMO') && (
+                <button
+                  onClick={() => onPayMoMo(selectedOrder)}
+                  className="btn-momo"
+                  style={{ flex: 1, padding: '12px 18px', borderRadius: 12, fontWeight: 700 }}
+                >
+                  <Smartphone size={16} />
+                  <span>Mở mã quét MoMo</span>
+                </button>
               )}
 
-              {/* Completed order actions: Review & Complaints (Sprint 5) */}
-              {selectedOrder.status === 'COMPLETED' && (
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 10 }}>
-                  <button
-                    onClick={() => onOpenReviewModal && onOpenReviewModal(selectedOrder)}
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      borderRadius: 10,
-                      background: 'rgba(255, 87, 34, 0.15)',
-                      border: '1px solid var(--primary)',
-                      color: 'var(--primary)',
-                      fontWeight: 700,
-                      fontSize: '0.9rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
-                    }}
-                  >
-                    ⭐ Đánh giá món ăn & Báo sự cố đơn hàng (Sprint 5)
-                  </button>
-                </div>
+              {selectedOrder.status === 'COMPLETED' && onOpenReviewModal && (
+                <button
+                  onClick={() => onOpenReviewModal(selectedOrder)}
+                  className="btn btn-secondary"
+                  style={{
+                    flex: 1,
+                    padding: '12px 18px',
+                    borderRadius: 12,
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <Star size={16} color="#F59E0B" fill="#F59E0B" />
+                  <span>Đánh giá món & Góp ý</span>
+                </button>
               )}
-              {selectedOrder.status !== 'CANCELLED' && selectedOrder.status !== 'COMPLETED' && (
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 6 }}>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 8 }}>
-                    Công cụ giả lập FSM trạng thái (Dành cho demo):
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {selectedOrder.status === 'CONFIRMED' && (
-                      <button
-                        onClick={() => onUpdateOrderStatus(selectedOrder.id, 'PREPARING')}
-                        style={{ padding: '8px 14px', borderRadius: 6, background: '#3B82F6', color: '#fff', fontWeight: 600, fontSize: '0.82rem' }}
-                      >
-                        Bắt đầu chuẩn bị món →
-                      </button>
-                    )}
-                    {selectedOrder.status === 'PREPARING' && (
-                      <button
-                        onClick={() => onUpdateOrderStatus(selectedOrder.id, 'READY_FOR_PICKUP')}
-                        style={{ padding: '8px 14px', borderRadius: 6, background: '#8B5CF6', color: '#fff', fontWeight: 600, fontSize: '0.82rem' }}
-                      >
-                        Giao cho tài xế →
-                      </button>
-                    )}
-                    {selectedOrder.status === 'READY_FOR_PICKUP' && (
-                      <button
-                        onClick={() => onUpdateOrderStatus(selectedOrder.id, 'COMPLETED')}
-                        style={{ padding: '8px 14px', borderRadius: 6, background: '#10B981', color: '#fff', fontWeight: 600, fontSize: '0.82rem' }}
-                      >
-                        Hoàn thành đơn hàng ✓
-                      </button>
-                    )}
-                  </div>
-                </div>
+
+              {/* Simulation FSM next step button for demo */}
+              {selectedOrder.status !== 'COMPLETED' && selectedOrder.status !== 'CANCELLED' && (
+                <button
+                  onClick={() => {
+                    const statusFlow: Record<OrderStatus, OrderStatus> = {
+                      PENDING: 'CONFIRMED',
+                      CONFIRMED: 'PREPARING',
+                      PREPARING: 'READY_FOR_PICKUP',
+                      READY_FOR_PICKUP: 'COMPLETED',
+                      COMPLETED: 'COMPLETED',
+                      CANCELLED: 'CANCELLED',
+                    };
+                    onUpdateOrderStatus(selectedOrder.id, statusFlow[selectedOrder.status]);
+                  }}
+                  className="btn btn-primary"
+                  style={{
+                    flex: 1,
+                    padding: '12px 18px',
+                    borderRadius: 12,
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <Sparkles size={16} />
+                  <span>Chuyển bước kế tiếp (Demo)</span>
+                </button>
               )}
             </div>
           </div>

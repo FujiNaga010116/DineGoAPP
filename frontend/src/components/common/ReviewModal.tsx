@@ -1,5 +1,6 @@
 // ==============================================================================
 // DineGo Frontend — Review & Complaint Modal (Sprint 5 — U047, U051)
+// Clean Market Modal, Star Ratings, Complaint Moderation & Feedback
 // ==============================================================================
 
 import React, { useState } from 'react';
@@ -65,8 +66,8 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
         position: 'fixed',
         inset: 0,
         zIndex: 9999,
-        background: 'rgba(0,0,0,0.75)',
-        backdropFilter: 'blur(8px)',
+        background: 'rgba(15, 23, 42, 0.6)',
+        backdropFilter: 'blur(4px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -77,11 +78,11 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
         style={{
           width: '100%',
           maxWidth: 500,
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-strong)',
+          background: '#FFFFFF',
+          border: '1px solid var(--border)',
           borderRadius: 20,
           overflow: 'hidden',
-          boxShadow: 'var(--shadow-lg)',
+          boxShadow: 'var(--shadow-xl)',
         }}
       >
         <div
@@ -96,81 +97,95 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div
               style={{
-                width: 34,
-                height: 34,
-                borderRadius: 8,
-                background: tab === 'review' ? 'rgba(255, 87, 34, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                color: tab === 'review' ? 'var(--primary)' : 'var(--danger)',
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                background: tab === 'review' ? 'rgba(0, 177, 79, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                color: tab === 'review' ? 'var(--primary)' : '#EF4444',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              {tab === 'review' ? <MessageSquare size={18} /> : <AlertTriangle size={18} />}
+              {tab === 'review' ? <Star size={20} /> : <AlertTriangle size={20} />}
             </div>
             <div>
-              <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
                 {tab === 'review' ? 'Đánh giá món ăn' : 'Khiếu nại đơn hàng'}
               </h3>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                Đơn {order.orderNumber} • {order.merchant.name}
-              </p>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                Đơn hàng #{order.orderNumber} • {order.merchant?.name}
+              </div>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', color: 'var(--text-secondary)' }}>
+
+          <button
+            onClick={onClose}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              padding: 4,
+            }}
+          >
             <X size={20} />
           </button>
         </div>
 
-        {/* Tab switch */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 20px' }}>
+        {/* Tab Switcher */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '12px 20px 0 20px', gap: 8 }}>
           <button
             onClick={() => setTab('review')}
             style={{
-              padding: '10px 16px',
-              borderBottom: tab === 'review' ? '2px solid var(--primary)' : '2px solid transparent',
-              color: tab === 'review' ? 'var(--primary)' : 'var(--text-secondary)',
-              fontWeight: 600,
+              padding: '9px',
+              borderRadius: 10,
               fontSize: '0.85rem',
-              background: 'transparent',
+              fontWeight: 700,
+              background: tab === 'review' ? 'var(--primary)' : 'var(--bg-main)',
+              color: tab === 'review' ? '#FFFFFF' : 'var(--text-muted)',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
             }}
           >
-            Đánh giá quán & Món ăn
+            ⭐ Đánh giá trải nghiệm
           </button>
           <button
             onClick={() => setTab('complaint')}
             style={{
-              padding: '10px 16px',
-              borderBottom: tab === 'complaint' ? '2px solid var(--danger)' : '2px solid transparent',
-              color: tab === 'complaint' ? 'var(--danger)' : 'var(--text-secondary)',
-              fontWeight: 600,
+              padding: '9px',
+              borderRadius: 10,
               fontSize: '0.85rem',
-              background: 'transparent',
+              fontWeight: 700,
+              background: tab === 'complaint' ? '#EF4444' : 'var(--bg-main)',
+              color: tab === 'complaint' ? '#FFFFFF' : 'var(--text-muted)',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
             }}
           >
-            Báo sự cố / Khiếu nại
+            ⚠️ Báo sự cố / Khiếu nại
           </button>
         </div>
 
+        {/* Form Body */}
         <div style={{ padding: 20 }}>
           {submitted ? (
-            <div style={{ textAlign: 'center', padding: '24px 0' }}>
-              <CheckCircle2 size={48} color="#10B981" style={{ margin: '0 auto 12px' }} />
-              <h4>{tab === 'review' ? 'Cảm ơn đánh giá của bạn!' : 'Đã tiếp nhận khiếu nại!'}</h4>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: 4 }}>
-                {tab === 'review'
-                  ? 'Đánh giá đã được ghi nhận và chia sẻ tới cộng đồng DineGo.'
-                  : 'Mã khiếu nại đã gửi tới Admin. Chúng tôi sẽ phản hồi và hoàn tiền MoMo trong 24h.'}
+            <div style={{ textAlign: 'center', padding: '30px 10px' }}>
+              <CheckCircle2 size={48} color="var(--primary)" style={{ margin: '0 auto 12px' }} />
+              <h4 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: 6 }}>
+                Gửi thông tin thành công!
+              </h4>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                DineGo xin chân thành cảm ơn phản hồi quý báu từ bạn.
               </p>
             </div>
           ) : tab === 'review' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {/* Star Rating */}
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
-                  Bạn hài lòng với bữa ăn này như thế nào?
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
+              <div style={{ textAlign: 'center', padding: '8px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 8 }}>
                   {[1, 2, 3, 4, 5].map((s) => (
                     <button
                       key={s}
@@ -178,28 +193,28 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
                       onMouseEnter={() => setHoverRating(s)}
                       onMouseLeave={() => setHoverRating(0)}
                       onClick={() => setRating(s)}
-                      style={{ background: 'transparent', padding: 4 }}
+                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 4 }}
                     >
                       <Star
                         size={32}
-                        color={(hoverRating || rating) >= s ? '#F59E0B' : 'rgba(255,255,255,0.2)'}
-                        fill={(hoverRating || rating) >= s ? '#F59E0B' : 'none'}
+                        color="#F59E0B"
+                        fill={(hoverRating || rating) >= s ? '#F59E0B' : 'transparent'}
                       />
                     </button>
                   ))}
                 </div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#F59E0B', marginTop: 6 }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--primary)' }}>
                   {rating === 5 && 'Tuyệt vời, món ăn rất ngon!'}
-                  {rating === 4 && 'Hài lòng, giao nhanh đúng vị.'}
-                  {rating === 3 && 'Bình thường, tạm ổn.'}
-                  {rating === 2 && 'Chưa hài lòng, cần cải thiện.'}
-                  {rating === 1 && 'Rất tệ, không đúng kỳ vọng.'}
+                  {rating === 4 && 'Hài lòng, đóng gói cẩn thận'}
+                  {rating === 3 && 'Bình thường, tạm được'}
+                  {rating === 2 && 'Cần cải thiện chất lượng'}
+                  {rating === 1 && 'Rất không hài lòng'}
                 </div>
               </div>
 
               {/* Comment text */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: 6 }}>
                   Nhận xét chi tiết:
                 </label>
                 <textarea
@@ -209,13 +224,14 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
                   rows={4}
                   style={{
                     width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: 10,
-                    background: 'var(--bg-card)',
+                    padding: '10px 14px',
+                    borderRadius: 12,
+                    background: 'var(--bg-main)',
                     border: '1px solid var(--border)',
-                    color: '#fff',
+                    color: 'var(--text-main)',
                     resize: 'none',
-                    fontSize: '0.9rem',
+                    fontSize: '0.88rem',
+                    outline: 'none',
                   }}
                 />
               </div>
@@ -224,15 +240,15 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
                 onClick={handleSubmitReview}
                 disabled={!comment.trim()}
                 className="btn btn-primary"
-                style={{ width: '100%', padding: '12px' }}
+                style={{ width: '100%', padding: '12px', fontSize: '0.95rem', fontWeight: 700, borderRadius: 12 }}
               >
-                Gửi đánh giá
+                Gửi đánh giá món ăn
               </button>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: 6 }}>
                   Loại vấn đề gặp phải:
                 </label>
                 <select
@@ -240,11 +256,14 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
                   onChange={(e) => setIssueType(e.target.value)}
                   style={{
                     width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: 10,
-                    background: 'var(--bg-card)',
+                    padding: '10px 14px',
+                    borderRadius: 12,
+                    background: 'var(--bg-main)',
                     border: '1px solid var(--border)',
-                    color: '#fff',
+                    color: 'var(--text-main)',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                    outline: 'none',
                   }}
                 >
                   <option value="MISSING_ITEMS">Giao thiếu món / thiếu đồ ăn kèm</option>
@@ -256,7 +275,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: 6 }}>
                   Mô tả cụ thể sự việc:
                 </label>
                 <textarea
@@ -266,35 +285,38 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
                   rows={4}
                   style={{
                     width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: 10,
-                    background: 'var(--bg-card)',
+                    padding: '10px 14px',
+                    borderRadius: 12,
+                    background: 'var(--bg-main)',
                     border: '1px solid var(--border)',
-                    color: '#fff',
+                    color: 'var(--text-main)',
                     resize: 'none',
-                    fontSize: '0.9rem',
+                    fontSize: '0.88rem',
+                    outline: 'none',
                   }}
                 />
               </div>
 
-              <div style={{ padding: '10px', borderRadius: 8, background: 'rgba(239, 68, 68, 0.1)', color: '#EF4444', fontSize: '0.78rem' }}>
-                Admin DineGo cam kết xử lý khiếu nại trong vòng 24 giờ và hoàn tiền trực tiếp vào tài khoản MoMo nếu lỗi từ nhà hàng hoặc tài xế.
+              <div style={{ padding: '10px 14px', borderRadius: 10, background: '#FEE2E2', color: '#DC2626', fontSize: '0.78rem', fontWeight: 600 }}>
+                Hội đồng phân xử DineGo cam kết phản hồi trong 24h và hoàn tiền trực tiếp qua MoMo nếu lỗi thuộc về quán hoặc shipper.
               </div>
 
               <button
                 onClick={handleSubmitComplaint}
                 disabled={!complaintDesc.trim()}
-                className="btn btn-danger"
                 style={{
                   width: '100%',
                   padding: '12px',
                   background: '#EF4444',
-                  color: '#fff',
-                  fontWeight: 600,
-                  borderRadius: 10,
+                  color: '#FFFFFF',
+                  fontWeight: 700,
+                  fontSize: '0.92rem',
+                  borderRadius: 12,
+                  border: 'none',
+                  cursor: !complaintDesc.trim() ? 'not-allowed' : 'pointer',
                 }}
               >
-                Gửi khiếu nại cho Admin
+                Gửi khiếu nại cho Admin sàn
               </button>
             </div>
           )}
@@ -303,4 +325,3 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
     </div>
   );
 };
-

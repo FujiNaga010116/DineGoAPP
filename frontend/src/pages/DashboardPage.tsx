@@ -1,5 +1,6 @@
 // ==============================================================================
-// DineGo Frontend — Admin & Merchant Dashboard Page (Sprint 5 — U043 to U051)
+// DineGo Frontend — Admin & Merchant Dashboard Page (GrabFood Management Style)
+// Merchant Revenue, Platform Analytics, Complaints Moderation & Customer Feedback
 // ==============================================================================
 
 import React, { useState } from 'react';
@@ -17,16 +18,21 @@ import {
   BarChart3,
   Calendar,
   FileSpreadsheet,
+  LogIn,
+  ArrowRight,
+  Star,
+  Clock,
+  Sparkles,
 } from 'lucide-react';
 import type { Role, User } from '../types';
 
 interface DashboardPageProps {
-  currentUser: User;
+  currentUser: User | null;
+  onOpenAuthModal?: () => void;
 }
 
-export const DashboardPage: React.FC<DashboardPageProps> = ({ currentUser }) => {
-  // Role view toggle (Default to Admin if role is ADMIN, else MERCHANT)
-  const isDefaultAdmin = currentUser.roles.includes('ADMIN');
+export const DashboardPage: React.FC<DashboardPageProps> = ({ currentUser, onOpenAuthModal }) => {
+  const isDefaultAdmin = currentUser?.roles?.includes('ADMIN') ?? false;
   const [viewMode, setViewMode] = useState<'merchant' | 'admin'>(isDefaultAdmin ? 'admin' : 'merchant');
 
   // Merchant Revenue State (U043)
@@ -123,46 +129,132 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ currentUser }) => 
   };
 
   return (
-    <div className="container" style={{ padding: '32px 16px', maxWidth: 1100 }}>
+    <div className="container" style={{ padding: '28px 16px', maxWidth: 1160 }}>
+      {/* If Not Logged In as Admin/Merchant Banner */}
+      {!currentUser && (
+        <div
+          style={{
+            background: '#FFFFFF',
+            border: '1.5px solid var(--border)',
+            borderRadius: 16,
+            padding: '20px 24px',
+            marginBottom: 24,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 16,
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                background: 'rgba(245, 158, 11, 0.12)',
+                color: '#D97706',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <AlertTriangle size={24} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1rem' }}>
+                Chế độ xem trước dành cho Khách (Guest)
+              </div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                Bạn đang xem dữ liệu mô phỏng. Đăng nhập với tài khoản <strong>Admin Sàn</strong> hoặc <strong>Chủ Quán</strong> để thực hiện tác vụ chính thức.
+              </div>
+            </div>
+          </div>
+          {onOpenAuthModal && (
+            <button
+              onClick={onOpenAuthModal}
+              className="btn btn-primary"
+              style={{
+                padding: '9px 18px',
+                borderRadius: 12,
+                fontSize: '0.88rem',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <LogIn size={16} />
+              <span>Đăng nhập phân quyền</span>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Title & View Switcher */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, gap: 16 }}>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 28,
+          gap: 16,
+        }}
+      >
         <div>
           <div
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 8,
-              padding: '6px 16px',
+              gap: 6,
+              padding: '4px 12px',
               borderRadius: 20,
-              background: 'rgba(16, 185, 129, 0.15)',
-              color: '#10B981',
-              fontSize: '0.85rem',
+              background: 'rgba(0, 177, 79, 0.1)',
+              color: 'var(--primary)',
+              fontSize: '0.82rem',
               fontWeight: 700,
               marginBottom: 8,
             }}
           >
-            <BarChart3 size={16} /> Bảng Điều Khiển Quản Lý & Báo Cáo (Sprint 5 — U043 đến U051)
+            <BarChart3 size={15} /> Trung tâm quản trị & Thống kê kinh doanh
           </div>
-          <h1 style={{ fontSize: '2rem', fontWeight: 800 }}>Trung Tâm Quản Trị & Thống Kê Doanh Thu</h1>
+          <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+            {viewMode === 'merchant' ? 'Báo Cáo Doanh Thu Gian Hàng' : 'Trung Tâm Điều Hành Toàn Sàn'}
+          </h1>
         </div>
 
-        {/* View Switcher buttons */}
-        <div style={{ display: 'flex', gap: 8, background: 'var(--bg-surface)', padding: 6, borderRadius: 14, border: '1px solid var(--border)' }}>
+        {/* View Switcher pills */}
+        <div
+          style={{
+            display: 'flex',
+            gap: 6,
+            background: '#FFFFFF',
+            padding: 4,
+            borderRadius: 14,
+            border: '1px solid var(--border)',
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
           <button
             onClick={() => setViewMode('merchant')}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              padding: '10px 18px',
+              padding: '9px 16px',
               borderRadius: 10,
               background: viewMode === 'merchant' ? 'var(--primary)' : 'transparent',
-              color: viewMode === 'merchant' ? '#fff' : 'var(--text-secondary)',
-              fontWeight: 600,
+              color: viewMode === 'merchant' ? '#FFFFFF' : 'var(--text-muted)',
+              border: 'none',
+              fontWeight: 700,
               fontSize: '0.85rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
             }}
           >
-            <Store size={16} /> Dành Cho Nhà Hàng (Merchant)
+            <Store size={16} /> Dành Cho Nhà Hàng
           </button>
           <button
             onClick={() => setViewMode('admin')}
@@ -170,61 +262,127 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ currentUser }) => 
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              padding: '10px 18px',
+              padding: '9px 16px',
               borderRadius: 10,
               background: viewMode === 'admin' ? 'var(--primary)' : 'transparent',
-              color: viewMode === 'admin' ? '#fff' : 'var(--text-secondary)',
-              fontWeight: 600,
+              color: viewMode === 'admin' ? '#FFFFFF' : 'var(--text-muted)',
+              border: 'none',
+              fontWeight: 700,
               fontSize: '0.85rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
             }}
           >
-            <ShieldCheck size={16} /> Quản Trị Viên (Admin Sàn)
+            <ShieldCheck size={16} /> Quản Trị Viên Sàn
           </button>
         </div>
       </div>
 
-      {/* VIEW: MERCHANT DASHBOARD (U043, U048) */}
+      {/* VIEW: MERCHANT DASHBOARD */}
       {viewMode === 'merchant' && (
         <div>
           {/* Revenue KPI Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginBottom: 28 }}>
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 20 }}>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 4 }}>Doanh thu gộp (Tháng 11)</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#fff' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+              gap: 16,
+              marginBottom: 28,
+            }}
+          >
+            <div
+              style={{
+                background: '#FFFFFF',
+                border: '1px solid var(--border)',
+                borderRadius: 16,
+                padding: '20px 22px',
+                boxShadow: 'var(--shadow-sm)',
+              }}
+            >
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>
+                Doanh thu gộp (Tháng 11)
+              </div>
+              <div style={{ fontSize: '1.65rem', fontWeight: 900, color: 'var(--text-main)' }}>
                 {merchantRevenue.totalRevenue.toLocaleString()} đ
               </div>
-              <div style={{ fontSize: '0.75rem', color: '#10B981', marginTop: 4 }}>↑ 18.5% so với tháng trước</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--primary)', marginTop: 4, fontWeight: 700 }}>
+                ↑ 18.5% so với tháng trước
+              </div>
             </div>
 
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 20 }}>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 4 }}>Phí hoa hồng sàn DineGo (15%)</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--danger)' }}>
+            <div
+              style={{
+                background: '#FFFFFF',
+                border: '1px solid var(--border)',
+                borderRadius: 16,
+                padding: '20px 22px',
+                boxShadow: 'var(--shadow-sm)',
+              }}
+            >
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>
+                Phí hoa hồng sàn DineGo (15%)
+              </div>
+              <div style={{ fontSize: '1.65rem', fontWeight: 900, color: '#EF4444' }}>
                 -{merchantRevenue.platformCommission.toLocaleString()} đ
               </div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4 }}>Khấu trừ tự động theo BR-42</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                Khấu trừ tự động quy chuẩn BR-42
+              </div>
             </div>
 
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid rgba(16, 185, 129, 0.4)', borderRadius: 16, padding: 20 }}>
-              <div style={{ fontSize: '0.8rem', color: '#10B981', marginBottom: 4, fontWeight: 700 }}>Thực nhận về tài khoản (Net Payout)</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#10B981' }}>
+            <div
+              style={{
+                background: '#FFFFFF',
+                border: '1.5px solid var(--primary)',
+                borderRadius: 16,
+                padding: '20px 22px',
+                boxShadow: '0 4px 16px rgba(0, 177, 79, 0.12)',
+              }}
+            >
+              <div style={{ fontSize: '0.82rem', color: 'var(--primary)', fontWeight: 700, marginBottom: 4 }}>
+                Thực nhận về tài khoản (Net Payout)
+              </div>
+              <div style={{ fontSize: '1.65rem', fontWeight: 900, color: 'var(--primary)' }}>
                 {merchantRevenue.netPayout.toLocaleString()} đ
               </div>
-              <div style={{ fontSize: '0.75rem', color: '#10B981', marginTop: 4 }}>Đã quyết toán chuyển khoản MoMo</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--primary)', marginTop: 4, fontWeight: 600 }}>
+                ✓ Đã thanh quyết toán qua MoMo
+              </div>
             </div>
 
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 20 }}>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 4 }}>Đơn hoàn tất / Tỷ lệ hủy</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#fff' }}>
+            <div
+              style={{
+                background: '#FFFFFF',
+                border: '1px solid var(--border)',
+                borderRadius: 16,
+                padding: '20px 22px',
+                boxShadow: 'var(--shadow-sm)',
+              }}
+            >
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>
+                Đơn hoàn tất / Tỷ lệ giao đạt
+              </div>
+              <div style={{ fontSize: '1.65rem', fontWeight: 900, color: 'var(--text-main)' }}>
                 {merchantRevenue.completedOrders} đơn
               </div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4 }}>Chỉ có {merchantRevenue.cancelledOrders} đơn hủy (3%)</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                Chỉ có {merchantRevenue.cancelledOrders} đơn hủy (3%)
+              </div>
             </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24, alignItems: 'start' }}>
             {/* Top Selling Dishes */}
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 18, padding: 22 }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div
+              style={{
+                background: '#FFFFFF',
+                border: '1px solid var(--border)',
+                borderRadius: 18,
+                padding: 24,
+                boxShadow: 'var(--shadow-sm)',
+              }}
+            >
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <TrendingUp size={18} color="var(--primary)" /> Top Món Bán Chạy Nhất (Tháng 11)
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -235,69 +393,99 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ currentUser }) => 
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '10px 14px',
+                      padding: '12px 16px',
                       borderRadius: 12,
-                      background: 'var(--bg-card)',
+                      background: 'var(--bg-main)',
                       border: '1px solid var(--border)',
                     }}
                   >
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>
                         #{i + 1} {dish.name}
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 2 }}>
                         Đã bán: <strong>{dish.quantity} phần</strong>
                       </div>
                     </div>
-                    <div style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '0.95rem' }}>
+                    <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.95rem' }}>
                       {dish.totalSales.toLocaleString()} đ
-                    </div>
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Merchant Reply to Customer Reviews (U048) */}
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 18, padding: 22 }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <MessageSquare size={18} color="var(--primary)" /> Phản Hồi Đánh Giá Khách Hàng (U048)
+            {/* Customer Reviews & Reply Section */}
+            <div
+              style={{
+                background: '#FFFFFF',
+                border: '1px solid var(--border)',
+                borderRadius: 18,
+                padding: 24,
+                boxShadow: 'var(--shadow-sm)',
+              }}
+            >
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <MessageSquare size={18} color="#D97706" /> Đánh Giá & Phản Hồi Khách Hàng
               </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {reviews.map((r) => (
-                  <div key={r.id} style={{ background: 'var(--bg-card)', padding: 14, borderRadius: 12, border: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{r.customerName}</span>
-                      <span style={{ color: '#F59E0B', fontSize: '0.8rem' }}>{'⭐'.repeat(r.rating)}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {reviews.map((rev) => (
+                  <div
+                    key={rev.id}
+                    style={{
+                      padding: 14,
+                      borderRadius: 14,
+                      background: 'var(--bg-main)',
+                      border: '1px solid var(--border)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-main)' }}>{rev.customerName}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#D97706', fontSize: '0.82rem', fontWeight: 700 }}>
+                        <Star size={14} fill="#F59E0B" color="#F59E0B" /> {rev.rating}/5
+                      </span>
                     </div>
-                    <div style={{ fontSize: '0.82rem', color: 'var(--text-main)', marginBottom: 8 }}>"{r.comment}"</div>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-main)', margin: '4px 0 8px 0', lineHeight: 1.45 }}>
+                      "{rev.comment}"
+                    </p>
 
-                    {r.reply ? (
-                      <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(16, 185, 129, 0.1)', color: '#10B981', fontSize: '0.8rem' }}>
-                        <strong>Phản hồi của quán:</strong> {r.reply}
+                    {rev.reply ? (
+                      <div
+                        style={{
+                          background: '#FFFFFF',
+                          borderLeft: '3px solid var(--primary)',
+                          padding: '8px 12px',
+                          borderRadius: 8,
+                          fontSize: '0.82rem',
+                          color: 'var(--text-muted)',
+                        }}
+                      >
+                        <strong style={{ color: 'var(--primary)' }}>Phản hồi của quán:</strong> {rev.reply}
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                         <input
                           type="text"
-                          placeholder="Nhập câu trả lời cho khách..."
-                          value={replyInput[r.id] || ''}
-                          onChange={(e) => setReplyInput({ ...replyInput, [r.id]: e.target.value })}
+                          placeholder="Nhập lời cảm ơn hoặc giải đáp..."
+                          value={replyInput[rev.id] || ''}
+                          onChange={(e) => setReplyInput({ ...replyInput, [rev.id]: e.target.value })}
                           style={{
                             flex: 1,
-                            padding: '6px 10px',
-                            borderRadius: 8,
-                            background: 'var(--bg-surface)',
+                            padding: '7px 12px',
+                            borderRadius: 10,
+                            background: '#FFFFFF',
                             border: '1px solid var(--border)',
-                            color: '#fff',
-                            fontSize: '0.8rem',
+                            fontSize: '0.82rem',
+                            color: 'var(--text-main)',
+                            outline: 'none',
                           }}
                         />
                         <button
-                          onClick={() => handleSendReply(r.id)}
+                          onClick={() => handleSendReply(rev.id)}
                           className="btn btn-primary"
-                          style={{ padding: '6px 12px', fontSize: '0.78rem' }}
+                          style={{ padding: '7px 14px', borderRadius: 10, fontSize: '0.8rem', fontWeight: 700 }}
                         >
-                          Trả lời
+                          Gửi
                         </button>
                       </div>
                     )}
@@ -309,151 +497,176 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ currentUser }) => 
         </div>
       )}
 
-      {/* VIEW: ADMIN DASHBOARD (U044, U045, U046, U051) */}
+      {/* VIEW: ADMIN PLATFORM DASHBOARD */}
       {viewMode === 'admin' && (
         <div>
-          {/* Admin System KPI Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 28 }}>
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 20 }}>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 4 }}>Tổng GMV Toàn Sàn (Tháng 11)</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--primary)' }}>
+          {/* Admin KPI Cards */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+              gap: 16,
+              marginBottom: 28,
+            }}
+          >
+            <div style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: 16, padding: '20px 22px', boxShadow: 'var(--shadow-sm)' }}>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>Tổng Giá Trị Giao Dịch (GMV)</div>
+              <div style={{ fontSize: '1.65rem', fontWeight: 900, color: 'var(--text-main)' }}>
                 {adminSystem.totalGmv.toLocaleString()} đ
               </div>
-              <div style={{ fontSize: '0.75rem', color: '#10B981', marginTop: 4 }}>Từ đồ ăn hằng ngày & mâm cỗ sự kiện</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--primary)', marginTop: 4, fontWeight: 700 }}>Toàn hệ thống 24 nhà hàng</div>
             </div>
 
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid rgba(139, 92, 246, 0.4)', borderRadius: 16, padding: 20 }}>
-              <div style={{ fontSize: '0.8rem', color: '#A78BFA', marginBottom: 4, fontWeight: 700 }}>Doanh thu hoa hồng sàn (15%)</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#A78BFA' }}>
+            <div style={{ background: '#FFFFFF', border: '1.5px solid var(--primary)', borderRadius: 16, padding: '20px 22px', boxShadow: '0 4px 16px rgba(0, 177, 79, 0.12)' }}>
+              <div style={{ fontSize: '0.82rem', color: 'var(--primary)', fontWeight: 700, marginBottom: 4 }}>Doanh Thu Phí Sàn (Take Rate 15%)</div>
+              <div style={{ fontSize: '1.65rem', fontWeight: 900, color: 'var(--primary)' }}>
                 {adminSystem.platformRevenue.toLocaleString()} đ
               </div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4 }}>Lợi nhuận ròng nền tảng DineGo</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--primary)', marginTop: 4, fontWeight: 600 }}>Dòng tiền thuần của sàn DineGo</div>
             </div>
 
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 20 }}>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 4 }}>Tổng số đơn hàng</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#fff' }}>
+            <div style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: 16, padding: '20px 22px', boxShadow: 'var(--shadow-sm)' }}>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>Tổng Đơn Hàng Thành Công</div>
+              <div style={{ fontSize: '1.65rem', fontWeight: 900, color: 'var(--text-main)' }}>
                 {adminSystem.totalOrders} đơn
               </div>
-              <div style={{ fontSize: '0.75rem', color: '#10B981', marginTop: 4 }}>100% thanh toán qua MoMo & COD</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>48 tài xế đối tác trực tuyến</div>
             </div>
 
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 20 }}>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 4 }}>Đối tác Quán & Tài xế</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#fff' }}>
-                {adminSystem.totalMerchants} quán • {adminSystem.activeDrivers} xế
+            <div style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: 16, padding: '20px 22px', boxShadow: 'var(--shadow-sm)' }}>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>Người Dùng Đăng Ký</div>
+              <div style={{ fontSize: '1.65rem', fontWeight: 900, color: 'var(--text-main)' }}>
+                {adminSystem.totalUsers} tài khoản
               </div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4 }}>{adminSystem.totalUsers} khách hàng hoạt động</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--primary)', marginTop: 4, fontWeight: 700 }}>Tăng trưởng +24% tháng này</div>
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24, alignItems: 'start' }}>
-            {/* Monthly Reconciliation Table (U046) */}
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 18, padding: 22 }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <FileSpreadsheet size={18} color="var(--primary)" /> Đối Soát Doanh Thu Quán Tháng 11 (BR-42)
-              </h3>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', textAlign: 'left' }}>
-                    <th style={{ padding: '8px 6px' }}>Nhà hàng</th>
-                    <th style={{ padding: '8px 6px' }}>Doanh số gộp</th>
-                    <th style={{ padding: '8px 6px' }}>Hoa hồng (15%)</th>
-                    <th style={{ padding: '8px 6px' }}>Chi trả Net</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '10px 6px', fontWeight: 600 }}>Cơm Tấm Sài Gòn 1985</td>
-                    <td style={{ padding: '10px 6px' }}>28.500.000 đ</td>
-                    <td style={{ padding: '10px 6px', color: 'var(--danger)' }}>-4.275.000 đ</td>
-                    <td style={{ padding: '10px 6px', color: '#10B981', fontWeight: 700 }}>24.225.000 đ</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '10px 6px', fontWeight: 600 }}>Phở Thìn Lò Đúc 1979</td>
-                    <td style={{ padding: '10px 6px' }}>34.200.000 đ</td>
-                    <td style={{ padding: '10px 6px', color: 'var(--danger)' }}>-5.130.000 đ</td>
-                    <td style={{ padding: '10px 6px', color: '#10B981', fontWeight: 700 }}>29.070.000 đ</td>
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '10px 6px', fontWeight: 600 }}>Trà Sữa Gong Cha</td>
-                    <td style={{ padding: '10px 6px' }}>19.800.000 đ</td>
-                    <td style={{ padding: '10px 6px', color: 'var(--danger)' }}>-2.970.000 đ</td>
-                    <td style={{ padding: '10px 6px', color: '#10B981', fontWeight: 700 }}>16.830.000 đ</td>
-                  </tr>
-                </tbody>
-              </table>
+          {/* Complaints & Disputes Moderation Table */}
+          <div
+            style={{
+              background: '#FFFFFF',
+              border: '1px solid var(--border)',
+              borderRadius: 18,
+              padding: 24,
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                  Xử Lý Khiếu Nại & Tranh Chấp Đơn Hàng (U051)
+                </h3>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  Hội đồng phân xử sàn DineGo: bảo vệ quyền lợi thực khách và đối tác nhà hàng
+                </span>
+              </div>
+              <span
+                style={{
+                  background: '#FEF3C7',
+                  color: '#D97706',
+                  padding: '4px 12px',
+                  borderRadius: 10,
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                }}
+              >
+                {complaints.filter((c) => c.status === 'OPEN').length} yêu cầu đang chờ duyệt
+              </span>
             </div>
 
-            {/* Complaints Resolution (U051) */}
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 18, padding: 22 }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <AlertTriangle size={18} color="var(--danger)" /> Xử Lý Khiếu Nại & Hoàn Tiền MoMo (U051)
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {complaints.map((c) => (
-                  <div key={c.id} style={{ background: 'var(--bg-card)', padding: 14, borderRadius: 12, border: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                      <div>
-                        <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '0.85rem' }}>{c.code}</span>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{c.customerName} • {c.merchantName}</div>
-                      </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {complaints.map((cmp) => (
+                <div
+                  key={cmp.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '16px 20px',
+                    borderRadius: 14,
+                    background: 'var(--bg-main)',
+                    border: '1px solid var(--border)',
+                    flexWrap: 'wrap',
+                    gap: 14,
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 260 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                      <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-main)' }}>
+                        {cmp.code}
+                      </span>
+                      <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>#{cmp.orderNumber}</span>
                       <span
                         style={{
-                          fontSize: '0.72rem',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
                           padding: '2px 8px',
                           borderRadius: 6,
-                          fontWeight: 700,
-                          background: c.status === 'REFUNDED' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                          color: c.status === 'REFUNDED' ? '#10B981' : '#EF4444',
+                          background: cmp.status === 'OPEN' ? '#FEF3C7' : cmp.status === 'REFUNDED' ? '#D1FAE5' : '#FEE2E2',
+                          color: cmp.status === 'OPEN' ? '#D97706' : cmp.status === 'REFUNDED' ? '#059669' : '#DC2626',
                         }}
                       >
-                        {c.status === 'REFUNDED' ? 'Đã hoàn tiền' : 'Đang chờ xử lý'}
+                        {cmp.status === 'OPEN' ? 'Đang chờ xử lý' : cmp.status === 'REFUNDED' ? 'Đã hoàn tiền MoMo' : 'Đã bác bỏ'}
                       </span>
                     </div>
 
-                    <div style={{ fontSize: '0.82rem', margin: '6px 0', color: 'var(--text-main)' }}>
-                      Lý do: <strong>{c.issueType}</strong>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-main)', marginBottom: 2 }}>
+                      Khách: <strong>{cmp.customerName}</strong> • Quán: <strong>{cmp.merchantName}</strong>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 8 }}>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        Đề xuất bồi thường: <strong style={{ color: '#10B981' }}>{c.compensationAmount.toLocaleString()} đ</strong>
-                      </span>
-                      {c.status === 'OPEN' && (
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button
-                            onClick={() => handleResolveComplaint(c.id, 'REFUND')}
-                            style={{
-                              padding: '4px 10px',
-                              borderRadius: 6,
-                              background: '#10B981',
-                              color: '#fff',
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                            }}
-                          >
-                            Duyệt hoàn MoMo
-                          </button>
-                          <button
-                            onClick={() => handleResolveComplaint(c.id, 'REJECT')}
-                            style={{
-                              padding: '4px 10px',
-                              borderRadius: 6,
-                              background: 'rgba(239, 68, 68, 0.2)',
-                              color: '#EF4444',
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                            }}
-                          >
-                            Từ chối
-                          </button>
-                        </div>
-                      )}
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                      Lý do: <em>{cmp.issueType}</em> • Yêu cầu bồi thường:{' '}
+                      <strong style={{ color: '#EF4444' }}>{cmp.compensationAmount.toLocaleString()} đ</strong>
                     </div>
                   </div>
-                ))}
-              </div>
+
+                  {cmp.status === 'OPEN' ? (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={() => handleResolveComplaint(cmp.id, 'REFUND')}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: 10,
+                          background: 'var(--primary)',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: '0.85rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        <CheckCircle2 size={15} /> Hoàn tiền MoMo
+                      </button>
+                      <button
+                        onClick={() => handleResolveComplaint(cmp.id, 'REJECT')}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: 10,
+                          background: '#FFFFFF',
+                          border: '1px solid var(--border)',
+                          color: '#DC2626',
+                          fontWeight: 700,
+                          fontSize: '0.85rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        <XCircle size={15} /> Bác bỏ
+                      </button>
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      Đã giải quyết xong
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -461,4 +674,3 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ currentUser }) => 
     </div>
   );
 };
-

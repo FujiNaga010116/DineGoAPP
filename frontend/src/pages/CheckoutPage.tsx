@@ -1,5 +1,6 @@
 // ==============================================================================
-// DineGo Frontend — Checkout & MoMo Payment Page (Phase 5.3 + Phase 6)
+// DineGo Frontend — Checkout & MoMo Payment Page (GrabFood Market Style)
+// Address Card, Delivery Estimation, Food Summary, Vouchers, MoMo / COD Gateway
 // ==============================================================================
 
 import React, { useState } from 'react';
@@ -12,6 +13,13 @@ import {
   AlertCircle,
   QrCode,
   Sparkles,
+  Clock,
+  ShieldCheck,
+  CreditCard,
+  Banknote,
+  ChevronRight,
+  Plus,
+  Minus,
 } from 'lucide-react';
 import { CURRENT_USER } from '../api/client';
 import { useCart } from '../context/CartContext';
@@ -36,9 +44,10 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showMomoModal, setShowMomoModal] = useState<Order | null>(null);
 
-  const handleApplyVoucher = () => {
-    if (!voucherInput.trim()) return;
-    const res = applyVoucher(voucherInput);
+  const handleApplyVoucher = (codeToApply?: string) => {
+    const code = (codeToApply || voucherInput).trim();
+    if (!code) return;
+    const res = applyVoucher(code);
     setVoucherMsg({ text: res.message, isError: !res.success });
     if (res.success) {
       setVoucherInput('');
@@ -49,8 +58,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
     if (cart.items.length === 0) return;
     setIsSubmitting(true);
 
-    // Simulate backend Order creation (matching OrderService.createOrder)
-    const orderNumber = `DG20261028-${Math.random().toString(16).substring(2, 8).toUpperCase()}`;
+    const orderNumber = `DG20261103-${Math.random().toString(16).substring(2, 8).toUpperCase()}`;
     const newOrder: Order = {
       id: `ord-${Date.now()}`,
       orderNumber,
@@ -110,7 +118,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
   const handleSimulateMomoIpnSuccess = () => {
     if (!showMomoModal) return;
 
-    // Simulate MoMo IPN callback hitting Backend (matching processMomoIpn)
     const paidOrder: Order = {
       ...showMomoModal,
       status: 'CONFIRMED',
@@ -129,18 +136,33 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
   if (cart.items.length === 0 && !showMomoModal) {
     return (
       <div className="container" style={{ textAlign: 'center', padding: '80px 20px' }}>
-        <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: 12 }}>
+        <div
+          style={{
+            width: 80,
+            height: 80,
+            borderRadius: 999,
+            background: 'rgba(0, 177, 79, 0.1)',
+            color: 'var(--primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 20px auto',
+          }}
+        >
+          <Sparkles size={36} />
+        </div>
+        <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: 12 }}>
           Giỏ hàng của bạn đang trống
         </h2>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: 28 }}>
-          Hãy chọn các món ăn thơm ngon từ nhà hàng để tiếp tục đặt hàng.
+        <p style={{ color: 'var(--text-muted)', marginBottom: 28, maxWidth: 460, margin: '0 auto 28px auto' }}>
+          Hãy chọn các món ăn thơm ngon hấp dẫn từ các nhà hàng đối tác để trải nghiệm đặt món siêu tốc cùng DineGo.
         </p>
         <button
-          className="cart-btn"
+          className="btn btn-primary"
           onClick={onBack}
-          style={{ margin: '0 auto', padding: '12px 28px' }}
+          style={{ padding: '12px 28px', fontSize: '1rem', fontWeight: 700 }}
         >
-          Khám phá món ăn ngay
+          Khám phá món ngon ngay
         </button>
       </div>
     );
@@ -155,50 +177,88 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          background: 'transparent',
-          color: 'var(--text-secondary)',
-          fontSize: '0.95rem',
-          fontWeight: 600,
+          background: '#FFFFFF',
+          border: '1px solid var(--border)',
+          padding: '8px 16px',
+          borderRadius: 12,
+          color: 'var(--text-main)',
+          fontSize: '0.9rem',
+          fontWeight: 700,
+          cursor: 'pointer',
           marginBottom: 24,
+          boxShadow: 'var(--shadow-sm)',
         }}
       >
-        <ArrowLeft size={18} />
-        <span>Quay lại thực đơn</span>
+        <ArrowLeft size={16} />
+        <span>Quay lại thực đơn món ăn</span>
       </button>
 
-      <h1 style={{ fontSize: '2rem', fontWeight: 800, color: '#fff', marginBottom: 24 }}>
-        Xác nhận đơn hàng & Thanh toán
-      </h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+        <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+          Xác nhận đơn hàng & Thanh toán
+        </h1>
+        <span
+          style={{
+            background: 'rgba(0, 177, 79, 0.1)',
+            color: 'var(--primary)',
+            padding: '4px 12px',
+            borderRadius: 999,
+            fontSize: '0.8rem',
+            fontWeight: 700,
+          }}
+        >
+          DineGo Fast Delivery
+        </span>
+      </div>
 
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-          gap: 32,
+          gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+          gap: 28,
         }}
       >
-        {/* Left Column: Delivery & Items */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {/* Delivery Card */}
+        {/* Left Column: Delivery & Food Items */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Delivery Details Card */}
           <div
             style={{
-              background: 'var(--bg-card)',
+              background: '#FFFFFF',
               border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
+              borderRadius: 18,
               padding: 24,
+              boxShadow: 'var(--shadow-sm)',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <MapPin size={20} color="var(--primary)" />
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#fff' }}>
-                Thông tin giao hàng
-              </h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <MapPin size={20} color="var(--primary)" />
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                  Địa chỉ nhận món
+                </h3>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  color: 'var(--primary)',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  background: 'rgba(0, 177, 79, 0.08)',
+                  padding: '4px 10px',
+                  borderRadius: 8,
+                }}
+              >
+                <Clock size={14} />
+                <span>Giao dự kiến: 20 - 30 phút</span>
+              </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
-                  Địa chỉ nhận món
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>
+                  Địa chỉ chi tiết (Số nhà, Tên đường, Phường/Xã, Quận)
                 </label>
                 <input
                   type="text"
@@ -206,20 +266,22 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
                   onChange={(e) => setAddress(e.target.value)}
                   style={{
                     width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: 'var(--radius-sm)',
-                    background: 'var(--bg-surface)',
+                    padding: '11px 14px',
+                    borderRadius: 12,
+                    background: 'var(--bg-main)',
                     border: '1px solid var(--border)',
-                    color: '#fff',
-                    fontSize: '0.9rem',
+                    color: 'var(--text-main)',
+                    fontSize: '0.92rem',
+                    fontWeight: 600,
+                    outline: 'none',
                   }}
                 />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
-                    Người nhận
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>
+                    Họ và tên người nhận
                   </label>
                   <input
                     type="text"
@@ -227,17 +289,19 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
                     onChange={(e) => setRecipientName(e.target.value)}
                     style={{
                       width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'var(--bg-surface)',
+                      padding: '11px 14px',
+                      borderRadius: 12,
+                      background: 'var(--bg-main)',
                       border: '1px solid var(--border)',
-                      color: '#fff',
-                      fontSize: '0.9rem',
+                      color: 'var(--text-main)',
+                      fontSize: '0.92rem',
+                      fontWeight: 600,
+                      outline: 'none',
                     }}
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>
                     Số điện thoại
                   </label>
                   <input
@@ -246,53 +310,65 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
                     onChange={(e) => setRecipientPhone(e.target.value)}
                     style={{
                       width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'var(--bg-surface)',
+                      padding: '11px 14px',
+                      borderRadius: 12,
+                      background: 'var(--bg-main)',
                       border: '1px solid var(--border)',
-                      color: '#fff',
-                      fontSize: '0.9rem',
+                      color: 'var(--text-main)',
+                      fontSize: '0.92rem',
+                      fontWeight: 600,
+                      outline: 'none',
                     }}
                   />
                 </div>
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>
                   Ghi chú cho tài xế giao hàng
                 </label>
                 <input
                   type="text"
-                  placeholder="Ví dụ: Gọi trước khi đến, gửi bảo vệ..."
+                  placeholder="Ví dụ: Gọi điện trước khi đến, gửi tại lễ tân tòa nhà..."
                   value={customerNote}
                   onChange={(e) => setCustomerNote(e.target.value)}
                   style={{
                     width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: 'var(--radius-sm)',
-                    background: 'var(--bg-surface)',
+                    padding: '11px 14px',
+                    borderRadius: 12,
+                    background: 'var(--bg-main)',
                     border: '1px solid var(--border)',
-                    color: '#fff',
+                    color: 'var(--text-main)',
                     fontSize: '0.9rem',
+                    outline: 'none',
                   }}
                 />
               </div>
             </div>
           </div>
 
-          {/* Cart Items Summary */}
+          {/* Cart Items Summary Card */}
           <div
             style={{
-              background: 'var(--bg-card)',
+              background: '#FFFFFF',
               border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
+              borderRadius: 18,
               padding: 24,
+              boxShadow: 'var(--shadow-sm)',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#fff' }}>
-                Món đã chọn ({cart.merchantName})
-              </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                  Món đã chọn
+                </h3>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  Từ quán: <strong>{cart.merchantName}</strong>
+                </span>
+              </div>
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--primary)' }}>
+                {cart.items.reduce((s, i) => s + i.quantity, 0)} phần
+              </span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -301,58 +377,80 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
                   key={item.id}
                   style={{
                     display: 'flex',
+                    alignItems: 'center',
                     justifyContent: 'space-between',
                     paddingBottom: 16,
                     borderBottom: '1px solid var(--border)',
+                    gap: 16,
                   }}
                 >
-                  <div style={{ flexGrow: 1, paddingRight: 16 }}>
-                    <div style={{ fontWeight: 700, color: '#fff' }}>{item.name}</div>
+                  {/* Item Image */}
+                  {item.imageUrl && (
+                    <img
+                      src={item.imageUrl}
+                      alt={item.name}
+                      style={{ width: 60, height: 60, borderRadius: 12, objectFit: 'cover', flexShrink: 0 }}
+                    />
+                  )}
+
+                  <div style={{ flexGrow: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '0.98rem' }}>
+                      {item.name}
+                    </div>
                     {item.toppings.length > 0 && (
-                      <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 3 }}>
                         + {item.toppings.map((t) => t.name).join(', ')}
                       </div>
                     )}
                     {item.note && (
-                      <div style={{ fontSize: '0.8rem', color: 'var(--primary)', fontStyle: 'italic', marginTop: 2 }}>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--secondary)', fontStyle: 'italic', marginTop: 3 }}>
                         Ghi chú: {item.note}
                       </div>
                     )}
-                    <div style={{ fontWeight: 700, color: 'var(--primary)', marginTop: 4 }}>
+                    <div style={{ fontWeight: 800, color: 'var(--primary)', marginTop: 4, fontSize: '0.95rem' }}>
                       {item.subtotal.toLocaleString('vi-VN')}đ
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                     <div
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: 8,
-                        background: 'var(--bg-surface)',
-                        padding: '4px 8px',
-                        borderRadius: 8,
+                        background: 'var(--bg-main)',
+                        padding: '4px 10px',
+                        borderRadius: 10,
                         border: '1px solid var(--border)',
                       }}
                     >
                       <button
                         onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                        style={{ background: 'transparent', color: '#fff' }}
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-main)' }}
                       >
-                        -
+                        <Minus size={14} />
                       </button>
-                      <span style={{ fontWeight: 700 }}>{item.quantity}</span>
+                      <span style={{ fontWeight: 800, minWidth: 18, textAlign: 'center' }}>
+                        {item.quantity}
+                      </span>
                       <button
                         onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                        style={{ background: 'transparent', color: '#fff' }}
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-main)' }}
                       >
-                        +
+                        <Plus size={14} />
                       </button>
                     </div>
 
                     <button
                       onClick={() => removeItem(item.id)}
-                      style={{ background: 'transparent', color: 'var(--text-muted)' }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                        padding: 6,
+                      }}
+                      title="Xóa món"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -363,20 +461,21 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
           </div>
         </div>
 
-        {/* Right Column: Payment & Voucher */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        {/* Right Column: Vouchers, Payments & Totals */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Voucher Box */}
           <div
             style={{
-              background: 'var(--bg-card)',
+              background: '#FFFFFF',
               border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
+              borderRadius: 18,
               padding: 24,
+              boxShadow: 'var(--shadow-sm)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
               <Tag size={18} color="var(--primary)" />
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#fff' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
                 Mã ưu đãi (Voucher)
               </h3>
             </div>
@@ -387,27 +486,29 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  background: 'rgba(16, 185, 129, 0.1)',
-                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  background: 'rgba(0, 177, 79, 0.08)',
+                  border: '1.5px solid var(--primary)',
                   padding: '12px 16px',
-                  borderRadius: 'var(--radius-sm)',
+                  borderRadius: 14,
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: 800, color: '#10B981' }}>
-                    {cart.voucherCode}
+                  <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.98rem' }}>
+                    🎉 {cart.voucherCode}
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    Đã giảm -{cart.discountAmount.toLocaleString('vi-VN')}đ
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                    Đã giảm trừ thành công -{cart.discountAmount.toLocaleString('vi-VN')}đ
                   </div>
                 </div>
                 <button
                   onClick={removeVoucher}
                   style={{
                     background: 'transparent',
-                    color: 'var(--danger)',
+                    border: 'none',
+                    color: '#EF4444',
                     fontWeight: 700,
                     fontSize: '0.85rem',
+                    cursor: 'pointer',
                   }}
                 >
                   Gỡ bỏ
@@ -415,33 +516,69 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
               </div>
             ) : (
               <div>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                   <input
                     type="text"
-                    placeholder="Nhập DINEGO50 hoặc FREESHIP"
+                    placeholder="Nhập mã ưu đãi..."
                     value={voucherInput}
                     onChange={(e) => setVoucherInput(e.target.value.toUpperCase())}
                     style={{
                       flexGrow: 1,
                       padding: '10px 14px',
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'var(--bg-surface)',
+                      borderRadius: 12,
+                      background: 'var(--bg-main)',
                       border: '1px solid var(--border)',
-                      color: '#fff',
+                      color: 'var(--text-main)',
                       fontSize: '0.9rem',
+                      fontWeight: 700,
+                      outline: 'none',
                     }}
                   />
                   <button
-                    onClick={handleApplyVoucher}
+                    onClick={() => handleApplyVoucher()}
+                    className="btn btn-primary"
                     style={{
                       padding: '10px 18px',
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'var(--primary)',
-                      color: '#fff',
+                      borderRadius: 12,
                       fontWeight: 700,
+                      fontSize: '0.88rem',
                     }}
                   >
                     Áp dụng
+                  </button>
+                </div>
+
+                {/* Quick Apply Voucher Tags */}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                  <button
+                    onClick={() => handleApplyVoucher('DINEGO50')}
+                    style={{
+                      background: 'rgba(0, 177, 79, 0.08)',
+                      border: '1px dashed var(--primary)',
+                      borderRadius: 8,
+                      padding: '4px 10px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      color: 'var(--primary)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    🏷️ DINEGO50 (Giảm 50k)
+                  </button>
+                  <button
+                    onClick={() => handleApplyVoucher('FREESHIP')}
+                    style={{
+                      background: 'rgba(255, 87, 34, 0.08)',
+                      border: '1px dashed var(--secondary)',
+                      borderRadius: 8,
+                      padding: '4px 10px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      color: 'var(--secondary)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    🚀 FREESHIP (Miễn ship 15k)
                   </button>
                 </div>
 
@@ -452,7 +589,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
                       display: 'flex',
                       alignItems: 'center',
                       gap: 6,
-                      color: voucherMsg.isError ? 'var(--danger)' : 'var(--success)',
+                      color: voucherMsg.isError ? '#EF4444' : 'var(--primary)',
+                      fontWeight: 600,
                     }}
                   >
                     {voucherMsg.isError ? <AlertCircle size={15} /> : <CheckCircle2 size={15} />}
@@ -466,13 +604,14 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
           {/* Payment Method Selector */}
           <div
             style={{
-              background: 'var(--bg-card)',
+              background: '#FFFFFF',
               border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
+              borderRadius: 18,
               padding: 24,
+              boxShadow: 'var(--shadow-sm)',
             }}
           >
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#fff', marginBottom: 14 }}>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: 14 }}>
               Phương thức thanh toán
             </h3>
 
@@ -484,9 +623,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '14px 18px',
-                  borderRadius: 'var(--radius-sm)',
-                  background: paymentMethod === 'MOMO_QR' ? 'var(--momo-light)' : 'var(--bg-surface)',
+                  padding: '14px 16px',
+                  borderRadius: 14,
+                  background: paymentMethod === 'MOMO_QR' ? 'rgba(216, 45, 139, 0.06)' : 'var(--bg-main)',
                   border: `2px solid ${paymentMethod === 'MOMO_QR' ? 'var(--momo)' : 'var(--border)'}`,
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
@@ -495,31 +634,43 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div
                     style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 10,
+                      width: 40,
+                      height: 40,
+                      borderRadius: 12,
                       background: 'var(--momo)',
                       color: '#fff',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontWeight: 800,
-                      fontSize: '1.1rem',
+                      fontWeight: 900,
+                      fontSize: '1.15rem',
+                      boxShadow: '0 4px 12px rgba(216, 45, 139, 0.3)',
                     }}
                   >
                     M
                   </div>
                   <div>
-                    <div style={{ fontWeight: 700, color: '#fff' }}>
+                    <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '0.95rem' }}>
                       Ví MoMo All-in-One Gateway v2
                     </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                       Quét mã QR, App MoMo & Thẻ ATM nội địa
                     </div>
                   </div>
                 </div>
 
-                <span className="momo-badge">Khuyên dùng</span>
+                <span
+                  style={{
+                    background: 'var(--momo)',
+                    color: '#fff',
+                    padding: '3px 10px',
+                    borderRadius: 8,
+                    fontSize: '0.72rem',
+                    fontWeight: 800,
+                  }}
+                >
+                  Khuyên dùng
+                </span>
               </div>
 
               {/* COD */}
@@ -529,18 +680,36 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '14px 18px',
-                  borderRadius: 'var(--radius-sm)',
-                  background: paymentMethod === 'COD' ? 'rgba(255, 87, 34, 0.12)' : 'var(--bg-surface)',
+                  padding: '14px 16px',
+                  borderRadius: 14,
+                  background: paymentMethod === 'COD' ? 'rgba(0, 177, 79, 0.06)' : 'var(--bg-main)',
                   border: `2px solid ${paymentMethod === 'COD' ? 'var(--primary)' : 'var(--border)'}`,
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
                 }}
               >
-                <div>
-                  <div style={{ fontWeight: 700, color: '#fff' }}>Tiền mặt khi nhận hàng (COD)</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    Thanh toán trực tiếp cho tài xế giao hàng
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 12,
+                      background: '#10B981',
+                      color: '#fff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Banknote size={22} />
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '0.95rem' }}>
+                      Tiền mặt khi nhận hàng (COD)
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      Thanh toán trực tiếp cho tài xế giao hàng
+                    </div>
                   </div>
                 </div>
               </div>
@@ -550,40 +719,51 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
           {/* Pricing Totals Box */}
           <div
             style={{
-              background: 'var(--bg-card)',
+              background: '#FFFFFF',
               border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
+              borderRadius: 18,
               padding: 24,
+              boxShadow: 'var(--shadow-sm)',
             }}
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                <span>Tạm tính</span>
-                <span>{cart.subtotal.toLocaleString('vi-VN')}đ</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.92rem' }}>
+                <span>Tạm tính món ăn</span>
+                <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{cart.subtotal.toLocaleString('vi-VN')}đ</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.92rem' }}>
                 <span>Phí giao hàng (DineGo Express)</span>
-                <span>{cart.deliveryFee.toLocaleString('vi-VN')}đ</span>
+                <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{cart.deliveryFee.toLocaleString('vi-VN')}đ</span>
               </div>
               {cart.discountAmount > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10B981', fontWeight: 700 }}>
-                  <span>Giảm giá voucher</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--primary)', fontWeight: 800, fontSize: '0.92rem' }}>
+                  <span>Giảm giá voucher ({cart.voucherCode})</span>
                   <span>-{cart.discountAmount.toLocaleString('vi-VN')}đ</span>
                 </div>
               )}
               <div
                 style={{
                   borderTop: '1px solid var(--border)',
-                  paddingTop: 12,
+                  paddingTop: 14,
+                  marginTop: 4,
                   display: 'flex',
                   justifyContent: 'space-between',
-                  fontSize: '1.25rem',
-                  fontWeight: 800,
-                  color: '#fff',
+                  alignItems: 'baseline',
                 }}
               >
-                <span>Tổng thanh toán</span>
-                <span style={{ color: paymentMethod === 'MOMO_QR' ? '#FF4081' : 'var(--primary)' }}>
+                <div>
+                  <span style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                    Tổng thanh toán
+                  </span>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Đã bao gồm thuế & phí</div>
+                </div>
+                <span
+                  style={{
+                    fontSize: '1.5rem',
+                    fontWeight: 900,
+                    color: paymentMethod === 'MOMO_QR' ? 'var(--momo)' : 'var(--primary)',
+                  }}
+                >
                   {cart.finalTotal.toLocaleString('vi-VN')}đ
                 </span>
               </div>
@@ -592,13 +772,24 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
             <button
               onClick={handlePlaceOrder}
               disabled={isSubmitting}
-              className={paymentMethod === 'MOMO_QR' ? 'btn-momo' : 'cart-btn'}
-              style={{ width: '100%', padding: '14px 20px', borderRadius: 'var(--radius-sm)', justifyContent: 'center' }}
+              className={paymentMethod === 'MOMO_QR' ? 'btn-momo' : 'btn btn-primary'}
+              style={{
+                width: '100%',
+                padding: '15px 20px',
+                borderRadius: 14,
+                fontSize: '1.05rem',
+                fontWeight: 800,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                cursor: isSubmitting ? 'not-allowed' : 'pointer',
+              }}
             >
               <Sparkles size={18} />
               <span>
                 {isSubmitting
-                  ? 'Đang kết nối cổng thanh toán...'
+                  ? 'Đang xử lý đơn hàng...'
                   : paymentMethod === 'MOMO_QR'
                   ? `Thanh toán MoMo • ${cart.finalTotal.toLocaleString('vi-VN')}đ`
                   : `Xác nhận đặt đơn • ${cart.finalTotal.toLocaleString('vi-VN')}đ`}
@@ -610,13 +801,36 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
 
       {/* MoMo Payment Modal Simulator */}
       {showMomoModal && (
-        <div className="modal-overlay">
-          <div className="modal-box" style={{ textAlign: 'center', maxWidth: 440 }}>
+        <div
+          className="modal-overlay"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              background: '#FFFFFF',
+              borderRadius: 20,
+              width: '100%',
+              maxWidth: 440,
+              padding: 28,
+              textAlign: 'center',
+              boxShadow: 'var(--shadow-xl)',
+            }}
+          >
             <div
               style={{
                 width: 60,
                 height: 60,
-                borderRadius: 16,
+                borderRadius: 18,
                 background: 'var(--momo)',
                 color: '#fff',
                 fontSize: '2rem',
@@ -631,21 +845,21 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
               M
             </div>
 
-            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#fff', marginBottom: 4 }}>
-              Cổng thanh toán MoMo
+            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: 4 }}>
+              Cổng thanh toán MoMo Sandbox
             </h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: 20 }}>
-              Đơn hàng #{showMomoModal.orderNumber} tai DineGo
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginBottom: 20 }}>
+              Đơn hàng #{showMomoModal.orderNumber} tại DineGo
             </p>
 
             {/* QR Mockup */}
             <div
               style={{
-                background: '#fff',
+                background: '#F8FAFC',
                 padding: 20,
                 borderRadius: 16,
+                border: '1px solid #E2E8F0',
                 display: 'inline-block',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
                 marginBottom: 20,
               }}
             >
@@ -653,38 +867,49 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
                 style={{
                   width: 180,
                   height: 180,
-                  background: '#f8fafc',
-                  border: '2px dashed #d82d8b',
-                  borderRadius: 8,
+                  background: '#FFFFFF',
+                  border: '2px dashed #D82D8B',
+                  borderRadius: 12,
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#d82d8b',
+                  color: '#D82D8B',
                   fontWeight: 700,
                   fontSize: '0.85rem',
                   gap: 8,
                 }}
               >
-                <QrCode size={64} color="#d82d8b" />
+                <QrCode size={64} color="#D82D8B" />
                 <span>MoMo All-in-One QR</span>
               </div>
             </div>
 
-            <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#FF4081', marginBottom: 6 }}>
+            <div style={{ fontSize: '1.45rem', fontWeight: 900, color: '#D82D8B', marginBottom: 6 }}>
               {showMomoModal.finalTotal.toLocaleString('vi-VN')} VND
             </div>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 24 }}>
-              Xác thực chữ ký số: HMAC-SHA256 (MOMO_SECRET_KEY)
+              Xác thực chữ ký số HMAC-SHA256 chuẩn MoMo OpenAPI v2
             </p>
 
             <button
               onClick={handleSimulateMomoIpnSuccess}
               className="btn-momo"
-              style={{ marginBottom: 12 }}
+              style={{
+                width: '100%',
+                padding: '14px 20px',
+                borderRadius: 14,
+                marginBottom: 12,
+                fontSize: '0.95rem',
+                fontWeight: 800,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+              }}
             >
               <CheckCircle2 size={18} />
-              <span>Giả lập MoMo IPN (Thanh toán thành công)</span>
+              <span>Mô phỏng MoMo IPN (Thanh toán thành công)</span>
             </button>
 
             <button
@@ -694,11 +919,14 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderPlace
               }}
               style={{
                 background: 'transparent',
-                color: 'var(--text-secondary)',
+                border: 'none',
+                color: 'var(--text-muted)',
                 fontSize: '0.88rem',
+                fontWeight: 600,
+                cursor: 'pointer',
               }}
             >
-              Đóng và giữ đơn ở trạng thái PENDING
+              Đóng và giữ đơn ở trạng thái Chờ thanh toán (PENDING)
             </button>
           </div>
         </div>

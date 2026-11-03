@@ -1,8 +1,9 @@
 // ==============================================================================
 // DineGo Frontend — Real-Time GPS Shipper Tracking Page (Sprint 4 — U039 to U042)
+// GrabFood Live Shipper Tracking, Route Simulation, Driver Profile & Geofence
 // ==============================================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Bike,
   MapPin,
@@ -15,6 +16,8 @@ import {
   ArrowRight,
   Store,
   Home,
+  Sparkles,
+  RotateCcw,
 } from 'lucide-react';
 
 type TrackingStatus =
@@ -57,9 +60,6 @@ export const TrackingPage: React.FC = () => {
     etaMinutes: 7,
   });
 
-  const [simulating, setSimulating] = useState(false);
-
-  // Mô phỏng tiến trình giao hàng theo thời gian thực (Geofence U041)
   const handleNextStatus = () => {
     if (tracking.status === 'ASSIGNED') {
       setTracking((prev) => ({
@@ -112,7 +112,7 @@ export const TrackingPage: React.FC = () => {
 
   const steps: { key: TrackingStatus; label: string; desc: string }[] = [
     { key: 'ASSIGNED', label: 'Tài xế nhận đơn', desc: 'Đang di chuyển đến quán' },
-    { key: 'ARRIVED_AT_STORE', label: 'Đã đến quán (Geofence)', desc: 'Chờ lấy thức ăn' },
+    { key: 'ARRIVED_AT_STORE', label: 'Đã đến quán', desc: 'Chờ lấy thức ăn' },
     { key: 'DELIVERING', label: 'Đang giao hàng', desc: 'Đang trên đường đến bạn' },
     { key: 'ARRIVED_AT_DESTINATION', label: 'Đã đến nơi', desc: 'Tài xế đang gọi nhận đồ' },
     { key: 'DELIVERED', label: 'Giao thành công', desc: 'Hoàn tất đơn hàng' },
@@ -121,40 +121,40 @@ export const TrackingPage: React.FC = () => {
   const currentStepIndex = steps.findIndex((s) => s.key === tracking.status);
 
   return (
-    <div className="container" style={{ padding: '32px 16px', maxWidth: 960 }}>
+    <div className="container" style={{ padding: '28px 16px', maxWidth: 960, paddingBottom: 60 }}>
       {/* Title */}
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
         <div
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 8,
-            padding: '6px 16px',
+            gap: 6,
+            padding: '4px 14px',
             borderRadius: 20,
-            background: 'rgba(6, 182, 212, 0.15)',
-            color: '#06B6D4',
-            fontSize: '0.85rem',
+            background: 'rgba(0, 177, 79, 0.1)',
+            color: 'var(--primary)',
+            fontSize: '0.82rem',
             fontWeight: 700,
             marginBottom: 10,
           }}
         >
-          <Navigation size={16} /> GPS Shipper & Geofencing 100m (Sprint 4 — U039 to U042)
+          <Navigation size={15} /> Định Vị GPS Shipper & Geofencing 100m (Sprint 4)
         </div>
-        <h1 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: 8 }}>
-          Theo Dõi Lộ Trình Giao Hàng Trực Tiếp
+        <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 6px 0' }}>
+          Theo Dõi Lộ Trình Giao Hàng Trực Tuyến
         </h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-          Đơn hàng: <strong>{tracking.orderNumber}</strong> • Tọa độ GPS shipper cập nhật mỗi 5 giây
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', margin: 0 }}>
+          Đơn hàng: <strong>#{tracking.orderNumber}</strong> • Tọa độ GPS tài xế cập nhật liên tục thời gian thực
         </p>
       </div>
 
       {/* Main Tracking Card */}
       <div
         style={{
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-strong)',
+          background: '#FFFFFF',
+          border: '1px solid var(--border)',
           borderRadius: 20,
-          boxShadow: 'var(--shadow-lg)',
+          boxShadow: 'var(--shadow-md)',
           overflow: 'hidden',
           marginBottom: 24,
         }}
@@ -163,7 +163,7 @@ export const TrackingPage: React.FC = () => {
         <div
           style={{
             height: 280,
-            background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+            background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
             position: 'relative',
             display: 'flex',
             alignItems: 'center',
@@ -172,7 +172,7 @@ export const TrackingPage: React.FC = () => {
             overflow: 'hidden',
           }}
         >
-          {/* Map Grid effect */}
+          {/* Map Grid Effect */}
           <div
             style={{
               position: 'absolute',
@@ -189,7 +189,7 @@ export const TrackingPage: React.FC = () => {
               position: 'absolute',
               width: '60%',
               height: 4,
-              background: 'linear-gradient(90deg, #10B981, #06B6D4, #FF5722)',
+              background: 'linear-gradient(90deg, #10B981, #00B14F, #FF5722)',
               borderRadius: 2,
             }}
           />
@@ -210,7 +210,7 @@ export const TrackingPage: React.FC = () => {
                 width: 44,
                 height: 44,
                 borderRadius: '50%',
-                background: 'rgba(16, 185, 129, 0.2)',
+                background: 'rgba(16, 185, 129, 0.25)',
                 border: '2px solid #10B981',
                 display: 'flex',
                 alignItems: 'center',
@@ -220,7 +220,7 @@ export const TrackingPage: React.FC = () => {
             >
               <Store size={22} />
             </div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#fff', textAlign: 'center', maxWidth: 120 }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#FFFFFF', textAlign: 'center', maxWidth: 120 }}>
               {tracking.restaurantName}
             </div>
           </div>
@@ -240,29 +240,30 @@ export const TrackingPage: React.FC = () => {
           >
             <div
               style={{
-                width: 50,
-                height: 50,
+                width: 52,
+                height: 52,
                 borderRadius: '50%',
-                background: 'linear-gradient(135deg, #06B6D4, #0284C7)',
+                background: 'linear-gradient(135deg, #00B14F, #06B6D4)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#fff',
-                boxShadow: '0 0 20px rgba(6, 182, 212, 0.8)',
-                border: '2px solid #fff',
+                color: '#FFFFFF',
+                boxShadow: '0 0 24px rgba(0, 177, 79, 0.8)',
+                border: '2.5px solid #FFFFFF',
               }}
             >
-              <Bike size={26} />
+              <Bike size={28} />
             </div>
             <div
               style={{
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                background: '#06B6D4',
-                color: '#fff',
-                padding: '2px 8px',
+                fontSize: '0.75rem',
+                fontWeight: 800,
+                background: 'var(--primary)',
+                color: '#FFFFFF',
+                padding: '3px 10px',
                 borderRadius: 12,
                 whiteSpace: 'nowrap',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
               }}
             >
               {tracking.status === 'DELIVERED' ? 'Đã giao' : `Cách bạn ${tracking.distanceKm} km`}
@@ -285,17 +286,17 @@ export const TrackingPage: React.FC = () => {
                 width: 44,
                 height: 44,
                 borderRadius: '50%',
-                background: 'rgba(255, 87, 34, 0.2)',
-                border: '2px solid var(--primary)',
+                background: 'rgba(255, 87, 34, 0.25)',
+                border: '2px solid #FF5722',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: 'var(--primary)',
+                color: '#FF5722',
               }}
             >
               <Home size={22} />
             </div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#fff', textAlign: 'center', maxWidth: 120 }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#FFFFFF', textAlign: 'center', maxWidth: 120 }}>
               Địa chỉ của bạn
             </div>
           </div>
@@ -320,31 +321,32 @@ export const TrackingPage: React.FC = () => {
                 <div key={s.key} style={{ padding: '8px 4px' }}>
                   <div
                     style={{
-                      width: 28,
-                      height: 28,
+                      width: 30,
+                      height: 30,
                       borderRadius: '50%',
                       margin: '0 auto 8px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: '0.8rem',
-                      fontWeight: 700,
+                      fontSize: '0.82rem',
+                      fontWeight: 800,
                       background: isCurrent
-                        ? '#06B6D4'
+                        ? 'var(--primary)'
                         : isPast
                         ? '#10B981'
-                        : 'rgba(255, 255, 255, 0.1)',
-                      color: isPast || isCurrent ? '#fff' : 'var(--text-muted)',
-                      boxShadow: isCurrent ? '0 0 12px rgba(6, 182, 212, 0.6)' : 'none',
+                        : 'var(--bg-main)',
+                      color: isPast || isCurrent ? '#FFFFFF' : 'var(--text-muted)',
+                      border: `2px solid ${isPast || isCurrent ? 'var(--primary)' : 'var(--border)'}`,
+                      boxShadow: isCurrent ? '0 0 12px rgba(0, 177, 79, 0.4)' : 'none',
                     }}
                   >
                     {isPast && !isCurrent ? '✓' : idx + 1}
                   </div>
                   <div
                     style={{
-                      fontSize: '0.8rem',
-                      fontWeight: isCurrent ? 700 : 500,
-                      color: isCurrent ? '#06B6D4' : isPast ? '#fff' : 'var(--text-muted)',
+                      fontSize: '0.78rem',
+                      fontWeight: isCurrent ? 800 : 600,
+                      color: isCurrent ? 'var(--primary)' : isPast ? 'var(--text-main)' : 'var(--text-muted)',
                     }}
                   >
                     {s.label}
@@ -361,8 +363,8 @@ export const TrackingPage: React.FC = () => {
               flexWrap: 'wrap',
               justifyContent: 'space-between',
               alignItems: 'center',
-              padding: 18,
-              background: 'var(--bg-card)',
+              padding: '18px 22px',
+              background: 'var(--bg-main)',
               borderRadius: 16,
               border: '1px solid var(--border)',
               gap: 16,
@@ -375,35 +377,53 @@ export const TrackingPage: React.FC = () => {
                   width: 52,
                   height: 52,
                   borderRadius: 16,
-                  background: 'linear-gradient(135deg, #FF5722, #FF7043)',
+                  background: 'linear-gradient(135deg, #00B14F, #009643)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#fff',
-                  fontSize: '1.4rem',
+                  color: '#FFFFFF',
+                  fontSize: '1.25rem',
                   fontWeight: 800,
+                  boxShadow: '0 4px 12px rgba(0, 177, 79, 0.3)',
                 }}
               >
                 Tuấn
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontWeight: 700, fontSize: '1rem' }}>{tracking.driverName}</span>
-                  <span style={{ fontSize: '0.75rem', color: '#F59E0B', background: 'rgba(245, 158, 11, 0.15)', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
+                  <span style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--text-main)' }}>
+                    {tracking.driverName}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      color: '#B45309',
+                      background: '#FEF3C7',
+                      padding: '2px 8px',
+                      borderRadius: 6,
+                      fontWeight: 800,
+                    }}
+                  >
                     ⭐ {tracking.driverRating}
                   </span>
                 </div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: 2 }}>
-                  Xe: <strong>{tracking.licensePlate}</strong> • Honda Wave Alpha
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                  Biển số xe: <strong style={{ color: 'var(--text-main)' }}>{tracking.licensePlate}</strong> • Honda Wave Alpha
                 </div>
               </div>
             </div>
 
-            {/* ETA Countdown */}
+            {/* ETA Countdown & Call Driver */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Thời gian dự kiến (ETA)</div>
-                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: tracking.status === 'DELIVERED' ? '#10B981' : 'var(--primary)' }}>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Thời gian dự kiến (ETA)</div>
+                <div
+                  style={{
+                    fontSize: '1.4rem',
+                    fontWeight: 900,
+                    color: tracking.status === 'DELIVERED' ? 'var(--primary)' : 'var(--secondary)',
+                  }}
+                >
                   {tracking.status === 'DELIVERED' ? 'ĐÃ GIAO HÀNG' : `~ ${tracking.etaMinutes} phút`}
                 </div>
               </div>
@@ -414,12 +434,14 @@ export const TrackingPage: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 8,
-                  padding: '10px 16px',
+                  padding: '10px 18px',
                   borderRadius: 12,
-                  background: 'rgba(16, 185, 129, 0.15)',
-                  color: '#10B981',
+                  background: 'rgba(0, 177, 79, 0.1)',
+                  color: 'var(--primary)',
                   fontWeight: 700,
-                  fontSize: '0.85rem',
+                  fontSize: '0.88rem',
+                  textDecoration: 'none',
+                  border: '1.5px solid var(--primary)',
                 }}
               >
                 <Phone size={16} /> Gọi tài xế
@@ -432,24 +454,25 @@ export const TrackingPage: React.FC = () => {
             style={{
               marginTop: 20,
               padding: 16,
-              background: 'rgba(255, 255, 255, 0.02)',
+              background: '#FFFFFF',
               border: '1px dashed var(--border)',
-              borderRadius: 12,
+              borderRadius: 14,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              flexWrap: 'wrap',
               gap: 12,
             }}
           >
-            <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-              🛠️ <strong>Mô phỏng E2E tài xế giao hàng:</strong> Bấm để đẩy trạng thái GPS và Geofencing thời gian thực
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              🛠️ <strong>Mô phỏng E2E tài xế giao hàng:</strong> Bấm để đẩy tiến trình GPS và Geofencing thời gian thực
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               {tracking.status !== 'DELIVERED' ? (
                 <button
                   onClick={handleNextStatus}
                   className="btn btn-primary"
-                  style={{ padding: '8px 14px', fontSize: '0.82rem' }}
+                  style={{ padding: '8px 16px', fontSize: '0.85rem', fontWeight: 700, borderRadius: 10 }}
                 >
                   Tiến tới bước tiếp theo →
                 </button>
@@ -457,9 +480,9 @@ export const TrackingPage: React.FC = () => {
                 <button
                   onClick={handleResetSimulation}
                   className="btn btn-secondary"
-                  style={{ padding: '8px 14px', fontSize: '0.82rem' }}
+                  style={{ padding: '8px 16px', fontSize: '0.85rem', fontWeight: 700, borderRadius: 10 }}
                 >
-                  Chạy lại mô phỏng
+                  <RotateCcw size={14} style={{ marginRight: 6 }} /> Chạy lại mô phỏng
                 </button>
               )}
             </div>
@@ -469,4 +492,3 @@ export const TrackingPage: React.FC = () => {
     </div>
   );
 };
-
