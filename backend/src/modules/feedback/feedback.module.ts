@@ -1,0 +1,16 @@
+// ==============================================================================
+// DineGo Backend — Feedback Module (Sprint 5)
+// ==============================================================================
+
+import { Module } from '@nestjs/common';
+import { PrismaModule } from '../../prisma/prisma.module.js';
+import { FeedbackController } from './feedback.controller.js';
+import { FeedbackService } from './feedback.service.js';
+
+@Module({
+  imports: [PrismaModule],
+  controllers: [FeedbackController],
+  providers: [FeedbackService],
+  exports: [FeedbackService],
+})
+export class FeedbackModule {}

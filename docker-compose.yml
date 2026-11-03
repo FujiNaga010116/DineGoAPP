@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------------------------------------------
+  # Microsoft SQL Server 2022 Database Engine
+  # ----------------------------------------------------------------------------
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: dinego_sqlserver
+    restart: always
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-DineGo@2026_SecurePass}"
+      MSSQL_PID: "Developer"
+    ports:
+      - "${MSSQL_PORT:-1433}:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${MSSQL_SA_PASSWORD:-DineGo@2026_SecurePass}' -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ----------------------------------------------------------------------------
+  # Redis Cache Engine (Session, Rate Limit & Geolocation Cache)
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: dinego_redis
+    restart: always
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ----------------------------------------------------------------------------
+  # Backend API (NestJS 11 + Prisma ORM)
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dinego_backend
+    restart: always
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      API_PREFIX: api/v1
+      DATABASE_URL: "sqlserver://sqlserver:1433;database=dinego_db;user=sa;password=${MSSQL_SA_PASSWORD:-DineGo@2026_SecurePass};trustServerCertificate=true"
+      JWT_ACCESS_SECRET: "${JWT_ACCESS_SECRET:-dinego_super_secure_access_secret_key_32_characters_long}"
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET:-dinego_super_secure_refresh_secret_key_32_characters_long}"
+      JWT_REFRESH_EXPIRES_IN: 7d
+      CORS_ORIGIN: "http://localhost:80,http://localhost:5173,http://localhost:3000"
+      MOMO_PARTNER_CODE: "${MOMO_PARTNER_CODE:-MOMOBKUN20180529}"
+      MOMO_ACCESS_KEY: "${MOMO_ACCESS_KEY:-klm05TvNBzhg7h7j}"
+      MOMO_SECRET_KEY: "${MOMO_SECRET_KEY:-at67qH6mk8w5Y1nAyMoYKMWACiEi2Aca}"
+      MOMO_API_ENDPOINT: "https://test-payment.momo.vn/v2/gateway/api/create"
+      MOMO_REDIRECT_URL: "http://localhost:5173/payment/result"
+      MOMO_IPN_URL: "http://backend:3000/api/v1/payments/momo/ipn"
+    ports:
+      - "3000:3000"
+
+  # ----------------------------------------------------------------------------
+  # Frontend Client (React 19 + Vite + Nginx)
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: dinego_frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  sqlserver_data:
+  redis_data:
+

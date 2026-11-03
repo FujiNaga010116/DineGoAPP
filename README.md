@@ -1,8 +1,24 @@
-# 🍽️ DineGo — Nền Tảng Đặt Món Trực Tuyến & Cổng Thanh Toán MoMo
+# 🍽️ DineGo — Nền Tảng Đặt Món Trực Tuyến, Mâm Cỗ Sự Kiện & Cổng Thanh Toán MoMo
+
+[![CI/CD Pipeline](https://github.com/FujiNaga010116/DineGoAPP/actions/workflows/ci.yml/badge.svg)](https://github.com/FujiNaga010116/DineGoAPP/actions/workflows/ci.yml)
+[![Docker Image Build](https://github.com/FujiNaga010116/DineGoAPP/actions/workflows/docker-build.yml/badge.svg)](https://github.com/FujiNaga010116/DineGoAPP/actions/workflows/docker-build.yml)
+[![Database](https://img.shields.io/badge/Database-MS%20SQL%20Server%202022-CC292B?logo=microsoft-sql-server)](https://www.microsoft.com/sql-server)
+[![NestJS](https://img.shields.io/badge/Backend-NestJS%2011-E0234E?logo=nestjs)](https://nestjs.com/)
+[![React](https://img.shields.io/badge/Frontend-React%2019%20+%20Vite-61DAFB?logo=react)](https://react.dev/)
 
 > **Đồ án môn học:** Chuyên đề Node.js & ReactJS (DN26_CPL)  
 > **Nhóm thực hiện:** Nhóm 17  
 > **Repository:** [https://github.com/FujiNaga010116/DineGoAPP.git](https://github.com/FujiNaga010116/DineGoAPP.git)
+
+---
+
+## 📚 Tài liệu Kiến trúc & Đặc tả Nghiệp vụ (Sprint 1 Baseline)
+
+- 📜 [Đặc tả Yêu cầu Phần mềm (SRS v1.0)](./docs/SRS.md) — 4 luồng nghiệp vụ, UC-01 đến UC-49, Business Rules (BR-01 đến BR-45).
+- 🗄️ [Sơ đồ Thực thể Quan hệ (ERD)](./docs/ERD.md) — Sơ đồ Mermaid 16 bảng dữ liệu, giải pháp tránh lỗi SQL Server 1785.
+- 📖 [Từ điển Dữ liệu (Data Dictionary)](./docs/DATA_DICTIONARY.md) — Mô tả chi tiết kiểu dữ liệu, ràng buộc, index của 16 bảng.
+- 🎨 [Đặc tả Giao diện UI/UX & Wireframe](./docs/UI_UX_SPECIFICATION.md) — Style guide, bảng màu DineGo Emerald, cấu trúc màn hình Customer/Merchant/Admin.
+- 🤝 [Quy ước Đóng góp & GitFlow (CONTRIBUTING.md)](./CONTRIBUTING.md) — Quy tắc nhánh, Conventional Commits, tiêu chuẩn PR.
 
 ---
 
@@ -75,6 +91,27 @@ Trước khi tiến hành cài đặt, hãy đảm bảo máy tính của bạn 
 3. **Microsoft SQL Server:** Phiên bản 2019 hoặc 2022 (Bản Developer hoặc Express).
 4. **SQL Server Management Studio (SSMS):** Dùng để quản trị và kiểm tra cơ sở dữ liệu.
 5. **Git:** Phiên bản mới nhất.
+6. **Docker & Docker Compose (Tùy chọn):** Nếu muốn khởi chạy toàn bộ hệ thống bằng 1 lệnh duy nhất.
+
+---
+
+## 🐳 Khởi chạy Nhanh Toàn Bộ Bằng Docker Compose (U002)
+
+Nếu máy đã cài Docker Desktop, bạn có thể khởi chạy toàn bộ hệ sinh thái (SQL Server 2022, Redis, Backend NestJS, Frontend React) chỉ với 1 lệnh:
+
+```bash
+# Khởi chạy toàn bộ stack trong nền
+docker compose up -d --build
+
+# Xem log các container
+docker compose logs -f
+```
+
+- **Frontend SPA:** [http://localhost](http://localhost) (Cổng 80)
+- **Backend API:** [http://localhost:3000](http://localhost:3000)
+- **Swagger API Docs:** [http://localhost:3000/api/docs](http://localhost:3000/api/docs)
+- **Microsoft SQL Server 2022:** `localhost:1433` (Password: `DineGo@2026_SecurePass`)
+- **Redis Cache:** `localhost:6379`
 
 ---
 
@@ -165,7 +202,16 @@ npx prisma migrate deploy
 
 # 4. Kiểm tra trạng thái migration (Database schema is up to date!)
 npx prisma migrate status
+
+# 5. Khởi tạo dữ liệu mẫu 4 vai trò & nhà hàng (Seed Data)
+npm run seed
 ```
+
+Tài khoản mẫu được tạo tự động:
+- **Admin:** `admin@dinego.vn` / `DineGo@2026_SecurePass` (Vai trò `ADMIN`)
+- **Merchant:** `merchant@dinego.vn` / `DineGo@2026_SecurePass` (Vai trò `MERCHANT`)
+- **Driver:** `driver@dinego.vn` / `DineGo@2026_SecurePass` (Vai trò `DRIVER`)
+- **Customer:** `customer@dinego.vn` / `DineGo@2026_SecurePass` (Vai trò `CUSTOMER`)
 
 ### Bước 5.4: Khởi động Backend Server
 ```bash
@@ -257,3 +303,4 @@ npx vitest run test/sqlserver-concurrency.spec.ts
 
 ---
 *Chúc bạn có trải nghiệm tuyệt vời khi cài đặt và phát triển cùng DineGo!*
+

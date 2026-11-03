@@ -118,9 +118,15 @@ describe('OrderService', () => {
       cart: {
         findUnique: vi.fn(),
         update: vi.fn(),
+        upsert: vi.fn(),
       },
       cartItem: {
+        create: vi.fn(),
         deleteMany: vi.fn(),
+        findMany: vi.fn(),
+      },
+      cartItemTopping: {
+        create: vi.fn(),
       },
       merchant: {
         findUnique: vi.fn(),
@@ -131,6 +137,7 @@ describe('OrderService', () => {
         findUnique: vi.fn(),
       },
       topping: {
+        findFirst: vi.fn(),
         findUnique: vi.fn(),
       },
       promotion: {
@@ -671,6 +678,89 @@ describe('OrderService', () => {
           status: OrderStatus.COMPLETED,
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('estimateShippingFee (U017)', () => {
+    it('should calculate base fee (15000 VND) for distance <= 2km', async () => {
+      const res = await service.estimateShippingFee({ distanceKm: 1.8 });
+      expect(res.distanceKm).toBe(1.8);
+      expect(res.shippingFee).toBe(15000);
+      expect(res.estimatedDurationMinutes).toBeGreaterThanOrEqual(15);
+    });
+
+    it('should calculate tiered fee according to BR-13 for distance between 2km and 5km', async () => {
+      // 3.5km => 15000 + ceil(3.5-2)*5000 = 15000 + 2*5000 = 25000
+      const res = await service.estimateShippingFee({ distanceKm: 3.5 });
+      expect(res.shippingFee).toBe(25000);
+    });
+
+    it('should calculate tiered fee according to BR-13 for distance > 5km', async () => {
+      // 7.2km => 30000 + ceil(7.2-5)*7000 = 30000 + 3*7000 = 51000
+      const res = await service.estimateShippingFee({ distanceKm: 7.2 });
+      expect(res.shippingFee).toBe(51000);
+    });
+
+    it('should compute distance using Haversine if coordinates and merchantId provided', async () => {
+      mockPrisma.merchant.findUnique.mockResolvedValue({
+        id: 'merchant-1',
+        latitude: 10.776889,
+        longitude: 106.700806,
+      });
+
+      const res = await service.estimateShippingFee({
+        merchantId: 'merchant-1',
+        customerLat: 10.782000,
+        customerLng: 106.705000,
+      });
+
+      expect(res.distanceKm).toBeGreaterThan(0);
+      expect(res.shippingFee).toBeGreaterThanOrEqual(15000);
+    });
+  });
+
+  describe('reorder (U022)', () => {
+    it('should re-populate user cart from past order items', async () => {
+      mockPrisma.order.findUnique.mockResolvedValue({
+        id: 'ord-old-1',
+        userId: 'user-customer-1',
+        merchantId: 'merchant-1',
+        merchant: { id: 'merchant-1', isActive: true },
+        items: [
+          {
+            id: 'item-1',
+            menuItemId: 'menu-item-1',
+            quantity: 2,
+            note: 'Không cay',
+            toppings: [{ toppingName: 'Quẩy giòn' }],
+          },
+        ],
+      });
+
+      mockPrisma.cart.upsert.mockResolvedValue({ id: 'cart-1', userId: 'user-customer-1' });
+      mockPrisma.cartItem.findMany.mockResolvedValue([]);
+      mockPrisma.menuItem.findUnique.mockResolvedValue({ id: 'menu-item-1', isAvailable: true });
+      mockPrisma.cartItem.create.mockResolvedValue({ id: 'new-cit-1' });
+      mockPrisma.topping.findFirst.mockResolvedValue({ id: 'topping-1' });
+      mockPrisma.cartItemTopping.create.mockResolvedValue({});
+
+      const res = await service.reorder(mockCustomerUser, 'ord-old-1');
+
+      expect(res.success).toBe(true);
+      expect(res.itemCount).toBe(1);
+      expect(mockPrisma.cartItem.create).toHaveBeenCalled();
+    });
+
+    it('should throw ForbiddenException if order does not belong to user', async () => {
+      mockPrisma.order.findUnique.mockResolvedValue({
+        id: 'ord-other',
+        userId: 'different-user',
+        merchant: { isActive: true },
+      });
+
+      await expect(
+        service.reorder(mockCustomerUser, 'ord-other'),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });

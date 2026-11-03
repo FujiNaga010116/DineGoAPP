@@ -1,0 +1,13 @@
+import { Module } from '@nestjs/common';
+import { PrismaModule } from '../../prisma/prisma.module.js';
+import { GroupOrderController } from './group-order.controller.js';
+import { GroupOrderService } from './group-order.service.js';
+
+@Module({
+  imports: [PrismaModule],
+  controllers: [GroupOrderController],
+  providers: [GroupOrderService],
+  exports: [GroupOrderService],
+})
+export class GroupOrderModule {}
+

@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -19,9 +20,16 @@ import { Roles } from '../../common/decorators/roles.decorator.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { AuthService } from './auth.service.js';
+import { ChangePasswordDto } from './dto/change-password.dto.js';
+import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
+import { GoogleLoginDto } from './dto/google-login.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RefreshTokenDto } from './dto/refresh-token.dto.js';
 import { RegisterDto } from './dto/register.dto.js';
+import { ResetPasswordDto } from './dto/reset-password.dto.js';
+import { SendOtpDto } from './dto/send-otp.dto.js';
+import { UpdateProfileDto } from './dto/update-profile.dto.js';
+import { VerifyOtpDto } from './dto/verify-otp.dto.js';
 import type { AuthenticatedUser } from './interfaces/authenticated-user.interface.js';
 
 @ApiTags('Authentication & RBAC')
@@ -94,6 +102,98 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Token không hợp lệ, hết hạn hoặc tài khoản bị khóa' })
   getProfile(@CurrentUser('id') userId: string) {
     return this.authService.getProfile(userId);
+  }
+
+  // ----------------------------------------------------------------------------
+  // SPRINT 1 ENHANCEMENTS: OTP, GOOGLE, FORGOT PASSWORD & PROFILE (U007, U008, U011)
+  // ----------------------------------------------------------------------------
+
+  @Post('send-otp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'U007: Gửi mã OTP xác thực email',
+    description: 'Tạo mã OTP 6 chữ số ngẫu nhiên và gửi tới email đăng ký.',
+  })
+  @ApiResponse({ status: 200, description: 'Đã gửi mã OTP thành công' })
+  sendOtp(@Body() dto: SendOtpDto) {
+    return this.authService.sendOtp(dto);
+  }
+
+  @Post('verify-otp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'U007: Xác thực mã OTP',
+    description: 'Kiểm tra mã OTP 6 chữ số và kích hoạt trạng thái email đã xác thực.',
+  })
+  @ApiResponse({ status: 200, description: 'Xác thực OTP thành công' })
+  @ApiResponse({ status: 400, description: 'Mã OTP sai hoặc đã hết hạn' })
+  verifyOtp(@Body() dto: VerifyOtpDto) {
+    return this.authService.verifyOtp(dto);
+  }
+
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'U008: Đăng nhập bằng Google OAuth',
+    description: 'Xác thực thông tin người dùng Google, tự động tạo tài khoản CUSTOMER nếu chưa tồn tại.',
+  })
+  @ApiResponse({ status: 200, description: 'Đăng nhập Google thành công, trả về token pair' })
+  loginWithGoogle(@Body() dto: GoogleLoginDto) {
+    return this.authService.loginWithGoogle(dto);
+  }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'U011: Yêu cầu đặt lại mật khẩu khi quên',
+    description: 'Gửi link/token đặt lại mật khẩu đến email người dùng.',
+  })
+  @ApiResponse({ status: 200, description: 'Gửi yêu cầu thành công' })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'U011: Đặt lại mật khẩu bằng token',
+    description: 'Xác thực token và cập nhật mật khẩu mới.',
+  })
+  @ApiResponse({ status: 200, description: 'Đặt lại mật khẩu thành công' })
+  @ApiResponse({ status: 400, description: 'Token không hợp lệ hoặc đã hết hạn' })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
+  }
+
+  @Put('profile')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'U011: Cập nhật thông tin hồ sơ cá nhân',
+    description: 'Cập nhật họ tên, số điện thoại, ảnh đại diện của tài khoản hiện tại.',
+  })
+  @ApiResponse({ status: 200, description: 'Cập nhật thông tin thành công' })
+  updateProfile(
+    @CurrentUser('id') userId: string,
+    @Body() dto: UpdateProfileDto,
+  ) {
+    return this.authService.updateProfile(userId, dto);
+  }
+
+  @Put('change-password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'U011: Đổi mật khẩu tài khoản',
+    description: 'Xác thực mật khẩu cũ và đổi sang mật khẩu mới.',
+  })
+  @ApiResponse({ status: 200, description: 'Đổi mật khẩu thành công' })
+  @ApiResponse({ status: 400, description: 'Mật khẩu cũ không chính xác' })
+  changePassword(
+    @CurrentUser('id') userId: string,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(userId, dto);
   }
 
   // ----------------------------------------------------------------------------

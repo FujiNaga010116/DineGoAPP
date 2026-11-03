@@ -24,6 +24,7 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface.js';
 import { CancelOrderDto } from './dto/cancel-order.dto.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
+import { EstimateShippingDto } from './dto/estimate-shipping.dto.js';
 import { QueryOrderDto } from './dto/query-order.dto.js';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto.js';
 import type {
@@ -864,5 +865,171 @@ export class OrderService {
     );
 
     return this.mapToOrderResponse(updatedOrder);
+  }
+
+  // ----------------------------------------------------------------------------
+  // SPRINT 2 ENHANCEMENTS: SHIPPING ESTIMATION & REORDER (U017, U022)
+  // ----------------------------------------------------------------------------
+
+  /**
+   * U017: Tính toán khoảng cách và phí giao hàng theo quy tắc bậc thang BR-13
+   */
+  async estimateShippingFee(dto: EstimateShippingDto): Promise<{
+    distanceKm: number;
+    shippingFee: number;
+    estimatedDurationMinutes: number;
+  }> {
+    let distanceKm = dto.distanceKm ?? 1.5;
+
+    // Nếu truyền tọa độ và merchantId, tính khoảng cách thực tế bằng Haversine
+    if (dto.merchantId && dto.customerLat !== undefined && dto.customerLng !== undefined) {
+      const merchant = await this.prisma.merchant.findUnique({
+        where: { id: dto.merchantId },
+      });
+
+      if (merchant && merchant.latitude && merchant.longitude) {
+        const mLat = Number(merchant.latitude);
+        const mLng = Number(merchant.longitude);
+        const cLat = dto.customerLat;
+        const cLng = dto.customerLng;
+
+        const R = 6371; // Bán kính Trái Đất (km)
+        const dLat = ((cLat - mLat) * Math.PI) / 180;
+        const dLon = ((cLng - mLng) * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos((mLat * Math.PI) / 180) *
+            Math.cos((cLat * Math.PI) / 180) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        distanceKm = Math.round(R * c * 10) / 10; // Làm tròn 1 chữ số thập phân
+      }
+    }
+
+    // Quy tắc tính phí theo Business Rule BR-13:
+    // - Dưới 2 km: Cố định 15.000 VNĐ
+    // - Từ 2 km đến 5 km: 15.000 + 5.000 VNĐ / mỗi km vượt
+    // - Trên 5 km: 30.000 + 7.000 VNĐ / mỗi km vượt
+    let shippingFee = 15000;
+    if (distanceKm > 5) {
+      const extraKm = Math.ceil(distanceKm - 5);
+      shippingFee = 30000 + extraKm * 7000;
+    } else if (distanceKm > 2) {
+      const extraKm = Math.ceil(distanceKm - 2);
+      shippingFee = 15000 + extraKm * 5000;
+    }
+
+    const estimatedDurationMinutes = Math.max(15, Math.round(15 + distanceKm * 3));
+
+    return {
+      distanceKm,
+      shippingFee,
+      estimatedDurationMinutes,
+    };
+  }
+
+  /**
+   * U022: Đặt lại đơn hàng cũ (Reorder - Tự động tải lại các món vào giỏ hàng)
+   */
+  async reorder(user: AuthenticatedUser, orderId: string): Promise<{
+    success: boolean;
+    message: string;
+    cartId: string;
+    merchantId: string;
+    itemCount: number;
+  }> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        items: {
+          include: { toppings: true },
+        },
+        merchant: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Không tìm thấy đơn hàng cần đặt lại');
+    }
+
+    if (order.userId !== user.id && !user.roles.includes(Role.ADMIN)) {
+      throw new ForbiddenException('Bạn không có quyền đặt lại đơn hàng này');
+    }
+
+    if (!order.merchant || !order.merchant.isActive) {
+      throw new BadRequestException('Nhà hàng này hiện không còn hoạt động để đặt lại món');
+    }
+
+    // 1. Tìm hoặc tạo giỏ hàng cho người dùng
+    const cart = await this.prisma.cart.upsert({
+      where: { userId: user.id },
+      create: { userId: user.id },
+      update: {},
+    });
+
+    // 2. Làm sạch giỏ hàng cũ nếu đang chứa món từ quán khác (Đảm bảo single-restaurant rule BR-12)
+    const existingItems = await this.prisma.cartItem.findMany({
+      where: { cartId: cart.id },
+      include: { menuItem: true },
+    });
+
+    if (existingItems.length > 0 && existingItems[0].menuItem.merchantId !== order.merchantId) {
+      await this.prisma.cartItem.deleteMany({
+        where: { cartId: cart.id },
+      });
+    }
+
+    // 3. Sao chép các món từ đơn hàng cũ vào giỏ
+    let addedCount = 0;
+    for (const item of order.items) {
+      if (!item.menuItemId) continue;
+
+      // Kiểm tra món còn tồn tại và sẵn sàng bán không
+      const menuItem = await this.prisma.menuItem.findUnique({
+        where: { id: item.menuItemId },
+      });
+
+      if (menuItem && menuItem.isAvailable) {
+        const cartItem = await this.prisma.cartItem.create({
+          data: {
+            cartId: cart.id,
+            menuItemId: item.menuItemId,
+            quantity: item.quantity,
+            note: item.note,
+          },
+        });
+
+        // Bổ sung toppings tương ứng nếu có
+        for (const topping of item.toppings) {
+          // Tìm topping tương ứng
+          const existingTopping = await this.prisma.topping.findFirst({
+            where: {
+              merchantId: order.merchantId,
+              name: topping.toppingName,
+              isAvailable: true,
+            },
+          });
+
+          if (existingTopping) {
+            await this.prisma.cartItemTopping.create({
+              data: {
+                cartItemId: cartItem.id,
+                toppingId: existingTopping.id,
+              },
+            });
+          }
+        }
+        addedCount++;
+      }
+    }
+
+    return {
+      success: true,
+      message: `Đã sao chép thành công ${addedCount} món ăn vào giỏ hàng của bạn.`,
+      cartId: cart.id,
+      merchantId: order.merchantId,
+      itemCount: addedCount,
+    };
   }
 }

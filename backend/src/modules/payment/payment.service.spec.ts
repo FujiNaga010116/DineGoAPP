@@ -265,15 +265,31 @@ describe('PaymentService', () => {
         requestId: 'REQ-123',
       });
 
-      const res = await service.createMomoPayment(mockCustomerUser, {
-        orderId: sampleOrder.id,
-        paymentMethod: PaymentMethod.MOMO_QR,
-      });
+      const originalFetch = global.fetch;
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          resultCode: 0,
+          message: 'Thành công',
+          payUrl: 'https://test-payment.momo.vn/v2/gateway/pay?s=123456',
+          deeplink: 'momo://?action=payWithApp',
+          qrCodeUrl: 'https://test-payment.momo.vn/qr/123456',
+        }),
+      } as any);
 
-      expect(res.orderId).toBe(sampleOrder.id);
-      expect(res.amount).toBe(150000);
-      expect(res.payUrl).toBeDefined();
-      expect(mockPrisma.payment.upsert).toHaveBeenCalled();
+      try {
+        const res = await service.createMomoPayment(mockCustomerUser, {
+          orderId: sampleOrder.id,
+          paymentMethod: PaymentMethod.MOMO_QR,
+        });
+
+        expect(res.orderId).toBe(sampleOrder.id);
+        expect(res.amount).toBe(150000);
+        expect(res.payUrl).toBeDefined();
+        expect(mockPrisma.payment.upsert).toHaveBeenCalled();
+      } finally {
+        global.fetch = originalFetch;
+      }
     });
   });
 

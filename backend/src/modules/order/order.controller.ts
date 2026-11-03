@@ -29,6 +29,7 @@ import { RolesGuard } from '../../common/guards/roles.guard.js';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface.js';
 import { CancelOrderDto } from './dto/cancel-order.dto.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
+import { EstimateShippingDto } from './dto/estimate-shipping.dto.js';
 import { QueryOrderDto } from './dto/query-order.dto.js';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto.js';
 import type {
@@ -166,5 +167,37 @@ export class OrderController {
     @Body() dto: UpdateOrderStatusDto,
   ): Promise<OrderResponse> {
     return this.orderService.updateOrderStatus(user, id, dto);
+  }
+
+  @Post('estimate-shipping')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'U017: Ước tính phí giao hàng theo khoảng cách',
+    description: 'Tính phí giao hàng tự động theo công thức bậc thang BR-13 hoặc tọa độ GPS.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Thông tin khoảng cách, thời gian dự kiến và phí giao hàng.',
+  })
+  async estimateShipping(@Body() dto: EstimateShippingDto) {
+    return this.orderService.estimateShippingFee(dto);
+  }
+
+  @Post(':id/reorder')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'U022: Đặt lại đơn hàng cũ (Reorder)',
+    description: 'Tự động thêm lại toàn bộ món ăn và topping từ đơn hàng cũ vào giỏ hàng.',
+  })
+  @ApiParam({ name: 'id', description: 'ID đơn hàng cũ cần đặt lại' })
+  @ApiResponse({
+    status: 200,
+    description: 'Đã thêm thành công các món cũ vào giỏ hàng.',
+  })
+  async reorder(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.orderService.reorder(user, id);
   }
 }

@@ -19,6 +19,7 @@ describe('AuthService', () => {
     user: {
       findUnique: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
     },
     userSession: {
       create: vi.fn(),
@@ -26,6 +27,7 @@ describe('AuthService', () => {
       update: vi.fn(),
       updateMany: vi.fn(),
     },
+    $transaction: vi.fn().mockImplementation((promises) => Promise.all(promises)),
   };
 
   const mockJwtService = {
@@ -295,6 +297,135 @@ describe('AuthService', () => {
       expect(profile.id).toBe('user-123');
       expect(profile.roles).toEqual([Role.CUSTOMER, Role.MERCHANT]);
       expect(profile).not.toHaveProperty('passwordHash');
+    });
+  });
+
+  describe('sendOtp & verifyOtp (U007)', () => {
+    it('should generate and store OTP code and return success message', async () => {
+      const res = await authService.sendOtp({ email: 'test@dinego.vn' });
+      expect(res.success).toBe(true);
+      expect(res.message).toContain('Mã xác thực OTP');
+    });
+
+    it('should throw BadRequestException when verifying unrequested OTP', async () => {
+      await expect(
+        authService.verifyOtp({ email: 'unknown@dinego.vn', otp: '123456' }),
+      ).rejects.toThrow();
+    });
+
+    it('should verify correct OTP and mark isEmailVerified if user exists', async () => {
+      await authService.sendOtp({ email: 'verify@dinego.vn' });
+      // Access internal store to get the generated OTP for testing
+      const store = (authService as any).otpStore.get('verify@dinego.vn');
+      expect(store).toBeDefined();
+
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-v1', email: 'verify@dinego.vn' });
+      mockPrisma.user.update.mockResolvedValue({ id: 'user-v1', isEmailVerified: true });
+
+      const res = await authService.verifyOtp({
+        email: 'verify@dinego.vn',
+        otp: store.code,
+      });
+
+      expect(res.success).toBe(true);
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-v1' },
+        data: { isEmailVerified: true },
+      });
+    });
+  });
+
+  describe('loginWithGoogle (U008)', () => {
+    it('should create new user with CUSTOMER role and return tokens if not existing', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.create.mockResolvedValue({
+        id: 'google-user-1',
+        email: 'google@dinego.vn',
+        fullName: 'Google User',
+        isActive: true,
+        roles: [{ role: Role.CUSTOMER }],
+      });
+      mockPrisma.userSession.create.mockResolvedValue({});
+
+      const tokens = await authService.loginWithGoogle({
+        email: 'google@dinego.vn',
+        fullName: 'Google User',
+      });
+
+      expect(tokens.accessToken).toBe('mocked_jwt_token');
+      expect(tokens.user.email).toBe('google@dinego.vn');
+      expect(mockPrisma.user.create).toHaveBeenCalled();
+    });
+  });
+
+  describe('forgotPassword & resetPassword (U011)', () => {
+    it('should issue reset token and allow password reset', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-reset-1',
+        email: 'forgot@dinego.vn',
+      });
+
+      const forgotRes = await authService.forgotPassword({ email: 'forgot@dinego.vn' });
+      expect(forgotRes.success).toBe(true);
+
+      // Retrieve generated token from store
+      const entries = Array.from((authService as any).passwordResetStore.entries());
+      const tokenEntry = entries.find(([, val]: any) => val.email === 'forgot@dinego.vn');
+      expect(tokenEntry).toBeDefined();
+      const token = tokenEntry![0] as string;
+
+      mockPrisma.user.update.mockResolvedValue({});
+      mockPrisma.userSession.updateMany.mockResolvedValue({});
+
+      const resetRes = await authService.resetPassword({
+        token,
+        newPassword: 'NewSecurePassword@2026',
+      });
+
+      expect(resetRes.success).toBe(true);
+      expect(mockPrisma.user.update).toHaveBeenCalled();
+    });
+  });
+
+  describe('updateProfile & changePassword (U011)', () => {
+    it('should update user profile successfully', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-up-1', email: 'up@dinego.vn' });
+      mockPrisma.user.update.mockResolvedValue({
+        id: 'user-up-1',
+        email: 'up@dinego.vn',
+        fullName: 'Tên Mới',
+        phoneNumber: '0988888888',
+        avatarUrl: 'https://new-avatar.jpg',
+        isEmailVerified: true,
+        roles: [{ role: Role.CUSTOMER }],
+        updatedAt: new Date(),
+      });
+
+      const res = await authService.updateProfile('user-up-1', {
+        fullName: 'Tên Mới',
+        phoneNumber: '0988888888',
+        avatarUrl: 'https://new-avatar.jpg',
+      });
+
+      expect(res.fullName).toBe('Tên Mới');
+      expect(res.phoneNumber).toBe('0988888888');
+    });
+
+    it('should change password when old password matches', async () => {
+      const hashedOldPassword = await bcryptjs.hash('OldPassword@123', 10);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-cp-1',
+        passwordHash: hashedOldPassword,
+      });
+      mockPrisma.user.update.mockResolvedValue({});
+
+      const res = await authService.changePassword('user-cp-1', {
+        oldPassword: 'OldPassword@123',
+        newPassword: 'BrandNewPass@2026',
+      });
+
+      expect(res.success).toBe(true);
+      expect(mockPrisma.user.update).toHaveBeenCalled();
     });
   });
 });
