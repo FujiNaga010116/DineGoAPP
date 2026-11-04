@@ -1010,7 +1010,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
               }}
             >
               <CheckCircle2 size={18} />
-              <span>Mô phỏng MoMo IPN (Thanh toán thành công)</span>
+              <span>Tôi đã thanh toán qua ứng dụng MoMo</span>
             </button>
 
             <button
@@ -1027,7 +1027,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 cursor: 'pointer',
               }}
             >
-              Đóng và giữ đơn ở trạng thái Chờ thanh toán (PENDING)
+              Đóng và thanh toán sau
             </button>
           </div>
         </div>

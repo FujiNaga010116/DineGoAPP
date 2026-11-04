@@ -1,24 +1,13 @@
 // ==============================================================================
-// DineGo Frontend — Catering & Event Feast Page (Sprint 3 — U023 to U033)
-// GrabFood Catering Feast Experience, 72h Rule, 2-Stage Deposit, MoMo QR
+// DineGo Frontend — Catering & Event Feast Page
+// Commercial Catering Experience, 72h Advance Rule, 2-Stage Deposit, MoMo QR
 // ==============================================================================
 
 import React, { useState } from 'react';
 import {
-  Calendar,
-  Users,
-  CheckCircle2,
-  Clock,
-  Sparkles,
-  QrCode,
   AlertCircle,
-  ShieldCheck,
-  ChevronRight,
   DollarSign,
   UtensilsCrossed,
-  Info,
-  MapPin,
-  Tag,
 } from 'lucide-react';
 
 interface FeastPackage {
@@ -109,7 +98,6 @@ export const CateringPage: React.FC = () => {
   const [tableCount, setTableCount] = useState<number>(5);
   const [depositPercent, setDepositPercent] = useState<30 | 50>(30);
 
-  // Set default event date to 5 days ahead (strictly satisfies >= 72h requirement)
   const defaultEventDate = new Date(Date.now() + 5 * 24 * 3600 * 1000)
     .toISOString()
     .split('T')[0];
@@ -136,7 +124,6 @@ export const CateringPage: React.FC = () => {
 
   const [activeMomoModal, setActiveMomoModal] = useState<BookingRecord | null>(null);
 
-  // Financial calculations
   const grossTotal = selectedPackage.pricePerTable * tableCount;
   let discountRate = 0;
   if (tableCount >= 10) discountRate = 10;
@@ -147,7 +134,6 @@ export const CateringPage: React.FC = () => {
   const depositAmount = Math.round((netTotal * depositPercent) / 100);
   const remainingAmount = netTotal - depositAmount;
 
-  // 72h rule verification
   const chosenTime = new Date(eventDate).getTime();
   const now = Date.now();
   const hoursUntilEvent = (chosenTime - now) / (1000 * 3600);
@@ -199,7 +185,7 @@ export const CateringPage: React.FC = () => {
 
     const refundValue = Math.round((booking.depositAmount * refundPercent) / 100);
     const confirmed = window.confirm(
-      `Quy định hoàn cọc DineGo (BR-44):\n` +
+      `Chính sách hoàn cọc tiệc DineGo:\n` +
         `Thời gian còn lại: ${Math.round(daysUntil)} ngày.\n` +
         `Chính sách áp dụng: Hoàn ${refundPercent}% tiền cọc (${refundValue.toLocaleString()} VND qua MoMo).\n\n` +
         `Bạn có chắc chắn muốn hủy đặt tiệc này không?`,
@@ -225,18 +211,20 @@ export const CateringPage: React.FC = () => {
             borderRadius: 20,
             background: 'rgba(0, 177, 79, 0.1)',
             color: 'var(--primary)',
-            fontSize: '0.82rem',
-            fontWeight: 700,
+            fontSize: '0.76rem',
+            fontWeight: 800,
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
             marginBottom: 10,
           }}
         >
-          <Sparkles size={15} /> Dịch Vụ Mâm Cỗ Trọn Gói & Đặt Cọc 2 Giai Đoạn (Sprint 3)
+          Dịch Vụ Đặt Mâm Cỗ & Sự Kiện Tại Gia
         </div>
         <h1 style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 8px 0' }}>
           Mâm Tiệc & Nấu Cỗ Tại Gia Chuyên Nghiệp
         </h1>
         <p style={{ color: 'var(--text-muted)', maxWidth: 640, margin: '0 auto', fontSize: '0.92rem', lineHeight: 1.5 }}>
-          Tân gia, cưới hỏi, thượng thọ, liên hoan công ty. Bếp trưởng phục vụ tận nơi, bảo chứng cọc qua MoMo minh bạch 100%.
+          Tân gia, cưới hỏi, thượng thọ, liên hoan công ty. Bếp trưởng phục vụ tận nơi, bảo chứng đặt cọc trực tuyến minh bạch.
         </p>
       </div>
 
@@ -258,25 +246,25 @@ export const CateringPage: React.FC = () => {
                   style={{
                     background: '#FFFFFF',
                     border: `2px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}`,
-                    borderRadius: 18,
+                    borderRadius: 16,
                     padding: 20,
                     cursor: 'pointer',
                     transition: 'all 0.2s',
-                    boxShadow: isSelected ? '0 6px 20px rgba(0, 177, 79, 0.15)' : 'var(--shadow-sm)',
+                    boxShadow: isSelected ? '0 6px 20px rgba(0, 177, 79, 0.12)' : 'var(--shadow-sm)',
                   }}
                 >
                   <div style={{ display: 'flex', gap: 16 }}>
                     <img
                       src={pkg.imageUrl}
                       alt={pkg.name}
-                      style={{ width: 110, height: 110, borderRadius: 14, objectFit: 'cover' }}
+                      style={{ width: 110, height: 110, borderRadius: 12, objectFit: 'cover' }}
                     />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
                         <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
                           {pkg.name}
                         </h4>
-                        <div style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--primary)' }}>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--primary)', fontVariantNumeric: 'tabular-nums' }}>
                           {pkg.pricePerTable.toLocaleString()} đ
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>/mâm</span>
                         </div>
@@ -321,7 +309,7 @@ export const CateringPage: React.FC = () => {
           style={{
             background: '#FFFFFF',
             border: '1px solid var(--border)',
-            borderRadius: 20,
+            borderRadius: 18,
             padding: 24,
             boxShadow: 'var(--shadow-md)',
             position: 'sticky',
@@ -329,14 +317,14 @@ export const CateringPage: React.FC = () => {
           }}
         >
           <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <DollarSign size={18} color="var(--primary)" /> 2. Báo Giá & Đặt Cọc 2 Đợt (BR-21, 24)
+            <DollarSign size={18} color="var(--primary)" /> 2. Báo Giá & Đặt Cọc Hợp Đồng
           </h3>
 
           {/* Table count slider */}
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
               <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>Quy mô đặt mâm:</label>
-              <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1rem' }}>{tableCount} mâm</span>
+              <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1rem', fontVariantNumeric: 'tabular-nums' }}>{tableCount} mâm</span>
             </div>
             <input
               type="range"
@@ -365,13 +353,14 @@ export const CateringPage: React.FC = () => {
                 onClick={() => setDepositPercent(30)}
                 style={{
                   padding: '10px',
-                  borderRadius: 12,
+                  borderRadius: 10,
                   background: depositPercent === 30 ? 'rgba(0, 177, 79, 0.1)' : 'var(--bg-main)',
                   border: `1.5px solid ${depositPercent === 30 ? 'var(--primary)' : 'var(--border)'}`,
                   color: depositPercent === 30 ? 'var(--primary)' : 'var(--text-main)',
                   fontWeight: 700,
                   fontSize: '0.85rem',
                   cursor: 'pointer',
+                  fontVariantNumeric: 'tabular-nums',
                 }}
               >
                 Cọc 30% ({Math.round(netTotal * 0.3).toLocaleString()} đ)
@@ -381,13 +370,14 @@ export const CateringPage: React.FC = () => {
                 onClick={() => setDepositPercent(50)}
                 style={{
                   padding: '10px',
-                  borderRadius: 12,
+                  borderRadius: 10,
                   background: depositPercent === 50 ? 'rgba(0, 177, 79, 0.1)' : 'var(--bg-main)',
                   border: `1.5px solid ${depositPercent === 50 ? 'var(--primary)' : 'var(--border)'}`,
                   color: depositPercent === 50 ? 'var(--primary)' : 'var(--text-main)',
                   fontWeight: 700,
                   fontSize: '0.85rem',
                   cursor: 'pointer',
+                  fontVariantNumeric: 'tabular-nums',
                 }}
               >
                 Cọc 50% ({Math.round(netTotal * 0.5).toLocaleString()} đ)
@@ -398,7 +388,7 @@ export const CateringPage: React.FC = () => {
           {/* Event Date */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: 6 }}>
-              Ngày tổ chức tiệc (Quy định trước ≥ 72 giờ):
+              Ngày tổ chức tiệc (Đặt trước tối thiểu 72 giờ):
             </label>
             <input
               type="date"
@@ -407,7 +397,7 @@ export const CateringPage: React.FC = () => {
               style={{
                 width: '100%',
                 padding: '10px 14px',
-                borderRadius: 12,
+                borderRadius: 10,
                 background: 'var(--bg-main)',
                 border: `1px solid ${isValidAdvanceTime ? 'var(--border)' : '#EF4444'}`,
                 color: 'var(--text-main)',
@@ -436,7 +426,7 @@ export const CateringPage: React.FC = () => {
               style={{
                 width: '100%',
                 padding: '10px 14px',
-                borderRadius: 12,
+                borderRadius: 10,
                 background: 'var(--bg-main)',
                 border: '1px solid var(--border)',
                 color: 'var(--text-main)',
@@ -447,7 +437,7 @@ export const CateringPage: React.FC = () => {
           </div>
 
           {/* Financial Breakdown */}
-          <div style={{ background: 'var(--bg-main)', padding: 16, borderRadius: 14, marginBottom: 18 }}>
+          <div style={{ background: 'var(--bg-main)', padding: 16, borderRadius: 12, marginBottom: 18, fontVariantNumeric: 'tabular-nums' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: 6, color: 'var(--text-muted)' }}>
               <span>Đơn giá niêm yết:</span>
               <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{grossTotal.toLocaleString()} đ</span>
@@ -476,9 +466,9 @@ export const CateringPage: React.FC = () => {
           <button
             onClick={handleCreateBooking}
             className="btn btn-primary"
-            style={{ width: '100%', padding: '14px', fontSize: '1rem', fontWeight: 800, borderRadius: 14 }}
+            style={{ width: '100%', padding: '14px', fontSize: '0.95rem', fontWeight: 800, borderRadius: 12 }}
           >
-            Tiến hành Đặt Tiệc & Đặt Cọc MoMo
+            Xác Nhận Đặt Tiệc & Đặt Cọc MoMo
           </button>
         </div>
       </div>
@@ -486,7 +476,7 @@ export const CateringPage: React.FC = () => {
       {/* Bookings History Section */}
       <div style={{ marginTop: 48 }}>
         <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: 16 }}>
-          Lịch Sử & Tiến Trình Đặt Tiệc Của Bạn ({bookings.length})
+          Hợp Đồng & Tiến Trình Đặt Tiệc Của Bạn ({bookings.length})
         </h3>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 16 }}>
@@ -496,18 +486,18 @@ export const CateringPage: React.FC = () => {
               style={{
                 background: '#FFFFFF',
                 border: '1px solid var(--border)',
-                borderRadius: 18,
+                borderRadius: 16,
                 padding: 20,
                 boxShadow: 'var(--shadow-sm)',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.98rem' }}>{b.bookingCode}</span>
+                <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.95rem', fontVariantNumeric: 'tabular-nums' }}>{b.bookingCode}</span>
                 <span
                   style={{
-                    fontSize: '0.78rem',
+                    fontSize: '0.75rem',
                     padding: '4px 10px',
-                    borderRadius: 8,
+                    borderRadius: 6,
                     fontWeight: 700,
                     background:
                       b.status === 'COMPLETED'
@@ -527,8 +517,8 @@ export const CateringPage: React.FC = () => {
                         : '#D97706',
                   }}
                 >
-                  {b.status === 'PENDING_DEPOSIT' && 'Chờ cọc MoMo'}
-                  {b.status === 'DEPOSIT_PAID' && 'Đã đặt cọc thành công'}
+                  {b.status === 'PENDING_DEPOSIT' && 'Chờ đặt cọc MoMo'}
+                  {b.status === 'DEPOSIT_PAID' && 'Đã đặt cọc hợp đồng'}
                   {b.status === 'COMPLETED' && 'Tiệc hoàn tất (Đã quyết toán)'}
                   {b.status === 'CANCELLED' && 'Đã hủy tiệc'}
                 </span>
@@ -538,19 +528,19 @@ export const CateringPage: React.FC = () => {
                 {b.packageName}
               </div>
               <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 4 }}>
-                📅 Ngày tiệc: <strong>{b.eventDate}</strong> • Quy mô: <strong>{b.tableCount} mâm</strong>
+                Ngày tổ chức: <strong>{b.eventDate}</strong> • Quy mô: <strong>{b.tableCount} mâm</strong>
               </div>
               <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 12 }}>
-                📍 {b.eventAddress}
+                Địa điểm: {b.eventAddress}
               </div>
 
-              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', fontVariantNumeric: 'tabular-nums' }}>
                 <div>
-                  <div style={{ color: 'var(--text-muted)' }}>Tiền cọc:</div>
+                  <div style={{ color: 'var(--text-muted)' }}>Tiền cọc đợt 1:</div>
                   <div style={{ fontWeight: 800, color: 'var(--primary)' }}>{b.depositAmount.toLocaleString()} đ</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ color: 'var(--text-muted)' }}>Còn lại:</div>
+                  <div style={{ color: 'var(--text-muted)' }}>Tất toán sau tiệc:</div>
                   <div style={{ fontWeight: 800, color: 'var(--text-main)' }}>{b.remainingAmount.toLocaleString()} đ</div>
                 </div>
               </div>
@@ -580,7 +570,7 @@ export const CateringPage: React.FC = () => {
                     onClick={() => handleCancelBooking(b)}
                     style={{
                       padding: '8px 12px',
-                      borderRadius: 10,
+                      borderRadius: 8,
                       background: '#FEE2E2',
                       color: '#DC2626',
                       border: 'none',
@@ -618,7 +608,7 @@ export const CateringPage: React.FC = () => {
               width: '100%',
               maxWidth: 440,
               background: '#FFFFFF',
-              borderRadius: 20,
+              borderRadius: 18,
               padding: 28,
               textAlign: 'center',
               boxShadow: 'var(--shadow-xl)',
@@ -634,14 +624,14 @@ export const CateringPage: React.FC = () => {
             </div>
 
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 16 }}>
-              Quét mã QR để đặt cọc đợt 1 cho mã tiệc: <strong>{activeMomoModal.bookingCode}</strong>
+              Quét mã QR để đặt cọc đợt 1 cho hợp đồng: <strong>{activeMomoModal.bookingCode}</strong>
             </p>
 
             <div
               style={{
                 background: '#F8FAFC',
                 padding: 16,
-                borderRadius: 16,
+                borderRadius: 14,
                 border: '1px solid #E2E8F0',
                 display: 'inline-block',
                 margin: '0 auto 16px',
@@ -654,7 +644,7 @@ export const CateringPage: React.FC = () => {
               />
             </div>
 
-            <div style={{ fontSize: '1.45rem', fontWeight: 900, color: '#D82D8B', marginBottom: 4 }}>
+            <div style={{ fontSize: '1.45rem', fontWeight: 900, color: '#D82D8B', marginBottom: 4, fontVariantNumeric: 'tabular-nums' }}>
               {activeMomoModal.depositAmount.toLocaleString()} VND
             </div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 20 }}>
@@ -667,7 +657,7 @@ export const CateringPage: React.FC = () => {
               style={{
                 width: '100%',
                 padding: '12px',
-                borderRadius: 12,
+                borderRadius: 10,
                 fontSize: '0.95rem',
                 fontWeight: 800,
                 marginBottom: 10,

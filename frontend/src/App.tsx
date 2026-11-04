@@ -1,5 +1,10 @@
 // ==============================================================================
-// DineGo Frontend — Main Application Container (Sprints 1 - 5 Full E2E Integration)
+// DineGo Frontend — Main Application Container
+// 4 Standalone Portals: Customer Storefront | Merchant Seller Center | Driver Console | Enterprise Admin
+// - Every restaurant has its own merchant account (1-to-1)
+// - Multiple drivers can register & manage their independent profiles (1-to-1)
+// - Admin has deep system control & user management
+// - Clean separate logout with NO role-switching buttons in each portal
 // ==============================================================================
 
 import React, { useState, useEffect } from 'react';
@@ -14,19 +19,19 @@ import { GroupOrderPage } from './pages/GroupOrderPage';
 import { AiGuidePage } from './pages/AiGuidePage';
 import { TrackingPage } from './pages/TrackingPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { CustomerProfilePage } from './pages/CustomerProfilePage';
 import { AuthModal } from './components/common/AuthModal';
 import { ReviewModal } from './components/common/ReviewModal';
-import { RoleSwitcherBar } from './components/common/RoleSwitcherBar';
 import { MerchantRegistrationModal } from './components/common/MerchantRegistrationModal';
 import { CartProvider } from './context/CartContext';
-import { MOCK_MERCHANTS, MOCK_MENU_ITEMS, CURRENT_USER } from './api/client';
-import type { Merchant, MenuItem, Order, OrderStatus, User } from './types';
+import { MOCK_MERCHANTS, MOCK_MENU_ITEMS, MOCK_DRIVERS, MOCK_USERS } from './api/client';
+import type { DriverProfile, Merchant, MenuItem, Order, OrderStatus, Role, User } from './types';
 import { QrCode, CheckCircle2 } from 'lucide-react';
 
 const INITIAL_SAMPLE_ORDER: Order = {
   id: 'ord-sample-01',
   orderNumber: 'DG20261103-TRK88',
-  status: 'COMPLETED',
+  status: 'PREPARING',
   subtotal: 150000,
   deliveryFee: 15000,
   discountAmount: 25000,
@@ -34,7 +39,7 @@ const INITIAL_SAMPLE_ORDER: Order = {
   deliveryAddress: '45 Lê Duẩn, Bến Nghé, Quận 1, TP. HCM',
   recipientName: 'Nguyễn Văn An',
   recipientPhone: '0901000004',
-  createdAt: new Date(Date.now() - 3600000).toISOString(),
+  createdAt: new Date(Date.now() - 1800000).toISOString(),
   merchant: {
     id: 'merchant-com-tam',
     name: 'Cơm Tấm Sài Gòn 1985',
@@ -60,12 +65,43 @@ const INITIAL_SAMPLE_ORDER: Order = {
     amount: 140000,
     currency: 'VND',
     transactionRef: 'MOMO-99887766',
-    paidAt: new Date(Date.now() - 3500000).toISOString(),
+    paidAt: new Date(Date.now() - 1700000).toISOString(),
   },
 };
 
 export const AppContent: React.FC = () => {
-  const [currentTab, setCurrentTab] = useState<NavTab>('home');
+  // 1. Users state
+  const [users, setUsers] = useState<User[]>(() => {
+    const saved = localStorage.getItem('dinego_users_list');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {}
+    }
+    return MOCK_USERS;
+  });
+
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const saved = localStorage.getItem('dinego_user');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+
+  const [currentTab, setCurrentTab] = useState<NavTab>(() => {
+    if (currentUser?.roles?.includes('ADMIN')) return 'admin-overview';
+    if (currentUser?.roles?.includes('MERCHANT')) return 'merchant-orders';
+    if (currentUser?.roles?.includes('DRIVER')) return 'driver-orders';
+    return 'home';
+  });
+
+  // 2. Merchants state (Each restaurant is 1-to-1 bound to its own account)
   const [merchants, setMerchants] = useState<Merchant[]>(() => {
     const saved = localStorage.getItem('dinego_merchants');
     if (saved) {
@@ -77,9 +113,29 @@ export const AppContent: React.FC = () => {
     return MOCK_MERCHANTS;
   });
 
-  const [selectedMerchant, setSelectedMerchant] = useState<Merchant>(() => {
-    return merchants[0] || MOCK_MERCHANTS[0];
+  // 3. Drivers state (Multiple independent driver accounts)
+  const [drivers, setDrivers] = useState<DriverProfile[]>(() => {
+    const saved = localStorage.getItem('dinego_drivers_list');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {}
+    }
+    return MOCK_DRIVERS;
   });
+
+  // Current merchant profile for the logged in merchant user
+  const selectedMerchant =
+    currentUser?.merchantId
+      ? merchants.find((m) => m.id === currentUser.merchantId) || merchants[0]
+      : merchants[0];
+
+  // Current driver profile for the logged in driver user
+  const currentDriverProfile =
+    currentUser?.driverId
+      ? drivers.find((d) => d.id === currentUser.driverId) || drivers[0]
+      : drivers[0];
 
   const [allMenuItems, setAllMenuItems] = useState<Record<string, MenuItem[]>>(() => {
     const saved = localStorage.getItem('dinego_menu_items');
@@ -95,25 +151,20 @@ export const AppContent: React.FC = () => {
   const [isMerchantRegisterModalOpen, setIsMerchantRegisterModalOpen] = useState(false);
 
   useEffect(() => {
+    localStorage.setItem('dinego_users_list', JSON.stringify(users));
+  }, [users]);
+
+  useEffect(() => {
     localStorage.setItem('dinego_merchants', JSON.stringify(merchants));
   }, [merchants]);
 
   useEffect(() => {
+    localStorage.setItem('dinego_drivers_list', JSON.stringify(drivers));
+  }, [drivers]);
+
+  useEffect(() => {
     localStorage.setItem('dinego_menu_items', JSON.stringify(allMenuItems));
   }, [allMenuItems]);
-
-  // Mặc định khởi đầu ở chế độ Khách (Guest) chưa đăng nhập theo đúng yêu cầu thực tế
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('dinego_user');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  });
 
   const [orders, setOrders] = useState<Order[]>(() => {
     const saved = localStorage.getItem('dinego_orders');
@@ -133,11 +184,25 @@ export const AppContent: React.FC = () => {
   const [activeMomoPaymentOrder, setActiveMomoPaymentOrder] = useState<Order | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
+  const [authTargetRole, setAuthTargetRole] = useState<Role>('CUSTOMER');
   const [reviewModalOrder, setReviewModalOrder] = useState<Order | null>(null);
 
   useEffect(() => {
     localStorage.setItem('dinego_orders', JSON.stringify(orders));
   }, [orders]);
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('dinego_user');
+    setCurrentTab('home');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleOpenAuthModal = (mode?: 'login' | 'register', targetRole?: Role) => {
+    setAuthModalMode(mode || 'login');
+    setAuthTargetRole(targetRole || 'CUSTOMER');
+    setIsAuthModalOpen(true);
+  };
 
   const handleToggleDishAvailability = (dishId: string) => {
     const mId = selectedMerchant.id;
@@ -179,25 +244,71 @@ export const AppContent: React.FC = () => {
     }));
   };
 
+  // Register a new independent Merchant
   const handleMerchantRegistered = (
     newMerchant: Merchant,
     newOwnerUser: User,
-    initialDishes: MenuItem[],
+    initialDishes: MenuItem[] = [],
   ) => {
     setMerchants((prev) => [newMerchant, ...prev]);
+    setUsers((prev) => [newOwnerUser, ...prev]);
     setAllMenuItems((prev) => ({
       ...prev,
       [newMerchant.id]: initialDishes,
     }));
-    setSelectedMerchant(newMerchant);
     setCurrentUser(newOwnerUser);
     localStorage.setItem('dinego_user', JSON.stringify(newOwnerUser));
-    setCurrentTab('dashboard');
+    setCurrentTab('merchant-orders');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Register a new independent Driver
+  const handleDriverRegistered = (newDriver: DriverProfile, newDriverUser: User) => {
+    setDrivers((prev) => [newDriver, ...prev]);
+    setUsers((prev) => [newDriverUser, ...prev]);
+    setCurrentUser(newDriverUser);
+    localStorage.setItem('dinego_user', JSON.stringify(newDriverUser));
+    setCurrentTab('driver-orders');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Register a new Customer
+  const handleCustomerRegistered = (newCustUser: User) => {
+    setUsers((prev) => [newCustUser, ...prev]);
+    setCurrentUser(newCustUser);
+    localStorage.setItem('dinego_user', JSON.stringify(newCustUser));
+    setCurrentTab('home');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Update Customer profile
+  const handleUpdateUser = (updatedUser: User) => {
+    setCurrentUser(updatedUser);
+    localStorage.setItem('dinego_user', JSON.stringify(updatedUser));
+    setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+  };
+
+  // Update Driver profile & vehicle info
+  const handleUpdateDriverProfile = (updatedDriver: DriverProfile, updatedUser?: User) => {
+    setDrivers((prev) => prev.map((d) => (d.id === updatedDriver.id ? updatedDriver : d)));
+    if (updatedUser) {
+      setCurrentUser(updatedUser);
+      localStorage.setItem('dinego_user', JSON.stringify(updatedUser));
+      setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+    }
+  };
+
+  // Admin toggles user account active / suspended
+  const handleToggleUserStatus = (userId: string) => {
+    setUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, isActive: u.isActive === false ? true : false } : u)),
+    );
+  };
+
+  const [activeBrowseMerchant, setActiveBrowseMerchant] = useState<Merchant>(merchants[0]);
+
   const handleSelectMerchant = (merchant: Merchant) => {
-    setSelectedMerchant(merchant);
+    setActiveBrowseMerchant(merchant);
     setCurrentTab('restaurant');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -266,28 +377,65 @@ export const AppContent: React.FC = () => {
     setActiveMomoPaymentOrder(null);
   };
 
+  // Determine which standalone Portal Shell is active
+  const isMerchantPortalTab =
+    currentTab === 'dashboard' ||
+    currentTab === 'merchant-orders' ||
+    currentTab === 'merchant-menu' ||
+    currentTab === 'merchant-catering' ||
+    currentTab === 'merchant-analytics' ||
+    currentTab === 'merchant-kyc';
+
+  const isAdminPortalTab =
+    currentTab === 'admin-overview' ||
+    currentTab === 'admin-merchants' ||
+    currentTab === 'admin-drivers' ||
+    currentTab === 'admin-users' ||
+    currentTab === 'admin-complaints' ||
+    currentTab === 'admin-reconciliation' ||
+    currentTab === 'admin-settings';
+
+  const isDriverPortalMode =
+    currentTab === 'driver-orders' ||
+    currentTab === 'driver-map' ||
+    currentTab === 'driver-earnings' ||
+    currentTab === 'driver-profile' ||
+    (currentTab === 'tracking' && Boolean(currentUser?.roles?.includes('DRIVER')));
+
+  const isDriverOrTrackingTab =
+    currentTab === 'tracking' ||
+    currentTab === 'driver-orders' ||
+    currentTab === 'driver-map' ||
+    currentTab === 'driver-earnings' ||
+    currentTab === 'driver-profile';
+
+  // Customer Storefront Header & Footer ONLY render when in Customer Portal mode
+  const isCustomerStorefrontShell =
+    !isMerchantPortalTab && !isAdminPortalTab && !isDriverPortalMode;
+
+  const activeKitchenOrdersCount = orders.filter((o) =>
+    ['PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'].includes(o.status),
+  ).length;
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Header
-        currentTab={currentTab}
-        onNavigate={(tab) => {
-          setCurrentTab(tab);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-        currentUser={currentUser}
-        onOpenAuthModal={(mode) => {
-          setAuthModalMode(mode || 'login');
-          setIsAuthModalOpen(true);
-        }}
-        onLogout={() => {
-          setCurrentUser(null);
-          localStorage.removeItem('dinego_user');
-        }}
-        onOpenMerchantRegisterModal={() => setIsMerchantRegisterModalOpen(true)}
-      />
+      {isCustomerStorefrontShell && (
+        <Header
+          currentTab={currentTab}
+          onNavigate={(tab) => {
+            setCurrentTab(tab);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          currentUser={currentUser}
+          onOpenAuthModal={handleOpenAuthModal}
+          onLogout={handleLogout}
+          onOpenMerchantRegisterModal={() => setIsMerchantRegisterModalOpen(true)}
+          activeOrdersCount={activeKitchenOrdersCount}
+        />
+      )}
 
       <main style={{ flexGrow: 1 }}>
-        {/* Sprint 1 & 2: Food delivery explore */}
+        {/* 1. CUSTOMER STOREFRONT SHELL */}
         {currentTab === 'home' && (
           <HomePage
             onSelectMerchant={handleSelectMerchant}
@@ -299,7 +447,7 @@ export const AppContent: React.FC = () => {
 
         {currentTab === 'restaurant' && (
           <RestaurantPage
-            merchant={selectedMerchant}
+            merchant={activeBrowseMerchant}
             onBack={() => setCurrentTab('home')}
             onGoToCheckout={() => setCurrentTab('checkout')}
             menuItems={allMenuItems}
@@ -311,14 +459,10 @@ export const AppContent: React.FC = () => {
             onBack={() => setCurrentTab('restaurant')}
             onOrderPlaced={handleOrderPlaced}
             currentUser={currentUser}
-            onOpenAuthModal={(mode) => {
-              setAuthModalMode(mode || 'login');
-              setIsAuthModalOpen(true);
-            }}
+            onOpenAuthModal={(mode) => handleOpenAuthModal(mode, 'CUSTOMER')}
           />
         )}
 
-        {/* Sprint 2: My Orders */}
         {currentTab === 'orders' && (
           <OrdersPage
             orders={orders}
@@ -329,46 +473,55 @@ export const AppContent: React.FC = () => {
           />
         )}
 
-        {/* Sprint 3: Catering & Event Feast */}
         {currentTab === 'catering' && <CateringPage />}
 
-        {/* Sprint 2: Real-time Group Ordering & Split Bill */}
         {currentTab === 'group-order' && <GroupOrderPage />}
 
-        {/* Sprint 4: AI Local Culinary Guide */}
         {currentTab === 'ai-guide' && (
           <AiGuidePage onSelectMerchantByName={handleSelectMerchantByName} />
         )}
 
-        {/* Sprint 4: GPS Shipper Real-Time Tracking */}
-        {currentTab === 'tracking' && (
+        {currentTab === 'customer-profile' && (
+          <CustomerProfilePage
+            currentUser={currentUser}
+            onUpdateUser={handleUpdateUser}
+          />
+        )}
+
+        {/* 2. DRIVER PARTNER CONSOLE SHELL & CUSTOMER TRACKING VIEW */}
+        {isDriverOrTrackingTab && (
           <TrackingPage
             activeOrder={orders[0] || null}
-            onUpdateOrderStatus={handleUpdateOrderStatus}
-            isDriverMode={currentUser?.roles?.includes('DRIVER') || false}
-            onOpenReviewModal={(order) => setReviewModalOrder(order)}
-            onSwitchToMerchant={() => {
-              setCurrentTab('dashboard');
+            allOrders={orders}
+            activeTab={currentTab}
+            onNavigate={(tab) => {
+              setCurrentTab(tab);
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
+            onUpdateOrderStatus={handleUpdateOrderStatus}
+            isDriverMode={isDriverPortalMode}
+            currentDriver={currentDriverProfile}
+            currentUser={currentUser}
+            onUpdateDriverProfile={handleUpdateDriverProfile}
+            onLogout={handleLogout}
+            onOpenReviewModal={(order) => setReviewModalOrder(order)}
             onExploreFood={() => setCurrentTab('home')}
           />
         )}
 
-        {/* Sprint 5: Dashboard & Moderation & Reconciliation */}
-        {currentTab === 'dashboard' && (
+        {/* 3. MERCHANT SELLER CENTER SHELL & 4. ENTERPRISE ADMIN BACKOFFICE SHELL */}
+        {(isMerchantPortalTab || isAdminPortalTab) && (
           <DashboardPage
             currentUser={currentUser}
-            onOpenAuthModal={() => {
-              setAuthModalMode('login');
-              setIsAuthModalOpen(true);
-            }}
-            orders={orders}
-            onUpdateOrderStatus={handleUpdateOrderStatus}
-            onSwitchToDriver={() => {
-              setCurrentTab('tracking');
+            activeTab={currentTab}
+            onNavigate={(tab) => {
+              setCurrentTab(tab);
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
+            onOpenAuthModal={handleOpenAuthModal}
+            onLogout={handleLogout}
+            orders={orders}
+            onUpdateOrderStatus={handleUpdateOrderStatus}
             merchantDishes={allMenuItems[selectedMerchant.id] || MOCK_MENU_ITEMS[selectedMerchant.id] || []}
             onToggleDishAvailability={handleToggleDishAvailability}
             onAddDish={handleAddDish}
@@ -376,55 +529,62 @@ export const AppContent: React.FC = () => {
             onDeleteDish={handleDeleteDish}
             currentMerchant={selectedMerchant}
             allMerchants={merchants}
+            allDriversList={drivers}
+            allUsersList={users}
+            onToggleUserStatus={handleToggleUserStatus}
             onOpenMerchantRegisterModal={() => setIsMerchantRegisterModalOpen(true)}
           />
         )}
       </main>
 
-      <Footer />
+      {isCustomerStorefrontShell && (
+        <Footer
+          onNavigate={(tab) => {
+            setCurrentTab(tab);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onOpenAuthModal={handleOpenAuthModal}
+          onOpenMerchantRegisterModal={() => setIsMerchantRegisterModalOpen(true)}
+        />
+      )}
 
-      {/* Interactive Floating Multi-Role Switcher Bar */}
-      <RoleSwitcherBar
-        currentUser={currentUser}
-        onSelectUser={(user) => {
-          setCurrentUser(user);
-          localStorage.setItem('dinego_user', JSON.stringify(user));
-        }}
-        onNavigateTab={(tab) => {
-          setCurrentTab(tab);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-        latestOrder={orders[0] || null}
-        onUpdateOrderStatus={handleUpdateOrderStatus}
-        onOpenReviewModal={(order) => setReviewModalOrder(order)}
-      />
-
-      {/* Merchant Onboarding & Anti-Fraud KYC Modal */}
+      {/* Merchant Onboarding & KYC Modal */}
       <MerchantRegistrationModal
         isOpen={isMerchantRegisterModalOpen}
         onClose={() => setIsMerchantRegisterModalOpen(false)}
         onRegistered={handleMerchantRegistered}
       />
 
-      {/* Sprint 1: Auth & Role Switcher Modal */}
+      {/* Multi-Actor Authentication Modal */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         initialMode={authModalMode}
+        initialRole={authTargetRole}
+        allUsers={users}
+        allMerchants={merchants}
+        allDrivers={drivers}
+        onRegisterMerchantAccount={handleMerchantRegistered}
+        onRegisterDriverAccount={handleDriverRegistered}
+        onRegisterCustomerAccount={handleCustomerRegistered}
         onLoginSuccess={(user) => {
           setCurrentUser(user);
           localStorage.setItem('dinego_user', JSON.stringify(user));
           setIsAuthModalOpen(false);
-          // Tự động chuyển tab phù hợp vai trò
-          if (user.roles.includes('ADMIN') || user.roles.includes('MERCHANT')) {
-            setCurrentTab('dashboard');
+          if (user.roles.includes('ADMIN')) {
+            setCurrentTab('admin-overview');
+          } else if (user.roles.includes('MERCHANT')) {
+            setCurrentTab('merchant-orders');
           } else if (user.roles.includes('DRIVER')) {
-            setCurrentTab('tracking');
+            setCurrentTab('driver-orders');
+          } else {
+            setCurrentTab('home');
           }
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
       />
 
-      {/* Sprint 5: Customer Review & Complaint Modal */}
+      {/* Customer Review & Complaint Modal */}
       <ReviewModal
         isOpen={!!reviewModalOrder}
         onClose={() => setReviewModalOrder(null)}
@@ -434,7 +594,7 @@ export const AppContent: React.FC = () => {
         }}
       />
 
-      {/* Sprint 6: MoMo Payment Simulator Modal */}
+      {/* MoMo QR Gateway Modal */}
       {activeMomoPaymentOrder && (
         <div className="modal-overlay">
           <div className="modal-box" style={{ textAlign: 'center', maxWidth: 440 }}>
@@ -457,7 +617,7 @@ export const AppContent: React.FC = () => {
             </div>
 
             <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#fff', marginBottom: 4 }}>
-              Cổng thanh toán MoMo Sandbox
+              Thanh toán an toàn qua Ví MoMo
             </h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: 16 }}>
               Thanh toán cho đơn hàng #{activeMomoPaymentOrder.orderNumber}
@@ -498,7 +658,7 @@ export const AppContent: React.FC = () => {
             </div>
 
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 20 }}>
-              Mã bảo mật: HMAC-SHA256 • Endpoint: https://test-payment.momo.vn
+              Giao dịch bảo mật chuẩn MoMo OpenAPI v2
             </p>
 
             <button
@@ -507,7 +667,7 @@ export const AppContent: React.FC = () => {
               style={{ marginBottom: 10 }}
             >
               <CheckCircle2 size={18} />
-              <span>Xác nhận MoMo IPN (Chuyển đơn sang CONFIRMED)</span>
+              <span>Tôi đã hoàn tất thanh toán trên MoMo</span>
             </button>
 
             <button

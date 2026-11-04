@@ -1,5 +1,5 @@
 // ==============================================================================
-// DineGo Frontend — Core Types (Matching DineGo Backend Phase 0-6)
+// DineGo Frontend — Core Types (Multi-Actor 1-to-1 Account Architecture)
 // ==============================================================================
 
 export type Role = 'CUSTOMER' | 'MERCHANT' | 'DRIVER' | 'ADMIN';
@@ -23,14 +23,34 @@ export type PaymentStatus =
   | 'CANCELLED'
   | 'REFUNDED';
 
+export interface SavedAddress {
+  id: string;
+  label: string; // Nhà riêng, Văn phòng, Khác
+  recipientName: string;
+  phone: string;
+  fullAddress: string;
+  isDefault: boolean;
+}
+
 export interface User {
   id: string;
   email: string;
+  password?: string;
   fullName: string;
   phoneNumber?: string;
   avatarUrl?: string;
   address?: string;
+  dateOfBirth?: string;
+  gender?: 'Nam' | 'Nữ' | 'Khác';
+  savedAddresses?: SavedAddress[];
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankAccountHolder?: string;
   roles: Role[];
+  merchantId?: string; // 1-to-1 binding for MERCHANT role
+  driverId?: string;   // 1-to-1 binding for DRIVER role
+  isActive?: boolean;
+  createdAt?: string;
 }
 
 export interface Topping {
@@ -59,6 +79,8 @@ export type MerchantKycStatus = 'PENDING_APPROVAL' | 'VERIFIED' | 'REJECTED';
 
 export interface Merchant {
   id: string;
+  ownerUserId?: string;
+  ownerEmail?: string;
   name: string;
   slug: string;
   address: string;
@@ -66,6 +88,14 @@ export interface Merchant {
   ownerName?: string;
   storeFrontImage?: string;
   businessLicenseImage?: string;
+  businessLicenseNumber?: string;
+  foodSafetyCertNumber?: string;
+  taxCode?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankAccountHolder?: string;
+  commissionRate?: number;
+  openingHours?: string;
   kycStatus?: MerchantKycStatus;
   verifiedAt?: string;
   logoUrl?: string;
@@ -77,6 +107,31 @@ export interface Merchant {
   isActive: boolean;
   isOpen: boolean;
   categories?: string[];
+}
+
+export interface DriverProfile {
+  id: string;
+  userId: string;
+  fullName: string;
+  email: string;
+  phoneNumber: string;
+  avatarUrl?: string;
+  licensePlate: string;
+  vehicleType: string;
+  nationalId: string;
+  driverLicenseNumber: string;
+  operatingZone: string;
+  bankName: string;
+  bankAccountNumber: string;
+  bankAccountHolder: string;
+  emergencyContact?: string;
+  rating: number;
+  completedTrips: number;
+  acceptanceRate: string;
+  walletBalance: number;
+  status: 'ONLINE' | 'BUSY' | 'OFFLINE' | 'SUSPENDED';
+  kycStatus: 'VERIFIED' | 'PENDING_APPROVAL' | 'REJECTED';
+  joinedAt: string;
 }
 
 export interface CartItemTopping {
@@ -148,6 +203,8 @@ export interface Order {
   customerNote?: string | null;
   cancelReason?: string | null;
   cancelledBy?: string | null;
+  assignedDriverId?: string | null;
+  assignedDriverName?: string | null;
   createdAt: string;
   merchant: {
     id: string;
