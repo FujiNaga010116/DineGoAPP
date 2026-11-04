@@ -1,30 +1,24 @@
 // ==============================================================================
-// DineGo Frontend — Group Order & Split Bill Page (Sprint 2 — U020, U021)
-// GrabFood Group Order, Room Sharing Link, Lock/Unlock, Bill Split Engine
+// DineGo Frontend — Group Order & Split Bill Page
+// Shared Cart, Room Sharing Link, Lock/Unlock Room, Automated Bill Split Engine
 // ==============================================================================
 
 import React, { useState } from 'react';
 import {
-  Users,
-  Plus,
   Trash2,
   Lock,
   Unlock,
-  Share2,
   Receipt,
   CheckCircle2,
-  Sparkles,
   ShoppingBag,
-  CreditCard,
   Copy,
-  Store,
 } from 'lucide-react';
 
 interface GroupMember {
   id: string;
   name: string;
   isHost: boolean;
-  avatar: string;
+  initials: string;
 }
 
 interface GroupItem {
@@ -45,9 +39,9 @@ export const GroupOrderPage: React.FC = () => {
   const [checkoutDone, setCheckoutDone] = useState(false);
 
   const [members, setMembers] = useState<GroupMember[]>([
-    { id: 'm-1', name: 'Nguyễn Văn An (Bạn)', isHost: true, avatar: '👤' },
-    { id: 'm-2', name: 'Trần Thị Bình', isHost: false, avatar: '👩' },
-    { id: 'm-3', name: 'Lê Hoàng Cường', isHost: false, avatar: '👨' },
+    { id: 'm-1', name: 'Nguyễn Văn An (Bạn)', isHost: true, initials: 'NA' },
+    { id: 'm-2', name: 'Trần Thị Bình', isHost: false, initials: 'TB' },
+    { id: 'm-3', name: 'Lê Hoàng Cường', isHost: false, initials: 'LC' },
   ]);
 
   const [items, setItems] = useState<GroupItem[]>([
@@ -83,11 +77,16 @@ export const GroupOrderPage: React.FC = () => {
   const [newFriendName, setNewFriendName] = useState('');
   const handleAddMember = () => {
     if (!newFriendName.trim()) return;
+    const words = newFriendName.trim().split(' ');
+    const initials =
+      words.length >= 2
+        ? `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase()
+        : newFriendName.trim().slice(0, 2).toUpperCase();
     const newMember: GroupMember = {
       id: `m-${Date.now()}`,
       name: newFriendName.trim(),
       isHost: false,
-      avatar: '🧑',
+      initials,
     };
     setMembers([...members, newMember]);
     setNewFriendName('');
@@ -123,12 +122,10 @@ export const GroupOrderPage: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Pricing calculations
   const subtotal = items.reduce((sum, item) => sum + item.basePrice * item.quantity, 0);
   const deliveryFee = 18000;
   const grandTotal = subtotal + deliveryFee;
 
-  // Split calculations
   const memberBreakdowns = members.map((m) => {
     const memberItems = items.filter((i) => i.memberId === m.id);
     const itemTotal = memberItems.reduce((s, it) => s + it.basePrice * it.quantity, 0);
@@ -157,7 +154,7 @@ export const GroupOrderPage: React.FC = () => {
         style={{
           background: '#FFFFFF',
           border: '1px solid var(--border)',
-          borderRadius: 20,
+          borderRadius: 16,
           padding: '24px 28px',
           marginBottom: 28,
           boxShadow: 'var(--shadow-sm)',
@@ -175,9 +172,10 @@ export const GroupOrderPage: React.FC = () => {
                 background: 'rgba(0, 177, 79, 0.1)',
                 color: 'var(--primary)',
                 padding: '4px 12px',
-                borderRadius: 999,
-                fontSize: '0.82rem',
+                borderRadius: 6,
+                fontSize: '0.8rem',
                 fontWeight: 700,
+                fontVariantNumeric: 'tabular-nums',
               }}
             >
               Mã phòng: {roomCode}
@@ -198,14 +196,14 @@ export const GroupOrderPage: React.FC = () => {
                 gap: 6,
               }}
             >
-              <Copy size={13} /> {copied ? 'Đã sao chép link!' : 'Copy link mời bạn'}
+              <Copy size={13} /> {copied ? 'Đã sao chép đường dẫn!' : 'Sao chép đường dẫn mời nhóm'}
             </button>
           </div>
-          <h1 style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 6px 0' }}>
-            Phòng Đặt Đồ Ăn Cùng Nhóm & Chia Tiền Tự Động
+          <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 6px 0' }}>
+            Đặt Món Cùng Nhóm & Chia Hóa Đơn Tự Động
           </h1>
           <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: 0 }}>
-            Quán đang chọn: <strong>Cơm Tấm Sài Gòn 1985</strong> • Trưởng phòng: <strong>Nguyễn Văn An</strong>
+            Nhà hàng đang chọn: <strong>Cơm Tấm Sài Gòn 1985</strong> • Trưởng nhóm: <strong>Nguyễn Văn An</strong>
           </p>
         </div>
 
@@ -218,17 +216,17 @@ export const GroupOrderPage: React.FC = () => {
               alignItems: 'center',
               gap: 8,
               padding: '10px 18px',
-              borderRadius: 12,
+              borderRadius: 10,
               background: isLocked ? '#FEE2E2' : 'rgba(0, 177, 79, 0.1)',
               color: isLocked ? '#DC2626' : 'var(--primary)',
               border: `1.5px solid ${isLocked ? '#DC2626' : 'var(--primary)'}`,
               fontWeight: 700,
-              fontSize: '0.88rem',
+              fontSize: '0.86rem',
               cursor: 'pointer',
             }}
           >
-            {isLocked ? <Lock size={16} /> : <Unlock size={16} />}
-            {isLocked ? 'Phòng đã khóa (Không nhận thêm)' : 'Phòng đang mở (Cho phép thêm món)'}
+            {isLocked ? <Lock size={15} /> : <Unlock size={15} />}
+            {isLocked ? 'Phòng đã khóa (Ngưng thêm món)' : 'Phòng đang mở (Nhận đặt món)'}
           </button>
         </div>
       </div>
@@ -237,11 +235,11 @@ export const GroupOrderPage: React.FC = () => {
         {/* Left: Shared Basket */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h3 style={{ fontSize: '1.12rem', fontWeight: 800, color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
               <ShoppingBag size={18} color="var(--primary)" /> Giỏ Hàng Chung ({items.length} món)
             </h3>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-              {members.length} người đang tham gia
+              {members.length} thành viên tham gia
             </span>
           </div>
 
@@ -251,13 +249,13 @@ export const GroupOrderPage: React.FC = () => {
               style={{
                 background: '#FFFFFF',
                 border: '1.5px dashed var(--border)',
-                borderRadius: 16,
+                borderRadius: 14,
                 padding: 18,
                 marginBottom: 20,
               }}
             >
               <div style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: 10, color: 'var(--primary)' }}>
-                + Thêm món nhanh cho thành viên:
+                Thêm món nhanh cho thành viên:
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.5fr 1fr auto', gap: 10 }}>
                 <select
@@ -265,11 +263,11 @@ export const GroupOrderPage: React.FC = () => {
                   onChange={(e) => setSelectedMemberId(e.target.value)}
                   style={{
                     padding: '9px 12px',
-                    borderRadius: 10,
+                    borderRadius: 8,
                     background: 'var(--bg-main)',
                     border: '1px solid var(--border)',
                     color: 'var(--text-main)',
-                    fontSize: '0.88rem',
+                    fontSize: '0.86rem',
                     fontWeight: 600,
                     outline: 'none',
                   }}
@@ -288,11 +286,11 @@ export const GroupOrderPage: React.FC = () => {
                   onChange={(e) => setDishName(e.target.value)}
                   style={{
                     padding: '9px 12px',
-                    borderRadius: 10,
+                    borderRadius: 8,
                     background: 'var(--bg-main)',
                     border: '1px solid var(--border)',
                     color: 'var(--text-main)',
-                    fontSize: '0.88rem',
+                    fontSize: '0.86rem',
                     outline: 'none',
                   }}
                 />
@@ -304,11 +302,11 @@ export const GroupOrderPage: React.FC = () => {
                   onChange={(e) => setDishPrice(Number(e.target.value))}
                   style={{
                     padding: '9px 12px',
-                    borderRadius: 10,
+                    borderRadius: 8,
                     background: 'var(--bg-main)',
                     border: '1px solid var(--border)',
                     color: 'var(--text-main)',
-                    fontSize: '0.88rem',
+                    fontSize: '0.86rem',
                     outline: 'none',
                   }}
                 />
@@ -316,7 +314,7 @@ export const GroupOrderPage: React.FC = () => {
                 <button
                   onClick={handleAddItem}
                   className="btn btn-primary"
-                  style={{ padding: '9px 18px', fontSize: '0.88rem', fontWeight: 700, borderRadius: 10 }}
+                  style={{ padding: '9px 18px', fontSize: '0.86rem', fontWeight: 700, borderRadius: 8 }}
                 >
                   Thêm
                 </button>
@@ -332,7 +330,7 @@ export const GroupOrderPage: React.FC = () => {
                 style={{
                   background: '#FFFFFF',
                   border: '1px solid var(--border)',
-                  borderRadius: 16,
+                  borderRadius: 14,
                   padding: 16,
                   display: 'flex',
                   alignItems: 'center',
@@ -344,7 +342,7 @@ export const GroupOrderPage: React.FC = () => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                     <span
                       style={{
-                        fontSize: '0.75rem',
+                        fontSize: '0.73rem',
                         padding: '2px 8px',
                         borderRadius: 6,
                         background: 'rgba(0, 177, 79, 0.1)',
@@ -354,7 +352,7 @@ export const GroupOrderPage: React.FC = () => {
                     >
                       {item.memberName}
                     </span>
-                    <span style={{ fontWeight: 800, fontSize: '0.98rem', color: 'var(--text-main)' }}>
+                    <span style={{ fontWeight: 800, fontSize: '0.96rem', color: 'var(--text-main)' }}>
                       {item.dishName}
                     </span>
                   </div>
@@ -364,8 +362,8 @@ export const GroupOrderPage: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.98rem' }}>
+                  <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                    <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.96rem' }}>
                       {(item.basePrice * item.quantity).toLocaleString()} đ
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
@@ -386,33 +384,33 @@ export const GroupOrderPage: React.FC = () => {
           </div>
 
           {/* Add member box */}
-          <div style={{ marginTop: 24, padding: 18, background: '#FFFFFF', borderRadius: 16, border: '1px solid var(--border)' }}>
+          <div style={{ marginTop: 24, padding: 18, background: '#FFFFFF', borderRadius: 14, border: '1px solid var(--border)' }}>
             <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: 10 }}>
-              Mời thêm đồng nghiệp hoặc bạn bè vào nhóm:
+              Thêm đồng nghiệp hoặc bạn bè vào phòng đặt chung:
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <input
                 type="text"
-                placeholder="Tên bạn mới (VD: Hoàng Nam)"
+                placeholder="Họ tên thành viên mới (VD: Hoàng Nam)"
                 value={newFriendName}
                 onChange={(e) => setNewFriendName(e.target.value)}
                 style={{
                   flex: 1,
                   padding: '9px 14px',
-                  borderRadius: 10,
+                  borderRadius: 8,
                   background: 'var(--bg-main)',
                   border: '1px solid var(--border)',
                   color: 'var(--text-main)',
-                  fontSize: '0.88rem',
+                  fontSize: '0.86rem',
                   outline: 'none',
                 }}
               />
               <button
                 onClick={handleAddMember}
                 className="btn btn-secondary"
-                style={{ padding: '9px 18px', fontWeight: 700, borderRadius: 10 }}
+                style={{ padding: '9px 18px', fontWeight: 700, borderRadius: 8 }}
               >
-                + Mời bạn
+                Thêm thành viên
               </button>
             </div>
           </div>
@@ -423,15 +421,15 @@ export const GroupOrderPage: React.FC = () => {
           style={{
             background: '#FFFFFF',
             border: '1px solid var(--border)',
-            borderRadius: 20,
+            borderRadius: 16,
             padding: 24,
             boxShadow: 'var(--shadow-md)',
             position: 'sticky',
             top: 90,
           }}
         >
-          <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Receipt size={18} color="var(--primary)" /> Chia Tiền Split Bill Tự Động
+          <h3 style={{ fontSize: '1.12rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Receipt size={18} color="var(--primary)" /> Bảng Chia Tiền Theo Nhóm
           </h3>
 
           {/* Split Mode toggle */}
@@ -440,12 +438,12 @@ export const GroupOrderPage: React.FC = () => {
               onClick={() => setSplitMode('BY_ITEM')}
               style={{
                 padding: '10px 8px',
-                borderRadius: 10,
+                borderRadius: 8,
                 background: splitMode === 'BY_ITEM' ? 'var(--primary)' : 'var(--bg-main)',
                 border: `1px solid ${splitMode === 'BY_ITEM' ? 'var(--primary)' : 'var(--border)'}`,
                 color: splitMode === 'BY_ITEM' ? '#FFFFFF' : 'var(--text-muted)',
                 fontWeight: 700,
-                fontSize: '0.85rem',
+                fontSize: '0.84rem',
                 cursor: 'pointer',
               }}
             >
@@ -455,30 +453,30 @@ export const GroupOrderPage: React.FC = () => {
               onClick={() => setSplitMode('EQUAL')}
               style={{
                 padding: '10px 8px',
-                borderRadius: 10,
+                borderRadius: 8,
                 background: splitMode === 'EQUAL' ? 'var(--primary)' : 'var(--bg-main)',
                 border: `1px solid ${splitMode === 'EQUAL' ? 'var(--primary)' : 'var(--border)'}`,
                 color: splitMode === 'EQUAL' ? '#FFFFFF' : 'var(--text-muted)',
                 fontWeight: 700,
-                fontSize: '0.85rem',
+                fontSize: '0.84rem',
                 cursor: 'pointer',
               }}
             >
-              Chia đều tất cả (Equal)
+              Chia đều đầu người
             </button>
           </div>
 
           {/* Summary Box */}
-          <div style={{ background: 'var(--bg-main)', padding: 16, borderRadius: 14, marginBottom: 16 }}>
+          <div style={{ background: 'var(--bg-main)', padding: 16, borderRadius: 12, marginBottom: 16, fontVariantNumeric: 'tabular-nums' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: 4, color: 'var(--text-muted)' }}>
               <span>Tổng tiền món ăn:</span>
               <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{subtotal.toLocaleString()} đ</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: 6, color: 'var(--text-muted)' }}>
-              <span>Phí giao hàng ({members.length} người cùng chia):</span>
+              <span>Phí giao hàng ({members.length} người chia đều):</span>
               <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>+{deliveryFee.toLocaleString()} đ</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.05rem', fontWeight: 800, borderTop: '1px solid var(--border)', paddingTop: 10, color: 'var(--text-main)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.02rem', fontWeight: 800, borderTop: '1px solid var(--border)', paddingTop: 10, color: 'var(--text-main)' }}>
               <span>Tổng hóa đơn cả nhóm:</span>
               <span style={{ color: 'var(--primary)' }}>{grandTotal.toLocaleString()} đ</span>
             </div>
@@ -487,7 +485,7 @@ export const GroupOrderPage: React.FC = () => {
           {/* Per member bill breakdown */}
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 8, fontWeight: 700 }}>
-              Chi tiết số tiền từng bạn cần thanh toán:
+              Số tiền từng thành viên cần thanh toán:
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {memberBreakdowns.map((b) => (
@@ -498,21 +496,36 @@ export const GroupOrderPage: React.FC = () => {
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     padding: '10px 14px',
-                    borderRadius: 12,
+                    borderRadius: 10,
                     background: 'var(--bg-main)',
                     border: '1px solid var(--border)',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span>{b.member.avatar}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: '50%',
+                        background: '#DCFCE7',
+                        color: '#15803D',
+                        fontSize: '0.72rem',
+                        fontWeight: 800,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {b.member.initials}
+                    </span>
                     <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>{b.member.name}</span>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.95rem' }}>
+                  <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                    <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.94rem' }}>
                       {b.finalToPay.toLocaleString()} đ
                     </div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                      (Ship: {b.shippingShare.toLocaleString()} đ)
+                      (Phí giao: {b.shippingShare.toLocaleString()} đ)
                     </div>
                   </div>
                 </div>
@@ -521,11 +534,11 @@ export const GroupOrderPage: React.FC = () => {
           </div>
 
           {checkoutDone ? (
-            <div style={{ padding: 16, borderRadius: 14, background: '#D1FAE5', color: '#059669', textAlign: 'center' }}>
+            <div style={{ padding: 16, borderRadius: 12, background: '#D1FAE5', color: '#059669', textAlign: 'center' }}>
               <CheckCircle2 size={32} style={{ margin: '0 auto 6px' }} />
               <strong>Đã chốt đơn nhóm thành công!</strong>
               <div style={{ fontSize: '0.8rem', marginTop: 4 }}>
-                Đơn hàng đã được chuyển tới quán chuẩn bị món.
+                Đơn hàng đã được chuyển tới nhà hàng chuẩn bị món.
               </div>
             </div>
           ) : (
@@ -536,7 +549,7 @@ export const GroupOrderPage: React.FC = () => {
               }}
               disabled={items.length === 0}
               className="btn btn-primary"
-              style={{ width: '100%', padding: '14px', fontSize: '1rem', fontWeight: 800, borderRadius: 14 }}
+              style={{ width: '100%', padding: '14px', fontSize: '0.95rem', fontWeight: 800, borderRadius: 12 }}
             >
               Khóa Phòng & Chốt Đơn Nhóm
             </button>

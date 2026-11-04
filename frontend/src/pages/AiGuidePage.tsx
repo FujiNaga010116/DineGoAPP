@@ -1,21 +1,15 @@
 // ==============================================================================
-// DineGo Frontend — AI Local Culinary Guide (Sprint 4 — U034 to U038)
-// GrabFood AI Culinary Assistant, Local RAG Recommendations & Quick Order Link
+// DineGo Frontend — Local Culinary Guide
+// Regional Culinary Consultation & Instant Restaurant Menu Navigation
 // ==============================================================================
 
 import React, { useState } from 'react';
 import {
-  Sparkles,
   Send,
-  Bot,
-  User,
   Utensils,
-  MapPin,
-  Flame,
+  User,
   ArrowRight,
-  Compass,
 } from 'lucide-react';
-import type { Merchant } from '../types';
 
 interface ChatMessage {
   id: string;
@@ -36,10 +30,10 @@ interface AiGuidePageProps {
 }
 
 const PRESET_QUERIES = [
-  '🍜 Trưa nay ăn gì thanh đạm dưới 60.000đ?',
-  '🌶️ Tìm món cay nồng đậm đà chuẩn vị miền Trung',
-  '🥩 Gợi ý quán cơm tấm sườn nướng chuẩn Sài Gòn 1985',
-  '🥗 Món ăn nhẹ healthy ít dầu mỡ cho bữa tối',
+  'Trưa nay ăn gì thanh đạm dưới 60.000đ?',
+  'Tìm món cay nồng đậm đà chuẩn vị miền Trung',
+  'Gợi ý quán cơm tấm sườn nướng chuẩn Sài Gòn 1985',
+  'Món ăn nhẹ ít dầu mỡ cho bữa tối',
 ];
 
 export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName }) => {
@@ -47,7 +41,7 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
     {
       id: 'msg-1',
       sender: 'ai',
-      text: 'Xin chào! Tôi là **DineGo AI Local Culinary Guide** — trợ lý ẩm thực bản địa thông minh của bạn. Hãy nói cho tôi biết khẩu vị hôm nay của bạn (chua, cay, mặn, ngọt), vùng miền yêu thích (Bắc - Trung - Nam) hoặc ngân sách, tôi sẽ tìm cho bạn món ăn ưng ý nhất!',
+      text: 'Xin chào! Tôi là chuyên gia tư vấn ẩm thực địa phương của DineGo. Hãy chia sẻ khẩu vị hôm nay của bạn (thanh đạm, đậm đà, cay nồng), vùng miền yêu thích (Bắc - Trung - Nam) hoặc ngân sách bữa ăn, tôi sẽ gợi ý những món ngon phù hợp nhất.',
       timestamp: '12:00',
     },
   ]);
@@ -70,7 +64,6 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
     setInputPrompt('');
     setIsTyping(true);
 
-    // AI Simulation with Local RAG Knowledge
     setTimeout(() => {
       let aiResponseText = '';
       let dishes: any[] = [];
@@ -78,7 +71,7 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
       const lower = prompt.toLowerCase();
       if (lower.includes('hà nội') || lower.includes('phở') || lower.includes('thanh đạm')) {
         aiResponseText =
-          'Dựa trên kho tri thức ẩm thực Hà Thành, món lý tưởng nhất cho bạn hôm nay là **Phở Bò Tái Lăn** hoặc **Phở Bò Tái Nạm**. Nước dùng hầm từ xương bò tươi suốt 12 tiếng thơm nức mùi gừng nướng, thảo quả và hoa hồi, ăn kèm quẩy giòn chuẩn điệu phố cổ.';
+          'Dựa trên khẩu vị thanh đạm chuẩn vị Hà Thành, món phù hợp nhất cho bạn hôm nay là Phở Bò Tái Lăn hoặc Phở Bò Tái Nạm. Nước dùng hầm từ xương bò tươi suốt 12 giờ thơm mùi gừng nướng, thảo quả và hoa hồi, dùng kèm quẩy giòn truyền thống.';
         dishes = [
           {
             name: 'Phở Bò Tái Lăn Truyền Thống',
@@ -90,7 +83,7 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
         ];
       } else if (lower.includes('sài gòn') || lower.includes('cơm tấm') || lower.includes('sườn')) {
         aiResponseText =
-          'Nhắc đến Sài Gòn thì không thể bỏ qua **Cơm Tấm Sườn Cọng Nướng Than**! Sườn non ướp mật ong và nước mắm cốt đậm đà, nướng trên than hoa đượm lửa, ăn cùng chả trứng hấp béo ngậy và chén mỡ hành tóp mỡ giòn rụm.';
+          'Đặc trưng ẩm thực Sài Gòn nổi bật nhất với Cơm Tấm Sườn Cọng Nướng Than. Sườn non ướp mật ong và nước mắm cốt đậm đà, nướng trên than hoa đượm lửa, dùng kèm chả trứng hấp và mỡ hành tóp mỡ giòn.';
         dishes = [
           {
             name: 'Cơm Tấm Sườn Cọng Nướng Than',
@@ -102,19 +95,19 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
         ];
       } else if (lower.includes('miền trung') || lower.includes('cay') || lower.includes('bún bò')) {
         aiResponseText =
-          'Hương vị đậm đà, cay nồng của **Bún Bò Huế Cố Đô** chắc chắn sẽ làm hài lòng bạn! Nước dùng thơm dậy mùi sả cây, mắm ruốc nguyên chất và sa tế ớt hiểm cay xé lưỡi.';
+          'Hương vị đậm đà, cay nồng của Bún Bò Huế Cố Đô rất hợp với sở thích của bạn. Nước dùng dậy mùi sả cây, mắm ruốc nguyên chất và sa tế ớt hiểm truyền thống.';
         dishes = [
           {
             name: 'Bún Bò Huế Bắp Bò Gân Giòn',
             restaurant: 'Bún Bò Huế Hương Giang',
             price: 60000,
             region: 'Huế (Miền Trung)',
-            description: 'Nước dùng mắm ruốc thơm lừng, thịt bắp hoa hoa tươi giòn sần sật.',
+            description: 'Nước dùng mắm ruốc thơm lừng, thịt bắp hoa tươi giòn.',
           },
         ];
       } else {
         aiResponseText =
-          `DineGo AI đã tìm thấy gợi ý ẩm thực tuyệt vời phù hợp với yêu cầu: "${prompt}". Mời bạn thưởng thức các món đặc sản từ các nhà hàng đối tác được chấm 4.9 sao của chúng tôi!`;
+          `Dưới đây là các gợi ý ẩm thực được đánh giá cao phù hợp với nhu cầu "${prompt}" từ các nhà hàng đối tác uy tín trên DineGo:`;
         dishes = [
           {
             name: 'Cơm Tấm Ba Rọi Nướng Mật Ong',
@@ -143,7 +136,7 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
 
       setMessages((prev) => [...prev, aiMsg]);
       setIsTyping(false);
-    }, 700);
+    }, 600);
   };
 
   return (
@@ -159,18 +152,20 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
             borderRadius: 20,
             background: 'rgba(0, 177, 79, 0.1)',
             color: 'var(--primary)',
-            fontSize: '0.82rem',
-            fontWeight: 700,
+            fontSize: '0.76rem',
+            fontWeight: 800,
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
             marginBottom: 10,
           }}
         >
-          <Sparkles size={15} /> Trợ Lý Ẩm Thực Thông Minh (Sprint 4 — RAG Engine)
+          Chuyên Gia Tư Vấn Ẩm Thực Bản Địa
         </div>
         <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 8px 0' }}>
-          DineGo AI Local Culinary Guide
+          Gợi Ý Món Ngon Theo Khẩu Vị
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', margin: 0 }}>
-          Hỏi đáp bằng ngôn ngữ tự nhiên. Khám phá văn hóa ẩm thực Bắc - Trung - Nam và nhận gợi ý chuẩn khẩu vị.
+          Tra cứu đặc sản vùng miền Bắc - Trung - Nam và tìm kiếm bữa ăn phù hợp với ngân sách của bạn.
         </p>
       </div>
 
@@ -211,12 +206,12 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
         style={{
           background: '#FFFFFF',
           border: '1px solid var(--border)',
-          borderRadius: 20,
+          borderRadius: 18,
           boxShadow: 'var(--shadow-md)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          height: 620,
+          height: 600,
         }}
       >
         {/* Messages Stream */}
@@ -236,19 +231,18 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
                 {isAi && (
                   <div
                     style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 12,
-                      background: 'linear-gradient(135deg, #00B14F, #06B6D4)',
+                      width: 36,
+                      height: 36,
+                      borderRadius: 10,
+                      background: '#00B14F',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       color: '#FFFFFF',
                       flexShrink: 0,
-                      boxShadow: '0 4px 12px rgba(0, 177, 79, 0.3)',
                     }}
                   >
-                    <Bot size={22} />
+                    <Utensils size={18} />
                   </div>
                 )}
 
@@ -256,10 +250,10 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
                   <div
                     style={{
                       padding: '14px 18px',
-                      borderRadius: 18,
+                      borderRadius: 14,
                       background: isAi ? 'var(--bg-main)' : 'var(--primary)',
                       color: isAi ? 'var(--text-main)' : '#FFFFFF',
-                      fontSize: '0.92rem',
+                      fontSize: '0.9rem',
                       lineHeight: 1.6,
                       border: isAi ? '1px solid var(--border)' : 'none',
                     }}
@@ -276,7 +270,7 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
                           style={{
                             background: '#FFFFFF',
                             border: '1.5px solid var(--border)',
-                            borderRadius: 14,
+                            borderRadius: 12,
                             padding: 14,
                             display: 'flex',
                             alignItems: 'center',
@@ -303,8 +297,8 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
                                 {dish.region}
                               </span>
                             </div>
-                            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                              🏪 {dish.restaurant} •{' '}
+                            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                              {dish.restaurant} •{' '}
                               <strong style={{ color: 'var(--primary)' }}>{dish.price.toLocaleString()} đ</strong>
                             </div>
                             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 2 }}>
@@ -320,13 +314,13 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
                               fontSize: '0.82rem',
                               fontWeight: 700,
                               whiteSpace: 'nowrap',
-                              borderRadius: 10,
+                              borderRadius: 8,
                               display: 'flex',
                               alignItems: 'center',
                               gap: 6,
                             }}
                           >
-                            Đặt món ngay <ArrowRight size={14} />
+                            Xem thực đơn <ArrowRight size={14} />
                           </button>
                         </div>
                       ))}
@@ -341,9 +335,9 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
                 {!isAi && (
                   <div
                     style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 12,
+                      width: 36,
+                      height: 36,
+                      borderRadius: 10,
                       background: 'rgba(0, 177, 79, 0.1)',
                       color: 'var(--primary)',
                       display: 'flex',
@@ -352,7 +346,7 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
                       flexShrink: 0,
                     }}
                   >
-                    <User size={20} />
+                    <User size={18} />
                   </div>
                 )}
               </div>
@@ -361,8 +355,7 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
 
           {isTyping && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              <Bot size={18} color="var(--primary)" />
-              <span>DineGo AI đang phân tích khẩu vị của bạn...</span>
+              <span>Đang tìm kiếm thực đơn phù hợp...</span>
             </div>
           )}
         </div>
@@ -380,25 +373,25 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
               type="text"
               value={inputPrompt}
               onChange={(e) => setInputPrompt(e.target.value)}
-              placeholder="Nhập yêu cầu: 'Gợi ý món cay ấm bụng', 'Đặc sản Đà Nẵng', 'Bữa trưa 40k'..."
+              placeholder="Nhập khẩu vị hoặc món ăn bạn muốn tìm: 'Món cay ấm bụng', 'Cơm tấm sườn nướng', 'Bữa trưa 50k'..."
               style={{
                 flex: 1,
-                padding: '12px 18px',
-                borderRadius: 14,
+                padding: '12px 16px',
+                borderRadius: 10,
                 background: 'var(--bg-main)',
                 border: '1px solid var(--border)',
                 color: 'var(--text-main)',
-                fontSize: '0.92rem',
+                fontSize: '0.9rem',
                 outline: 'none',
               }}
             />
             <button
               type="submit"
               className="btn btn-primary"
-              style={{ padding: '12px 22px', borderRadius: 14, display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700 }}
+              style={{ padding: '12px 20px', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700 }}
             >
-              <Send size={18} />
-              <span>Gửi</span>
+              <Send size={16} />
+              <span>Tìm gợi ý</span>
             </button>
           </form>
         </div>

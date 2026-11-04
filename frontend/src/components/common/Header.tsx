@@ -1,30 +1,20 @@
 // ==============================================================================
-// DineGo Frontend — Market-Grade Header Navigation (GrabFood / ShopeeFood Style)
-// Guest State, Login/Register Trigger, Location Picker, Cart, Role Badges
+// DineGo Frontend — Customer Storefront Header (Consumer E-Commerce Layout)
+// Strictly Customer-only navigation (No cross-role switcher clutter)
+// Fixed horizontal overflow so right-side profile & dropdown never clip
 // ==============================================================================
 
 import React, { useState } from 'react';
 import {
   ShoppingBag,
-  Flame,
-  Clock,
-  Sparkles,
-  UtensilsCrossed,
-  Users,
-  Compass,
-  Bike,
-  BarChart3,
   MapPin,
-  LogIn,
-  UserPlus,
-  LogOut,
   ChevronDown,
+  LogOut,
   User as UserIcon,
-  ShieldCheck,
-  Store,
+  ClipboardList,
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
-import type { User } from '../../types';
+import type { Role, User } from '../../types';
 
 export type NavTab =
   | 'home'
@@ -35,15 +25,36 @@ export type NavTab =
   | 'group-order'
   | 'ai-guide'
   | 'tracking'
-  | 'dashboard';
+  | 'customer-profile'
+  | 'dashboard'
+  // Merchant Portal Tabs
+  | 'merchant-orders'
+  | 'merchant-menu'
+  | 'merchant-catering'
+  | 'merchant-analytics'
+  | 'merchant-kyc'
+  // Driver Portal Tabs
+  | 'driver-orders'
+  | 'driver-map'
+  | 'driver-earnings'
+  | 'driver-profile'
+  // Admin Portal Tabs
+  | 'admin-overview'
+  | 'admin-merchants'
+  | 'admin-drivers'
+  | 'admin-users'
+  | 'admin-complaints'
+  | 'admin-reconciliation'
+  | 'admin-settings';
 
 interface HeaderProps {
   currentTab: NavTab;
   onNavigate: (tab: NavTab) => void;
   currentUser: User | null;
-  onOpenAuthModal: (mode?: 'login' | 'register') => void;
+  onOpenAuthModal: (mode?: 'login' | 'register', targetRole?: Role) => void;
   onLogout: () => void;
   onOpenMerchantRegisterModal?: () => void;
+  activeOrdersCount?: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -52,280 +63,261 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onOpenAuthModal,
   onLogout,
-  onOpenMerchantRegisterModal,
 }) => {
   const { cartCount, cart } = useCart();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
-  const [deliveryAddress, setDeliveryAddress] = useState('123 Nguyễn Huệ, P. Bến Nghé, Quận 1');
+  const [deliveryAddress, setDeliveryAddress] = useState(
+    currentUser?.address || '123 Nguyễn Huệ, P. Bến Nghé, Quận 1, TP. HCM',
+  );
   const [addressModalOpen, setAddressModalOpen] = useState(false);
 
-  const getRoleBadge = (user: User) => {
-    if (user.roles.includes('ADMIN')) {
-      return { label: 'Admin Sàn', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.12)', icon: <ShieldCheck size={13} /> };
-    }
-    if (user.roles.includes('MERCHANT')) {
-      return { label: 'Chủ Quán', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.12)', icon: <Store size={13} /> };
-    }
-    if (user.roles.includes('DRIVER')) {
-      return { label: 'Tài Xế', color: '#06B6D4', bg: 'rgba(6, 182, 212, 0.12)', icon: <Bike size={13} /> };
-    }
-    return { label: 'Khách Hàng', color: '#00B14F', bg: 'rgba(0, 177, 79, 0.12)', icon: <UserIcon size={13} /> };
-  };
-
-  const badge = currentUser ? getRoleBadge(currentUser) : null;
-
   return (
-    <header className="header-glass" style={{ position: 'sticky', top: 0, zIndex: 100 }}>
-      {/* Top Location Bar (GrabFood Signature) */}
+    <header
+      style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        background: '#FFFFFF',
+        borderBottom: '1px solid #E2E8F0',
+        width: '100%',
+        boxSizing: 'border-box',
+      }}
+    >
+      {/* Top Customer Utility Bar (Address & Hotline only — no role-switching clutter) */}
       <div
         style={{
           background: '#0F172A',
-          color: '#E2E8F0',
-          padding: '6px 20px',
-          fontSize: '0.78rem',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
+          color: '#CBD5E1',
+          padding: '6px 0',
+          fontSize: '0.76rem',
+          borderBottom: '1px solid #1E293B',
+          width: '100%',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }} onClick={() => setAddressModalOpen(true)}>
-          <MapPin size={14} color="#00B14F" />
-          <span style={{ color: '#94A3B8' }}>Giao đến:</span>
-          <strong style={{ color: '#F8FAFC' }}>{deliveryAddress}</strong>
-          <ChevronDown size={12} color="#94A3B8" />
-        </div>
+        <div
+          style={{
+            maxWidth: 1400,
+            margin: '0 auto',
+            padding: '0 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 8,
+            boxSizing: 'border-box',
+          }}
+        >
+          {/* Left: Delivery Address Picker */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              minWidth: 0,
+              flex: 1,
+            }}
+            onClick={() => setAddressModalOpen(true)}
+          >
+            <MapPin size={13} color="#00B14F" style={{ flexShrink: 0 }} />
+            <span style={{ color: '#94A3B8', flexShrink: 0 }}>Giao đến:</span>
+            <strong
+              style={{
+                color: '#F8FAFC',
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {currentUser?.address || deliveryAddress}
+            </strong>
+            <ChevronDown size={12} color="#94A3B8" style={{ flexShrink: 0 }} />
+          </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span style={{ color: '#F59E0B', fontWeight: 600 }}>🔥 Miễn phí giao hàng đơn từ 0đ hôm nay</span>
-          <span style={{ color: '#94A3B8' }}>Hotline: 1900 8826</span>
+          {/* Right: Customer Support Info */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
+            <span style={{ color: '#94A3B8' }}>Giao nhanh 25 phút</span>
+            <span style={{ color: '#334155' }}>|</span>
+            <span style={{ color: '#CBD5E1', fontWeight: 600 }}>Tổng đài CSKH: 1900 8826</span>
+          </div>
         </div>
       </div>
 
-      {/* Main Navigation Bar */}
-      <div className="container header-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 76, gap: 16 }}>
-        {/* Brand Logo */}
+      {/* Main Customer Navigation Bar */}
+      <div
+        style={{
+          maxWidth: 1400,
+          margin: '0 auto',
+          padding: '0 20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          minHeight: 66,
+          gap: 14,
+          boxSizing: 'border-box',
+          width: '100%',
+        }}
+      >
+        {/* Brand Wordmark */}
         <div
-          className="brand-logo"
           style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}
           onClick={() => onNavigate('home')}
         >
           <div
             style={{
-              width: 40,
-              height: 40,
-              borderRadius: 12,
-              background: 'linear-gradient(135deg, #00B14F 0%, #00873C 100%)',
+              width: 36,
+              height: 36,
+              borderRadius: 8,
+              background: '#00B14F',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#fff',
-              boxShadow: '0 4px 12px rgba(0, 177, 79, 0.3)',
+              fontWeight: 900,
+              fontSize: '0.98rem',
+              letterSpacing: -0.5,
             }}
           >
-            <Flame size={22} />
+            DG
           </div>
           <div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#111827', letterSpacing: -0.5, lineHeight: 1.1 }}>
+            <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0F172A', letterSpacing: -0.6, lineHeight: 1 }}>
               Dine<span style={{ color: '#00B14F' }}>Go</span>
             </div>
-            <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#00B14F', letterSpacing: 1.5, marginTop: 1 }}>
-              DELIVERY & FEAST
+            <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#64748B', letterSpacing: 0.4, marginTop: 2 }}>
+              GIAO ĐỒ ĂN & ĐẶT TIỆC
             </div>
           </div>
         </div>
 
-        {/* Navigation Tabs (Sprint 1 to 5) */}
+        {/* Navigation Links (Responsive, scrollable without forcing container overflow) */}
         <nav
-          className="nav-links"
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
-            background: 'rgba(243, 244, 246, 0.65)',
-            padding: '4px 6px',
-            borderRadius: 24,
-            border: '1px solid rgba(229, 231, 235, 0.8)',
+            gap: 2,
+            height: 66,
+            flex: 1,
+            minWidth: 0,
+            justifyContent: 'center',
+            overflowX: 'auto',
+            scrollbarWidth: 'none',
           }}
         >
-          <button
-            className={`nav-item ${currentTab === 'home' || currentTab === 'restaurant' ? 'active' : ''}`}
-            onClick={() => onNavigate('home')}
-            style={{ padding: '7px 13px', fontSize: '0.86rem' }}
-          >
-            <Sparkles size={15} />
-            Khám phá
-          </button>
-
-          <button
-            className={`nav-item ${currentTab === 'catering' ? 'active' : ''}`}
-            onClick={() => onNavigate('catering')}
-            style={{ padding: '7px 13px', fontSize: '0.86rem' }}
-          >
-            <UtensilsCrossed size={15} />
-            Mâm cỗ tiệc
-          </button>
-
-          <button
-            className={`nav-item ${currentTab === 'group-order' ? 'active' : ''}`}
-            onClick={() => onNavigate('group-order')}
-            style={{ padding: '7px 13px', fontSize: '0.86rem' }}
-          >
-            <Users size={15} />
-            Đặt nhóm
-          </button>
-
-          <button
-            className={`nav-item ${currentTab === 'ai-guide' ? 'active' : ''}`}
-            onClick={() => onNavigate('ai-guide')}
-            style={{ padding: '7px 13px', fontSize: '0.86rem' }}
-          >
-            <Compass size={15} />
-            AI Guide
-          </button>
-
-          <button
-            className={`nav-item ${currentTab === 'tracking' ? 'active' : ''}`}
-            onClick={() => onNavigate('tracking')}
-            style={{ padding: '7px 13px', fontSize: '0.86rem' }}
-          >
-            <Bike size={15} />
-            Lộ trình giao
-          </button>
-
-          <button
-            className={`nav-item ${currentTab === 'orders' ? 'active' : ''}`}
-            onClick={() => {
-              if (!currentUser) {
-                onOpenAuthModal('login');
-              } else {
-                onNavigate('orders');
-              }
-            }}
-            style={{ padding: '7px 13px', fontSize: '0.86rem' }}
-          >
-            <Clock size={15} />
-            Đơn của tôi
-          </button>
-
-          {/* Tab Quản lý: chỉ hiện cho Merchant hoặc Admin */}
-          {currentUser && (currentUser.roles.includes('ADMIN') || currentUser.roles.includes('MERCHANT')) && (
-            <button
-              className={`nav-item ${currentTab === 'dashboard' ? 'active' : ''}`}
-              onClick={() => onNavigate('dashboard')}
-              style={{
-                padding: '7px 13px',
-                fontSize: '0.86rem',
-                color: currentTab === 'dashboard' ? '#FFFFFF' : '#8B5CF6',
-                background: currentTab === 'dashboard' ? '#8B5CF6' : 'rgba(139, 92, 246, 0.1)',
-                borderColor: 'rgba(139, 92, 246, 0.25)',
-              }}
-            >
-              <BarChart3 size={15} />
-              Quản trị sàn
-            </button>
-          )}
+          {[
+            { id: 'home' as NavTab, label: 'Đặt đồ ăn', activeMatch: ['home', 'restaurant'] },
+            { id: 'catering' as NavTab, label: 'Đặt tiệc lưu động', activeMatch: ['catering'] },
+            { id: 'group-order' as NavTab, label: 'Đặt đơn nhóm', activeMatch: ['group-order'] },
+            { id: 'ai-guide' as NavTab, label: 'Tư vấn thực đơn', activeMatch: ['ai-guide'] },
+            { id: 'tracking' as NavTab, label: 'Theo dõi đơn', activeMatch: ['tracking'] },
+            { id: 'orders' as NavTab, label: 'Đơn hàng', activeMatch: ['orders'], requiresAuth: true },
+          ].map((item) => {
+            const isActive = item.activeMatch.includes(currentTab);
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  if (item.requiresAuth && !currentUser) {
+                    onOpenAuthModal('login', 'CUSTOMER');
+                  } else {
+                    onNavigate(item.id);
+                  }
+                }}
+                style={{
+                  height: '100%',
+                  padding: '0 11px',
+                  background: 'transparent',
+                  color: isActive ? '#00B14F' : '#334155',
+                  fontWeight: isActive ? 700 : 600,
+                  fontSize: '0.86rem',
+                  borderBottom: isActive ? '2.5px solid #00B14F' : '2.5px solid transparent',
+                  borderRadius: 0,
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                }}
+              >
+                {item.label}
+              </button>
+            );
+          })}
         </nav>
 
-        {/* Right Section: Cart + Auth Buttons / User Profile */}
+        {/* Right Section: Cart & User Account */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          {/* Mở Quán Bán Hàng (Đối tác Nhà Hàng) */}
-          {onOpenMerchantRegisterModal && (
-            <button
-              onClick={onOpenMerchantRegisterModal}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                padding: '7px 12px',
-                borderRadius: 20,
-                background: 'rgba(245, 158, 11, 0.1)',
-                color: '#D97706',
-                border: '1px solid rgba(245, 158, 11, 0.3)',
-                fontWeight: 700,
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(245, 158, 11, 0.18)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(245, 158, 11, 0.1)';
-              }}
-            >
-              <Store size={14} /> Mở Quán
-            </button>
-          )}
-
-          {/* Cart Button */}
           <button
-            className="cart-btn"
             onClick={() => onNavigate('checkout')}
-            title="Xem giỏ hàng"
-            style={{ padding: '8px 14px', borderRadius: 20 }}
+            title="Giỏ hàng"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              padding: '8px 13px',
+              borderRadius: 8,
+              background: cartCount > 0 ? '#00B14F' : '#F1F5F9',
+              color: cartCount > 0 ? '#FFFFFF' : '#0F172A',
+              fontWeight: 700,
+              fontSize: '0.84rem',
+              fontVariantNumeric: 'tabular-nums',
+              whiteSpace: 'nowrap',
+            }}
           >
-            <ShoppingBag size={18} />
-            {cartCount > 0 && <span className="cart-count">{cartCount}</span>}
+            <ShoppingBag size={15} />
+            <span>Giỏ hàng ({cartCount})</span>
             {cart.subtotal > 0 && (
-              <span style={{ borderLeft: '1px solid rgba(255,255,255,0.4)', paddingLeft: 8, fontSize: '0.88rem' }}>
+              <span style={{ borderLeft: '1px solid rgba(255,255,255,0.35)', paddingLeft: 7 }}>
                 {cart.subtotal.toLocaleString('vi-VN')}đ
               </span>
             )}
           </button>
 
-          {/* GUEST MODE: Chức năng Đăng nhập & Đăng ký */}
           {!currentUser ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button
-                onClick={() => onOpenAuthModal('login')}
-                className="btn btn-secondary"
+                onClick={() => onOpenAuthModal('login', 'CUSTOMER')}
                 style={{
-                  padding: '9px 16px',
-                  borderRadius: 12,
-                  fontSize: '0.88rem',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
+                  padding: '8px 14px',
+                  borderRadius: 8,
+                  background: '#FFFFFF',
+                  border: '1px solid #CBD5E1',
+                  color: '#0F172A',
+                  fontSize: '0.84rem',
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
                 }}
               >
-                <LogIn size={16} />
                 Đăng nhập
               </button>
-
               <button
-                onClick={() => onOpenAuthModal('register')}
-                className="btn btn-primary"
+                onClick={() => onOpenAuthModal('register', 'CUSTOMER')}
                 style={{
-                  padding: '9px 18px',
-                  borderRadius: 12,
-                  fontSize: '0.88rem',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
+                  padding: '8px 14px',
+                  borderRadius: 8,
+                  background: '#0F172A',
+                  color: '#FFFFFF',
+                  fontSize: '0.84rem',
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
                 }}
               >
-                <UserPlus size={16} />
                 Đăng ký
               </button>
             </div>
           ) : (
-            /* LOGGED IN USER PROFILE & DROPDOWN */
             <div style={{ position: 'relative' }}>
-              <div
+              <button
+                type="button"
                 onClick={() => setUserDropdownOpen(!userDropdownOpen)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 10,
-                  padding: '6px 14px 6px 8px',
-                  borderRadius: 24,
-                  background: '#FFFFFF',
-                  border: '1.5px solid #E5E7EB',
+                  gap: 8,
+                  padding: '5px 10px 5px 6px',
+                  borderRadius: 8,
+                  background: currentTab === 'customer-profile' ? '#F0FDF4' : '#F8FAFC',
+                  border: `1px solid ${currentTab === 'customer-profile' ? '#00B14F' : '#E2E8F0'}`,
                   cursor: 'pointer',
-                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)',
+                  maxWidth: 190,
                 }}
               >
                 <img
@@ -334,129 +326,132 @@ export const Header: React.FC<HeaderProps> = ({
                     'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
                   }
                   alt={currentUser.fullName}
-                  style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }}
+                  style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
                 />
-                <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#111827', maxWidth: 120, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {currentUser.fullName}
-                  </div>
-                  {badge && (
-                    <div
-                      style={{
-                        fontSize: '0.68rem',
-                        fontWeight: 700,
-                        color: badge.color,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 3,
-                      }}
-                    >
-                      {badge.icon} {badge.label}
-                    </div>
-                  )}
-                </div>
-                <ChevronDown size={14} color="#6B7280" />
-              </div>
-
-              {/* User Dropdown Menu */}
-              {userDropdownOpen && (
-                <div
+                <span
                   style={{
-                    position: 'absolute',
-                    top: '115%',
-                    right: 0,
-                    width: 240,
-                    background: '#FFFFFF',
-                    borderRadius: 16,
-                    boxShadow: '0 12px 32px rgba(0, 0, 0, 0.12)',
-                    border: '1px solid #E5E7EB',
-                    padding: 8,
-                    zIndex: 200,
+                    fontSize: '0.83rem',
+                    fontWeight: 600,
+                    color: '#0F172A',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
                   }}
                 >
-                  <div style={{ padding: '10px 12px', borderBottom: '1px solid #F1F5F9' }}>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#111827' }}>
-                      {currentUser.fullName}
+                  {currentUser.fullName}
+                </span>
+                <ChevronDown size={14} color="#64748B" style={{ flexShrink: 0 }} />
+              </button>
+
+              {userDropdownOpen && (
+                <>
+                  <div
+                    onClick={() => setUserDropdownOpen(false)}
+                    style={{ position: 'fixed', inset: 0, zIndex: 190 }}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 8px)',
+                      right: 0,
+                      width: 240,
+                      maxWidth: 'calc(100vw - 28px)',
+                      background: '#FFFFFF',
+                      borderRadius: 12,
+                      boxShadow: '0 16px 36px rgba(15, 23, 42, 0.18)',
+                      border: '1px solid #E2E8F0',
+                      padding: 6,
+                      zIndex: 300,
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <div style={{ padding: '10px 12px', borderBottom: '1px solid #F1F5F9' }}>
+                      <div style={{ fontSize: '0.86rem', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {currentUser.fullName}
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {currentUser.email}
+                      </div>
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>
-                      {currentUser.email}
-                    </div>
+
+                    <button
+                      onClick={() => {
+                        setUserDropdownOpen(false);
+                        onNavigate('customer-profile');
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: 6,
+                        background: currentTab === 'customer-profile' ? '#F0FDF4' : 'transparent',
+                        textAlign: 'left',
+                        fontSize: '0.84rem',
+                        color: currentTab === 'customer-profile' ? '#00B14F' : '#334155',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        border: 'none',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <UserIcon size={15} /> Quản lý tài khoản
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setUserDropdownOpen(false);
+                        onNavigate('orders');
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: 6,
+                        background: currentTab === 'orders' ? '#F0FDF4' : 'transparent',
+                        textAlign: 'left',
+                        fontSize: '0.84rem',
+                        color: currentTab === 'orders' ? '#00B14F' : '#334155',
+                        fontWeight: 500,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        border: 'none',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <ClipboardList size={15} /> Đơn hàng của tôi
+                    </button>
+
+                    <div style={{ height: 1, background: '#F1F5F9', margin: '4px 0' }} />
+
+                    <button
+                      onClick={() => {
+                        setUserDropdownOpen(false);
+                        onLogout();
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: 6,
+                        background: '#FEF2F2',
+                        textAlign: 'left',
+                        fontSize: '0.84rem',
+                        color: '#DC2626',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        border: 'none',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <LogOut size={15} /> Đăng xuất tài khoản
+                    </button>
                   </div>
-
-                  <button
-                    onClick={() => {
-                      setUserDropdownOpen(false);
-                      onOpenAuthModal('login');
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '10px 12px',
-                      borderRadius: 8,
-                      background: 'transparent',
-                      textAlign: 'left',
-                      fontSize: '0.85rem',
-                      color: '#374151',
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = '#F3F4F6')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <UserIcon size={16} /> Đổi tài khoản / Vai trò
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setUserDropdownOpen(false);
-                      onNavigate('orders');
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '10px 12px',
-                      borderRadius: 8,
-                      background: 'transparent',
-                      textAlign: 'left',
-                      fontSize: '0.85rem',
-                      color: '#374151',
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = '#F3F4F6')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <Clock size={16} /> Đơn hàng của tôi
-                  </button>
-
-                  <div style={{ height: 1, background: '#F1F5F9', margin: '4px 0' }} />
-
-                  <button
-                    onClick={() => {
-                      setUserDropdownOpen(false);
-                      onLogout();
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '10px 12px',
-                      borderRadius: 8,
-                      background: 'transparent',
-                      textAlign: 'left',
-                      fontSize: '0.85rem',
-                      color: '#EF4444',
-                      fontWeight: 700,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = '#FEF2F2')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <LogOut size={16} /> Đăng xuất (Về Guest)
-                  </button>
-                </div>
+                </>
               )}
             </div>
           )}
@@ -466,21 +461,24 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Address Picker Modal */}
       {addressModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-box" style={{ maxWidth: 420, padding: 24 }}>
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: 8, color: '#111827' }}>
-              Chọn địa chỉ nhận hàng
+          <div className="modal-box" style={{ maxWidth: 460, padding: 24, borderRadius: 16 }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: 6, color: '#0F172A' }}>
+              Địa chỉ giao hàng
             </h3>
-            <p style={{ fontSize: '0.82rem', color: '#6B7280', marginBottom: 16 }}>
-              DineGo sẽ tính toán chính xác phí ship và thời gian giao hàng tới bạn
+            <p style={{ fontSize: '0.82rem', color: '#64748B', marginBottom: 16 }}>
+              Chọn địa chỉ nhận món để hệ thống tính phí vận chuyển và thời gian giao dự kiến
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-              {[
-                '123 Nguyễn Huệ, P. Bến Nghé, Quận 1',
-                '45 Lê Duẩn, P. Bến Nghé, Quận 1',
-                'Tòa nhà Landmark 81, Vinhomes Central Park, Bình Thạnh',
-                '15 Mai Chí Thọ, P. An Phú, TP. Thủ Đức',
-              ].map((addr, idx) => (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
+              {(currentUser?.savedAddresses && currentUser.savedAddresses.length > 0
+                ? currentUser.savedAddresses.map((a) => `${a.label}: ${a.fullAddress}`)
+                : [
+                    '123 Nguyễn Huệ, P. Bến Nghé, Quận 1, TP. HCM',
+                    '45 Lê Duẩn, P. Bến Nghé, Quận 1, TP. HCM',
+                    'Tòa nhà Landmark 81, Vinhomes Central Park, Bình Thạnh',
+                    '15 Mai Chí Thọ, P. An Phú, TP. Thủ Đức',
+                  ]
+              ).map((addr, idx) => (
                 <div
                   key={idx}
                   onClick={() => {
@@ -488,32 +486,46 @@ export const Header: React.FC<HeaderProps> = ({
                     setAddressModalOpen(false);
                   }}
                   style={{
-                    padding: '12px 14px',
-                    borderRadius: 12,
-                    border: `1.5px solid ${deliveryAddress === addr ? '#00B14F' : '#E5E7EB'}`,
-                    background: deliveryAddress === addr ? '#F0FDF4' : '#F9FAFB',
+                    padding: '11px 14px',
+                    borderRadius: 8,
+                    border: `1px solid ${deliveryAddress === addr ? '#00B14F' : '#E2E8F0'}`,
+                    background: deliveryAddress === addr ? '#F0FDF4' : '#FFFFFF',
                     cursor: 'pointer',
-                    fontSize: '0.88rem',
+                    fontSize: '0.84rem',
                     fontWeight: deliveryAddress === addr ? 700 : 500,
-                    color: deliveryAddress === addr ? '#00B14F' : '#374151',
+                    color: deliveryAddress === addr ? '#00B14F' : '#334155',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 10,
                   }}
                 >
-                  <MapPin size={16} />
+                  <MapPin size={15} style={{ flexShrink: 0 }} />
                   <span>{addr}</span>
                 </div>
               ))}
             </div>
 
-            <button
-              onClick={() => setAddressModalOpen(false)}
-              className="btn btn-secondary"
-              style={{ width: '100%', padding: '10px' }}
-            >
-              Đóng
-            </button>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {currentUser && (
+                <button
+                  onClick={() => {
+                    setAddressModalOpen(false);
+                    onNavigate('customer-profile');
+                  }}
+                  className="btn btn-primary"
+                  style={{ flex: 1, padding: '10px', borderRadius: 8 }}
+                >
+                  Quản lý sổ địa chỉ
+                </button>
+              )}
+              <button
+                onClick={() => setAddressModalOpen(false)}
+                className="btn btn-secondary"
+                style={{ flex: 1, padding: '10px', borderRadius: 8 }}
+              >
+                Đóng
+              </button>
+            </div>
           </div>
         </div>
       )}
