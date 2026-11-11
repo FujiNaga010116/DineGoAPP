@@ -23,6 +23,7 @@ import type { Order, OrderStatus } from '../types';
 interface OrdersPageProps {
   orders: Order[];
   onUpdateOrderStatus: (orderId: string, newStatus: OrderStatus) => void;
+  onConfirmCustomerReceipt?: (orderId: string) => void;
   onPayMoMo: (order: Order) => void;
   onExplore: () => void;
   onOpenReviewModal?: (order: Order) => void;
@@ -41,6 +42,7 @@ const STATUS_LABELS: Record<OrderStatus, { text: string; step: number; color: st
 export const OrdersPage: React.FC<OrdersPageProps> = ({
   orders,
   onUpdateOrderStatus,
+  onConfirmCustomerReceipt,
   onPayMoMo,
   onExplore,
   onOpenReviewModal,
@@ -534,6 +536,87 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
               </div>
             </div>
 
+            {/* Customer Delivery Receipt Confirmation Box */}
+            {selectedOrder.status === 'DELIVERING' && (
+              <div
+                style={{
+                  background: selectedOrder.customerConfirmedReceipt ? '#ECFDF5' : '#F0FDF4',
+                  border: `1.5px solid ${selectedOrder.customerConfirmedReceipt ? '#10B981' : '#86EFAC'}`,
+                  borderRadius: 14,
+                  padding: '16px 18px',
+                  marginBottom: 18,
+                }}
+              >
+                {selectedOrder.customerConfirmedReceipt ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#065F46' }}>
+                    <CheckCircle2 size={20} color="#059669" style={{ flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>
+                        Bạn đã xác nhận nhận được hàng thành công
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: '#047857', marginTop: 2 }}>
+                        Lúc{' '}
+                        {selectedOrder.customerConfirmedAt
+                          ? new Date(selectedOrder.customerConfirmedAt).toLocaleTimeString('vi-VN', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : 'vừa xong'}{' '}
+                        • Tài xế hiện đã được mở khóa nút Hoàn tất giao hàng.
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                    <div style={{ flex: 1, minWidth: 220 }}>
+                      <div style={{ fontWeight: 800, fontSize: '0.92rem', color: '#14532D' }}>
+                        Xác nhận nhận hàng từ Shipper
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: '#166534', marginTop: 3, lineHeight: 1.45 }}>
+                        Khi shipper giao đủ món tới tay bạn, vui lòng bấm xác nhận để tài xế hoàn tất đơn hàng.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onConfirmCustomerReceipt?.(selectedOrder.id)}
+                      style={{
+                        padding: '10px 18px',
+                        borderRadius: 10,
+                        background: '#00B14F',
+                        color: '#FFFFFF',
+                        fontWeight: 800,
+                        fontSize: '0.84rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <CheckCircle2 size={16} />
+                      <span>Xác nhận đã nhận được hàng</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {selectedOrder.status === 'CANCELLED' && selectedOrder.cancelReason && (
+              <div
+                style={{
+                  background: '#FEF2F2',
+                  border: '1px solid #FECACA',
+                  borderRadius: 12,
+                  padding: '12px 16px',
+                  marginBottom: 18,
+                  color: '#991B1B',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                }}
+              >
+                Lý do hủy đơn: {selectedOrder.cancelReason}
+              </div>
+            )}
+
             {/* Actions for Order */}
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               {selectedOrder.status === 'PENDING' && selectedOrder.payment?.paymentMethod?.includes('MOMO') && (
@@ -567,16 +650,16 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                 </button>
               )}
 
-              {/* Simulation FSM next step button for demo */}
-              {selectedOrder.status !== 'COMPLETED' && selectedOrder.status !== 'CANCELLED' && (
+              {/* Simulation FSM next step button up to READY_FOR_PICKUP (never bypasses merchant handover / driver pickup / customer receipt) */}
+              {['PENDING', 'CONFIRMED', 'PREPARING'].includes(selectedOrder.status) && (
                 <button
                   onClick={() => {
                     const statusFlow: Record<OrderStatus, OrderStatus> = {
                       PENDING: 'CONFIRMED',
                       CONFIRMED: 'PREPARING',
                       PREPARING: 'READY_FOR_PICKUP',
-                      READY_FOR_PICKUP: 'DELIVERING',
-                      DELIVERING: 'COMPLETED',
+                      READY_FOR_PICKUP: 'READY_FOR_PICKUP',
+                      DELIVERING: 'DELIVERING',
                       COMPLETED: 'COMPLETED',
                       CANCELLED: 'CANCELLED',
                     };

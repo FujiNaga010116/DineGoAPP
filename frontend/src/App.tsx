@@ -25,52 +25,43 @@ import { ReviewModal } from './components/common/ReviewModal';
 import { MerchantRegistrationModal } from './components/common/MerchantRegistrationModal';
 import { AddressSetupModal } from './components/common/AddressSetupModal';
 import { CartProvider } from './context/CartContext';
-import { MOCK_MERCHANTS, MOCK_MENU_ITEMS, MOCK_DRIVERS, MOCK_USERS } from './api/client';
-import type { DriverProfile, Merchant, MenuItem, Order, OrderStatus, Role, SavedAddress, User } from './types';
-import { QrCode, CheckCircle2 } from 'lucide-react';
+import { MOCK_MERCHANTS, MOCK_MENU_ITEMS, MOCK_DRIVERS, MOCK_USERS, isDriverProfileVerified } from './api/client';
+import type {
+  DeliveryDisputeReport,
+  DriverProfile,
+  DriverShift,
+  DriverShiftTrip,
+  Merchant,
+  MenuItem,
+  Order,
+  OrderStatus,
+  Role,
+  SavedAddress,
+  User,
+} from './types';
 
-const INITIAL_SAMPLE_ORDER: Order = {
-  id: 'ord-sample-01',
-  orderNumber: 'DG20261103-TRK88',
-  customerId: 'u-user1-001',
-  customerEmail: 'customer@dinego.vn',
-  status: 'PREPARING',
-  subtotal: 150000,
-  deliveryFee: 15000,
-  discountAmount: 25000,
-  finalTotal: 140000,
-  deliveryAddress: '45 Lê Duẩn, Bến Nghé, Quận 1, TP. HCM',
-  recipientName: 'Nguyễn Văn An',
-  recipientPhone: '0901000004',
-  createdAt: new Date(Date.now() - 1800000).toISOString(),
-  merchant: {
-    id: 'merchant-com-tam',
-    name: 'Cơm Tấm Sài Gòn 1985',
-    address: '123 Nguyễn Huệ, Quận 1, TP. HCM',
-    phoneNumber: '0901000002',
-  },
-  items: [
-    {
-      id: 'oi-1',
-      itemName: 'Cơm Tấm Sườn Cọng Nướng Than',
-      basePrice: 65000,
-      quantity: 2,
-      subtotal: 130000,
-      toppings: [
-        { id: 't-1', toppingName: 'Trứng ốp la lòng đào', toppingPrice: 10000 },
-      ],
-    },
-  ],
-  payment: {
-    id: 'pay-sample-01',
-    paymentMethod: 'MOMO_QR',
-    paymentStatus: 'SUCCESS',
-    amount: 140000,
-    currency: 'VND',
-    transactionRef: 'MOMO-99887766',
-    paidAt: new Date(Date.now() - 1700000).toISOString(),
-  },
-};
+function createDriverShiftRecord(driver: DriverProfile, existingShifts: DriverShift[]): DriverShift {
+  const driverShiftCount = existingShifts.filter((s) => s.driverId === driver.id).length;
+  const now = new Date();
+  const datePart = `${now.getFullYear().toString().slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+  return {
+    id: `shift-${now.getTime()}-${driverShiftCount + 1}`,
+    shiftCode: `CA-${datePart}-${String(driverShiftCount + 1).padStart(2, '0')}`,
+    driverId: driver.id,
+    driverName: driver.fullName,
+    operatingZone: driver.operatingZone || 'Chưa đăng ký',
+    vehicleType: driver.vehicleType || 'Chưa đăng ký',
+    licensePlate: driver.licensePlate || 'Chưa cập nhật',
+    startedAt: now.toISOString(),
+    endedAt: null,
+    status: 'ACTIVE',
+    tripsCount: 0,
+    grossShippingEarned: 0,
+    netIncomeEarned: 0,
+    trips: [],
+  };
+}
+import { QrCode, CheckCircle2 } from 'lucide-react';
 
 interface AppContentProps {
   currentUser: User | null;
@@ -122,10 +113,27 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     return MOCK_USERS;
   });
 
+  // Drivers state initialized early so initial Driver routing can enforce onboarding
+  const [drivers, setDrivers] = useState<DriverProfile[]>(() => {
+    const saved = localStorage.getItem('dinego_drivers_list');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {}
+    }
+    return MOCK_DRIVERS;
+  });
+
   const [currentTab, setCurrentTab] = useState<NavTab>(() => {
     if (currentUser?.roles?.includes('ADMIN')) return 'admin-overview';
     if (currentUser?.roles?.includes('MERCHANT')) return 'merchant-orders';
-    if (currentUser?.roles?.includes('DRIVER')) return 'driver-orders';
+    if (currentUser?.roles?.includes('DRIVER')) {
+      const matchedDriver = drivers.find(
+        (d) => d.id === currentUser.driverId || d.userId === currentUser.id,
+      );
+      return isDriverProfileVerified(matchedDriver) ? 'driver-orders' : 'driver-profile';
+    }
     return 'home';
   });
 
@@ -141,18 +149,6 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     return MOCK_MERCHANTS;
   });
 
-  // 3. Drivers state (Multiple independent driver accounts)
-  const [drivers, setDrivers] = useState<DriverProfile[]>(() => {
-    const saved = localStorage.getItem('dinego_drivers_list');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch {}
-    }
-    return MOCK_DRIVERS;
-  });
-
   // Current merchant profile for the logged in merchant user
   const selectedMerchant =
     currentUser?.merchantId
@@ -161,8 +157,9 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
 
   // Current driver profile for the logged in driver user
   const currentDriverProfile =
-    currentUser?.driverId
-      ? drivers.find((d) => d.id === currentUser.driverId) || drivers[0]
+    currentUser?.roles?.includes('DRIVER')
+      ? drivers.find((d) => d.id === currentUser.driverId || d.userId === currentUser.id) ||
+        drivers[0]
       : drivers[0];
 
   const [allMenuItems, setAllMenuItems] = useState<Record<string, MenuItem[]>>(() => {
@@ -199,22 +196,39 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((o: Order) =>
-            o.id === INITIAL_SAMPLE_ORDER.id && !o.customerId
-              ? {
-                  ...o,
-                  customerId: INITIAL_SAMPLE_ORDER.customerId,
-                  customerEmail: INITIAL_SAMPLE_ORDER.customerEmail,
-                }
-              : o,
-          );
+        if (Array.isArray(parsed)) {
+          // Strip legacy hardcoded sample order so blank accounts never inherit demo orders
+          return parsed.filter((o: Order) => o.id !== 'ord-sample-01');
         }
       } catch {
-        return [INITIAL_SAMPLE_ORDER];
+        return [];
       }
     }
-    return [INITIAL_SAMPLE_ORDER];
+    return [];
+  });
+
+  const [driverShifts, setDriverShifts] = useState<DriverShift[]>(() => {
+    let initial: DriverShift[] = [];
+    const saved = localStorage.getItem('dinego_driver_shifts');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          initial = parsed;
+        }
+      } catch {
+        initial = [];
+      }
+    }
+    if (
+      currentUser?.roles?.includes('DRIVER') &&
+      isDriverProfileVerified(currentDriverProfile) &&
+      currentDriverProfile.status !== 'OFFLINE' &&
+      !initial.some((s) => s.driverId === currentDriverProfile.id && s.status === 'ACTIVE')
+    ) {
+      initial = [createDriverShiftRecord(currentDriverProfile, initial), ...initial];
+    }
+    return initial;
   });
 
   const [activeMomoPaymentOrder, setActiveMomoPaymentOrder] = useState<Order | null>(null);
@@ -224,12 +238,181 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
   const [reviewModalOrder, setReviewModalOrder] = useState<Order | null>(null);
   const [isAddressSetupModalOpen, setIsAddressSetupModalOpen] = useState(false);
   const [pendingAfterAddressSetup, setPendingAfterAddressSetup] = useState<(() => void) | null>(null);
+  const [deliveryDisputes, setDeliveryDisputes] = useState<DeliveryDisputeReport[]>(() => {
+    const saved = localStorage.getItem('dinego_delivery_disputes');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
 
   useEffect(() => {
-    localStorage.setItem('dinego_orders', JSON.stringify(orders));
+    const serialized = JSON.stringify(orders);
+    localStorage.setItem('dinego_orders', serialized);
+    if (typeof BroadcastChannel !== 'undefined') {
+      const ch = new BroadcastChannel('dinego_orders_sync');
+      ch.postMessage(serialized);
+      ch.close();
+    }
   }, [orders]);
 
+  useEffect(() => {
+    localStorage.setItem('dinego_driver_shifts', JSON.stringify(driverShifts));
+  }, [driverShifts]);
+
+  useEffect(() => {
+    const serialized = JSON.stringify(deliveryDisputes);
+    localStorage.setItem('dinego_delivery_disputes', serialized);
+    if (typeof BroadcastChannel !== 'undefined') {
+      const ch = new BroadcastChannel('dinego_disputes_sync');
+      ch.postMessage(serialized);
+      ch.close();
+    }
+  }, [deliveryDisputes]);
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'dinego_orders' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            setOrders((prev) =>
+              JSON.stringify(prev) === e.newValue ? prev : parsed.filter((o: Order) => o.id !== 'ord-sample-01'),
+            );
+          }
+        } catch {}
+      }
+      if (e.key === 'dinego_delivery_disputes' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            setDeliveryDisputes((prev) => (JSON.stringify(prev) === e.newValue ? prev : parsed));
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', onStorage);
+
+    const ordCh = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('dinego_orders_sync') : null;
+    if (ordCh) {
+      ordCh.onmessage = (ev) => {
+        if (typeof ev.data === 'string') {
+          try {
+            const parsed = JSON.parse(ev.data);
+            if (Array.isArray(parsed)) {
+              setOrders((prev) => (JSON.stringify(prev) === ev.data ? prev : parsed));
+            }
+          } catch {}
+        }
+      };
+    }
+
+    const dispCh = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('dinego_disputes_sync') : null;
+    if (dispCh) {
+      dispCh.onmessage = (ev) => {
+        if (typeof ev.data === 'string') {
+          try {
+            const parsed = JSON.parse(ev.data);
+            if (Array.isArray(parsed)) {
+              setDeliveryDisputes((prev) => (JSON.stringify(prev) === ev.data ? prev : parsed));
+            }
+          } catch {}
+        }
+      };
+    }
+
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      ordCh?.close();
+      dispCh?.close();
+    };
+  }, []);
+
+  const handleStartDriverShift = (driver: DriverProfile) => {
+    if (!isDriverProfileVerified(driver)) return;
+    setDriverShifts((prev) => {
+      if (prev.some((s) => s.driverId === driver.id && s.status === 'ACTIVE')) {
+        return prev;
+      }
+      return [createDriverShiftRecord(driver, prev), ...prev];
+    });
+  };
+
+  const handleEndDriverShift = (
+    driverId: string,
+    reason: 'MANUAL_OFFLINE' | 'LOGOUT' = 'MANUAL_OFFLINE',
+  ) => {
+    const nowIso = new Date().toISOString();
+    setDriverShifts((prev) =>
+      prev.map((s) =>
+        s.driverId === driverId && s.status === 'ACTIVE'
+          ? { ...s, status: 'ENDED', endedAt: nowIso, endReason: reason }
+          : s,
+      ),
+    );
+  };
+
+  const recordOrderCompletedInShift = (completedOrder: Order, driver: DriverProfile) => {
+    const fee = completedOrder.deliveryFee || 15000;
+    const net = Math.round(fee * 0.85);
+    const trip: DriverShiftTrip = {
+      orderId: completedOrder.id,
+      orderNumber: completedOrder.orderNumber,
+      merchantName: completedOrder.merchant?.name || 'Nhà hàng',
+      deliveryAddress: completedOrder.deliveryAddress,
+      recipientName: completedOrder.recipientName,
+      deliveryFee: fee,
+      netEarning: net,
+      completedAt: new Date().toISOString(),
+    };
+
+    setDriverShifts((prev) => {
+      const hasRecorded = prev.some(
+        (s) => s.driverId === driver.id && s.trips.some((t) => t.orderId === completedOrder.id),
+      );
+      if (hasRecorded) return prev;
+
+      const activeIdx = prev.findIndex(
+        (s) => s.driverId === driver.id && s.status === 'ACTIVE',
+      );
+      if (activeIdx === -1) {
+        const fresh = createDriverShiftRecord(driver, prev);
+        const populated: DriverShift = {
+          ...fresh,
+          tripsCount: 1,
+          grossShippingEarned: fee,
+          netIncomeEarned: net,
+          trips: [trip],
+        };
+        return [populated, ...prev];
+      }
+
+      return prev.map((s, idx) =>
+        idx === activeIdx
+          ? {
+              ...s,
+              tripsCount: s.tripsCount + 1,
+              grossShippingEarned: s.grossShippingEarned + fee,
+              netIncomeEarned: s.netIncomeEarned + net,
+              trips: [trip, ...s.trips],
+            }
+          : s,
+      );
+    });
+  };
+
   const handleLogout = () => {
+    if (currentUser?.roles?.includes('DRIVER')) {
+      handleEndDriverShift(currentDriverProfile.id, 'LOGOUT');
+      setDrivers((prev) =>
+        prev.map((d) => (d.id === currentDriverProfile.id ? { ...d, status: 'OFFLINE' } : d)),
+      );
+    }
     setCurrentUser(null);
     localStorage.removeItem('dinego_user');
     setActiveMomoPaymentOrder(null);
@@ -306,7 +489,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Register a new independent Driver
+  // Register a new independent Driver -> enforce mandatory vehicle & personal onboarding before shipping
   const handleDriverRegistered = (newDriver: DriverProfile, newDriverUser: User) => {
     setDrivers((prev) => [newDriver, ...prev]);
     setUsers((prev) => [newDriverUser, ...prev]);
@@ -314,7 +497,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     localStorage.setItem('dinego_user', JSON.stringify(newDriverUser));
     setActiveMomoPaymentOrder(null);
     setReviewModalOrder(null);
-    setCurrentTab('driver-orders');
+    setCurrentTab('driver-profile');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -417,8 +600,9 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
   };
 
   const handleUpdateOrderStatus = (orderId: string, newStatus: OrderStatus) => {
-    setOrders(
-      orders.map((o) => {
+    const completedOrder = orders.find((o) => o.id === orderId);
+    setOrders((prev) =>
+      prev.map((o) => {
         if (o.id === orderId) {
           return {
             ...o,
@@ -428,6 +612,134 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
         return o;
       }),
     );
+    if (newStatus === 'COMPLETED' && completedOrder && completedOrder.assignedDriverId) {
+      const assignedDrv = drivers.find((d) => d.id === completedOrder.assignedDriverId);
+      if (assignedDrv) {
+        recordOrderCompletedInShift(completedOrder, assignedDrv);
+      }
+    }
+  };
+
+  const handleAcceptDriverOrder = (orderId: string, driver: DriverProfile) => {
+    handleStartDriverShift(driver);
+    if (driver.status === 'OFFLINE') {
+      setDrivers((prev) =>
+        prev.map((d) => (d.id === driver.id ? { ...d, status: 'ONLINE' } : d)),
+      );
+    }
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === orderId
+          ? {
+              ...o,
+              assignedDriverId: driver.id,
+              assignedDriverName: driver.fullName,
+              status: o.status === 'PENDING' ? 'CONFIRMED' : o.status,
+            }
+          : o,
+      ),
+    );
+  };
+
+  const handleMarkDriverArrivedAtStore = (orderId: string) => {
+    const arrivedAt = new Date().toISOString();
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === orderId
+          ? {
+              ...o,
+              driverArrivedAtStore: true,
+              driverArrivedAtStoreAt: o.driverArrivedAtStoreAt || arrivedAt,
+            }
+          : o,
+      ),
+    );
+  };
+
+  const handleConfirmMerchantPickup = (orderId: string) => {
+    const confirmedAt = new Date().toISOString();
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === orderId
+          ? {
+              ...o,
+              merchantConfirmedPickup: true,
+              merchantConfirmedPickupAt: confirmedAt,
+              status:
+                o.status === 'PENDING' || o.status === 'CONFIRMED' || o.status === 'PREPARING'
+                  ? 'READY_FOR_PICKUP'
+                  : o.status,
+            }
+          : o,
+      ),
+    );
+  };
+
+  const handleConfirmCustomerReceipt = (orderId: string) => {
+    const confirmedAt = new Date().toISOString();
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === orderId
+          ? {
+              ...o,
+              customerConfirmedReceipt: true,
+              customerConfirmedAt: confirmedAt,
+            }
+          : o,
+      ),
+    );
+  };
+
+  const handleSubmitDeliveryDispute = (report: DeliveryDisputeReport) => {
+    setDeliveryDisputes((prev) => [report, ...prev]);
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === report.orderId
+          ? {
+              ...o,
+              status: 'CANCELLED',
+              cancelledBy: 'DRIVER_DISPUTE',
+              cancelReason: `Khách bom hàng / Không nhận: ${report.reasonLabel}`,
+              deliveryDispute: report,
+            }
+          : o,
+      ),
+    );
+  };
+
+  const handleResolveDeliveryDispute = (
+    reportId: string,
+    decision: 'COMPENSATED_DRIVER' | 'REJECTED',
+    adminNote?: string,
+  ) => {
+    const target = deliveryDisputes.find((d) => d.id === reportId);
+    setDeliveryDisputes((prev) =>
+      prev.map((d) =>
+        d.id === reportId
+          ? {
+              ...d,
+              status: decision,
+              adminNote: adminNote || d.adminNote,
+            }
+          : d,
+      ),
+    );
+    if (
+      decision === 'COMPENSATED_DRIVER' &&
+      target &&
+      target.status === 'PENDING_REVIEW'
+    ) {
+      setDrivers((prev) =>
+        prev.map((drv) =>
+          drv.id === target.driverId
+            ? {
+                ...drv,
+                walletBalance: drv.walletBalance + (target.compensationAmount || 15000),
+              }
+            : drv,
+        ),
+      );
+    }
   };
 
   const handlePayMoMo = (order: Order) => {
@@ -491,6 +803,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
   const isDriverPortalMode =
     currentTab === 'driver-orders' ||
     currentTab === 'driver-map' ||
+    currentTab === 'driver-history' ||
     currentTab === 'driver-earnings' ||
     currentTab === 'driver-profile' ||
     (currentTab === 'tracking' && Boolean(currentUser?.roles?.includes('DRIVER')));
@@ -499,6 +812,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     currentTab === 'tracking' ||
     currentTab === 'driver-orders' ||
     currentTab === 'driver-map' ||
+    currentTab === 'driver-history' ||
     currentTab === 'driver-earnings' ||
     currentTab === 'driver-profile';
 
@@ -516,6 +830,14 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
             o.customerEmail.toLowerCase() === currentUser.email.toLowerCase()),
       )
     : [];
+
+  const driverActiveOrder =
+    orders.find(
+      (o) =>
+        o.assignedDriverId === currentDriverProfile.id &&
+        o.status !== 'COMPLETED' &&
+        o.status !== 'CANCELLED',
+    ) || null;
 
   const merchantOrders = orders.filter((o) => o.merchant?.id === selectedMerchant.id);
 
@@ -580,6 +902,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
             key={currentUser?.id || 'guest'}
             orders={customerOrders}
             onUpdateOrderStatus={handleUpdateOrderStatus}
+            onConfirmCustomerReceipt={handleConfirmCustomerReceipt}
             onPayMoMo={handlePayMoMo}
             onExplore={() => setCurrentTab('home')}
             onOpenReviewModal={(order) => setReviewModalOrder(order)}
@@ -608,18 +931,37 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
         {isDriverOrTrackingTab && (
           <TrackingPage
             key={isDriverPortalMode ? currentDriverProfile.id : currentUser?.id || 'guest'}
-            activeOrder={isDriverPortalMode ? orders[0] || null : customerOrders[0] || null}
+            activeOrder={isDriverPortalMode ? driverActiveOrder : customerOrders[0] || null}
             allOrders={isDriverPortalMode ? orders : customerOrders}
             activeTab={currentTab}
             onNavigate={(tab) => {
+              if (
+                currentUser?.roles?.includes('DRIVER') &&
+                !isDriverProfileVerified(currentDriverProfile) &&
+                tab !== 'driver-profile'
+              ) {
+                setCurrentTab('driver-profile');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                return;
+              }
               setCurrentTab(tab);
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             onUpdateOrderStatus={handleUpdateOrderStatus}
+            onAcceptDriverOrder={handleAcceptDriverOrder}
+            onMarkDriverArrivedAtStore={handleMarkDriverArrivedAtStore}
+            onConfirmCustomerReceipt={handleConfirmCustomerReceipt}
+            driverDisputes={deliveryDisputes.filter((d) => d.driverId === currentDriverProfile.id)}
+            onSubmitDeliveryDispute={handleSubmitDeliveryDispute}
             isDriverMode={isDriverPortalMode}
             currentDriver={currentDriverProfile}
             currentUser={currentUser}
             onUpdateDriverProfile={handleUpdateDriverProfile}
+            merchants={merchants}
+            menuItemsMap={allMenuItems}
+            driverShifts={driverShifts.filter((s) => s.driverId === currentDriverProfile.id)}
+            onStartDriverShift={handleStartDriverShift}
+            onEndDriverShift={handleEndDriverShift}
             onLogout={handleLogout}
             onOpenReviewModal={(order) => setReviewModalOrder(order)}
             onExploreFood={() => setCurrentTab('home')}
@@ -629,6 +971,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
         {/* 3. MERCHANT SELLER CENTER SHELL & 4. ENTERPRISE ADMIN BACKOFFICE SHELL */}
         {(isMerchantPortalTab || isAdminPortalTab) && (
           <DashboardPage
+            key={isAdminPortalTab ? 'admin' : selectedMerchant.id}
             currentUser={currentUser}
             activeTab={currentTab}
             onNavigate={(tab) => {
@@ -649,6 +992,9 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
             allDriversList={drivers}
             allUsersList={users}
             onToggleUserStatus={handleToggleUserStatus}
+            deliveryDisputes={deliveryDisputes}
+            onResolveDeliveryDispute={handleResolveDeliveryDispute}
+            onConfirmMerchantPickup={handleConfirmMerchantPickup}
             onOpenMerchantRegisterModal={() => setIsMerchantRegisterModalOpen(true)}
           />
         )}
@@ -695,7 +1041,15 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
           } else if (user.roles.includes('MERCHANT')) {
             setCurrentTab('merchant-orders');
           } else if (user.roles.includes('DRIVER')) {
-            setCurrentTab('driver-orders');
+            const matchedDriver = drivers.find(
+              (d) => d.id === user.driverId || d.userId === user.id,
+            );
+            if (matchedDriver && isDriverProfileVerified(matchedDriver) && matchedDriver.status !== 'OFFLINE') {
+              handleStartDriverShift(matchedDriver);
+            }
+            setCurrentTab(
+              isDriverProfileVerified(matchedDriver) ? 'driver-orders' : 'driver-profile',
+            );
           } else if (currentTab !== 'checkout') {
             setCurrentTab('home');
           }

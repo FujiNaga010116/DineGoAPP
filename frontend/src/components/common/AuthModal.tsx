@@ -73,7 +73,7 @@ const ROLE_CONFIG: Record<
   DRIVER: {
     title: 'Cổng Đối Tác Tài Xế (Mỗi Tài Xế 1 Tài Khoản Riêng)',
     shortLabel: 'Tài xế',
-    subtitle: 'Đăng nhập hoặc đăng ký mới tài khoản tài xế riêng biệt (Biển số, Ví thu nhập & Lộ trình)',
+    subtitle: 'Đăng nhập hoặc tạo tài khoản tài xế gọn nhẹ, sau đó hoàn tất đăng ký xe & hồ sơ để vận chuyển',
     color: '#0284C7',
     bgLight: '#F0F9FF',
     icon: <Bike size={18} />,
@@ -126,13 +126,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [businessLicense, setBusinessLicense] = useState('');
   const [bankName, setBankName] = useState('Vietcombank');
   const [bankAccountNumber, setBankAccountNumber] = useState('');
-
-  // Driver Registration specific fields
-  const [licensePlate, setLicensePlate] = useState('');
-  const [vehicleType, setVehicleType] = useState('Honda Winner X 150cc');
-  const [nationalId, setNationalId] = useState('');
-  const [driverLicenseNumber, setDriverLicenseNumber] = useState('');
-  const [operatingZone, setOperatingZone] = useState('Quận 1, Quận 3, Bình Thạnh');
 
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -305,33 +298,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
 
     if (selectedRole === 'DRIVER') {
-      if (!licensePlate.trim()) {
-        setErrorMsg('Vui lòng nhập Biển số xe đăng ký hành nghề.');
-        return;
-      }
       const newDriverId = `drv-${Date.now()}`;
       const newUserId = `u-driver-${Date.now()}`;
 
+      // Keep account registration lightweight; vehicle & personal KYC are completed in the mandatory onboarding screen
       const newDriverProfile: DriverProfile = {
         id: newDriverId,
         userId: newUserId,
         fullName: fullName.trim(),
         email: regEmail.trim(),
         phoneNumber: regPhone.trim(),
-        licensePlate: licensePlate.trim().toUpperCase(),
-        vehicleType: vehicleType.trim() || 'Honda Winner X 150cc',
-        nationalId: nationalId.trim() || `07909${Date.now().toString().slice(-7)}`,
-        driverLicenseNumber: driverLicenseNumber.trim() || `79019${Date.now().toString().slice(-7)}`,
-        operatingZone: operatingZone.trim() || 'Quận 1, Quận 3, Bình Thạnh',
-        bankName: bankName.trim() || 'Vietcombank',
-        bankAccountNumber: bankAccountNumber.trim() || '0071005566778',
-        bankAccountHolder: fullName.trim().toUpperCase(),
+        licensePlate: '',
+        vehicleType: '',
+        nationalId: '',
+        driverLicenseNumber: '',
+        operatingZone: '',
+        bankName: '',
+        bankAccountNumber: '',
+        bankAccountHolder: '',
         rating: 5.0,
         completedTrips: 0,
         acceptanceRate: '100%',
-        walletBalance: 200000,
-        status: 'ONLINE',
-        kycStatus: 'VERIFIED',
+        walletBalance: 0,
+        status: 'OFFLINE',
+        kycStatus: 'PENDING_APPROVAL',
         joinedAt: nowDate,
       };
 
@@ -341,10 +331,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         password: regPassword,
         fullName: fullName.trim(),
         phoneNumber: regPhone.trim(),
-        address: operatingZone.trim(),
-        bankName: bankName.trim() || 'Vietcombank',
-        bankAccountNumber: bankAccountNumber.trim() || '0071005566778',
-        bankAccountHolder: fullName.trim().toUpperCase(),
+        address: '',
         roles: ['DRIVER'],
         driverId: newDriverId,
         isActive: true,
@@ -714,12 +701,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                             {selectedRole === 'MERCHANT' && linkedMerchant
                               ? `${linkedMerchant.name} — Chủ quán: ${u.fullName}`
                               : selectedRole === 'DRIVER' && linkedDriver
-                              ? `${u.fullName} — Biển số: ${linkedDriver.licensePlate}`
+                              ? `${u.fullName}${linkedDriver.licensePlate ? ` — Biển số: ${linkedDriver.licensePlate}` : ' — Chưa đăng ký xe'}`
                               : u.fullName}
                           </div>
                           <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: 2 }}>
                             TK: <strong>{u.email}</strong> • SĐT: {u.phoneNumber || '—'}
-                            {linkedDriver && ` • Xe: ${linkedDriver.vehicleType}`}
+                            {linkedDriver &&
+                              (linkedDriver.vehicleType
+                                ? ` • Xe: ${linkedDriver.vehicleType}`
+                                : ' • Chưa hoàn tất hồ sơ & xe')}
                             {linkedMerchant && ` • ${linkedMerchant.address}`}
                           </div>
                         </div>
@@ -758,21 +748,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   }}
                 >
                   Mỗi nhà hàng đăng ký mới sẽ được cấp <strong>1 tài khoản quản trị riêng biệt</strong> và gian hàng độc lập trên sàn DineGo.
-                </div>
-              )}
-
-              {selectedRole === 'DRIVER' && (
-                <div
-                  style={{
-                    padding: 12,
-                    borderRadius: 8,
-                    background: '#F0F9FF',
-                    border: '1px solid #BAE6FD',
-                    fontSize: '0.8rem',
-                    color: '#0369A1',
-                  }}
-                >
-                  Bạn có thể đăng ký nhiều tài khoản tài xế khác nhau. Mỗi tài xế có hồ sơ phương tiện, biển số xe và ví thu nhập độc lập.
                 </div>
               )}
 
@@ -855,63 +830,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 />
               </div>
 
-              {selectedRole === 'DRIVER' && (
-                <>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                        Biển số xe đăng ký *
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="VD: 59-S2 688.99"
-                        value={licensePlate}
-                        onChange={(e) => setLicensePlate(e.target.value)}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem' }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                        Loại phương tiện
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="VD: Honda AirBlade 125cc"
-                        value={vehicleType}
-                        onChange={(e) => setVehicleType(e.target.value)}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem' }}
-                      />
-                    </div>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                        Số CCCD / Định danh
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="079095001234"
-                        value={nationalId}
-                        onChange={(e) => setNationalId(e.target.value)}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem' }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                        Khu vực hoạt động
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Quận 1, Quận 3, Bình Thạnh"
-                        value={operatingZone}
-                        onChange={(e) => setOperatingZone(e.target.value)}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem' }}
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
-
               {selectedRole === 'MERCHANT' && (
                 <div>
                   <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
@@ -941,7 +859,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
               )}
 
-              {(selectedRole === 'MERCHANT' || selectedRole === 'DRIVER') && (
+              {selectedRole === 'DRIVER' && (
+                <div style={{
+                  padding: '9px 12px',
+                  borderRadius: 8,
+                  background: '#F0F9FF',
+                  border: '1px solid #BAE6FD',
+                  color: '#0369A1',
+                  fontSize: '0.78rem',
+                  lineHeight: 1.45,
+                }}>
+                  Sau khi tạo tài khoản xong, bạn sẽ được chuyển thẳng vào màn hình bắt buộc để hoàn tất thủ tục đăng ký xe &amp; thông tin cá nhân (CCCD, GPLX, biển số xe, tài khoản ngân hàng) trước khi được phép vận chuyển hàng.
+                </div>
+              )}
+
+              {selectedRole === 'MERCHANT' && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>

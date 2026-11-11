@@ -39,12 +39,9 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
   const [fullName, setFullName] = useState(currentUser?.fullName || '');
   const [email, setEmail] = useState(currentUser?.email || '');
   const [phoneNumber, setPhoneNumber] = useState(currentUser?.phoneNumber || '');
-  const [dateOfBirth, setDateOfBirth] = useState(currentUser?.dateOfBirth || '1996-05-15');
+  const [dateOfBirth, setDateOfBirth] = useState(currentUser?.dateOfBirth || '');
   const [gender, setGender] = useState<'Nam' | 'Nữ' | 'Khác'>(currentUser?.gender || 'Nam');
-  const [avatarUrl, setAvatarUrl] = useState(
-    currentUser?.avatarUrl ||
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-  );
+  const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUrl || '');
 
   // Payment Bank Info Form
   const [bankName, setBankName] = useState(currentUser?.bankName || '');
@@ -335,11 +332,37 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 16, borderBottom: '1px solid #F1F5F9', marginBottom: 14 }}>
-            <img
-              src={avatarUrl}
-              alt={currentUser.fullName}
-              style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', border: '2px solid #00B14F' }}
-            />
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={currentUser.fullName}
+                style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', border: '2px solid #00B14F' }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: '50%',
+                  background: '#00B14F',
+                  color: '#FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 800,
+                  fontSize: '1rem',
+                  border: '2px solid #A7F3D0',
+                  flexShrink: 0,
+                }}
+              >
+                {(currentUser.fullName || 'KH')
+                  .trim()
+                  .split(/\s+/)
+                  .slice(-2)
+                  .map((w) => w[0]?.toUpperCase() || '')
+                  .join('') || 'KH'}
+              </div>
+            )}
             <div style={{ minWidth: 0 }}>
               <div style={{ fontWeight: 800, fontSize: '0.96rem', color: '#0F172A' }}>{currentUser.fullName}</div>
               <div style={{ fontSize: '0.76rem', color: '#64748B', wordBreak: 'break-all' }}>{currentUser.email}</div>

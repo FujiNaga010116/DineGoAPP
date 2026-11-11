@@ -156,7 +156,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
     }
     setIsSubmitting(true);
 
-    const matchedMerchant = merchants?.find((m) => m.id === cart.merchantId);
+    const matchedMerchant =
+      merchants?.find((m) => m.id === cart.merchantId) ||
+      merchants?.find((m) => m.name === cart.merchantName);
     const orderNumber = `DG20261103-${Math.random().toString(16).substring(2, 8).toUpperCase()}`;
     const newOrder: Order = {
       id: `ord-${Date.now()}`,
@@ -176,10 +178,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       customerNote: customerNote || null,
       createdAt: new Date().toISOString(),
       merchant: {
-        id: cart.merchantId || '',
+        id: cart.merchantId || matchedMerchant?.id || '',
         name: matchedMerchant?.name || cart.merchantName || 'Nhà hàng DineGo',
         address: matchedMerchant?.address || 'Địa chỉ quán',
         phoneNumber: matchedMerchant?.phoneNumber || '0901234567',
+        logoUrl: matchedMerchant?.logoUrl || null,
         latitude: matchedMerchant?.latitude,
         longitude: matchedMerchant?.longitude,
       },

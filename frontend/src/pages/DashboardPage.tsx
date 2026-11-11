@@ -37,8 +37,10 @@ import {
   Sliders,
   DollarSign,
   AlertTriangle,
+  Camera,
+  Phone,
 } from 'lucide-react';
-import type { Role, User, Order, OrderStatus, MenuItem, Merchant, DriverProfile } from '../types';
+import type { Role, User, Order, OrderStatus, MenuItem, Merchant, DriverProfile, DeliveryDisputeReport } from '../types';
 import type { NavTab } from '../components/common/Header';
 
 interface DashboardPageProps {
@@ -61,6 +63,13 @@ interface DashboardPageProps {
   onToggleUserStatus?: (userId: string) => void;
   onSelectMerchantForManage?: (merchant: Merchant) => void;
   onOpenMerchantRegisterModal?: () => void;
+  deliveryDisputes?: DeliveryDisputeReport[];
+  onResolveDeliveryDispute?: (
+    reportId: string,
+    decision: 'COMPENSATED_DRIVER' | 'REJECTED',
+    adminNote?: string,
+  ) => void;
+  onConfirmMerchantPickup?: (orderId: string) => void;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
@@ -83,6 +92,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onToggleUserStatus,
   onSelectMerchantForManage,
   onOpenMerchantRegisterModal,
+  deliveryDisputes = [],
+  onResolveDeliveryDispute,
+  onConfirmMerchantPickup,
 }) => {
   const isAdminRole = currentUser?.roles?.includes('ADMIN') || activeTab.startsWith('admin-');
 
@@ -95,6 +107,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [userRoleFilter, setUserRoleFilter] = useState<'ALL' | 'CUSTOMER' | 'MERCHANT' | 'DRIVER' | 'ADMIN'>('ALL');
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [configSavedBanner, setConfigSavedBanner] = useState('');
+  const [previewDisputeImg, setPreviewDisputeImg] = useState<string | null>(null);
 
   // Merchant Active Section
   const currentMerchantTab:
@@ -206,41 +219,49 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     setIsDishModalOpen(false);
   };
 
-  // Merchant Catering Bookings & Calendar State
-  const [feastBookings, setFeastBookings] = useState([
-    {
-      id: 'fb-01',
-      bookingCode: 'DG-FEAST-8821',
-      customerName: 'Nguyễn Minh Quân (Công ty TNHH VinaTech)',
-      customerPhone: '0908112233',
-      packageName: 'Mâm Tiệc Tân Niên Đoàn Viên (10 người/bàn)',
-      tableCount: 5,
-      eventDate: '2026-11-15',
-      eventTime: '18:30',
-      address: 'Tầng 8, Tòa nhà Saigon Centre, 65 Lê Lợi, Quận 1, TP. HCM',
-      totalAmount: 17500000,
-      depositAmount: 5250000,
-      status: 'PENDING_APPROVAL' as 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED',
-      depositPaid: true,
-    },
-    {
-      id: 'fb-02',
-      bookingCode: 'DG-FEAST-8819',
-      customerName: 'Trần Ngọc Lan',
-      customerPhone: '0912334455',
-      packageName: 'Buffet Finger Food & BBQ Sân Vườn (30 khách)',
-      tableCount: 3,
-      eventDate: '2026-11-20',
-      eventTime: '11:30',
-      address: 'Biệt thự B12 Thảo Điền, TP. Thủ Đức, TP. HCM',
-      totalAmount: 13500000,
-      depositAmount: 4050000,
-      status: 'APPROVED' as 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED',
-      depositPaid: true,
-    },
-  ]);
+  const isSeedDemoMerchant = currentMerchant?.id === 'merchant-com-tam';
 
-  const [blockedDates, setBlockedDates] = useState<string[]>(['2026-11-22', '2026-11-29']);
+  // Merchant Catering Bookings & Calendar State (only seed merchant has sample history; new accounts start empty)
+  const [feastBookings, setFeastBookings] = useState(() =>
+    isSeedDemoMerchant
+      ? [
+          {
+            id: 'fb-01',
+            bookingCode: 'DG-FEAST-8821',
+            customerName: 'Nguyễn Minh Quân (Công ty TNHH VinaTech)',
+            customerPhone: '0908112233',
+            packageName: 'Mâm Tiệc Tân Niên Đoàn Viên (10 người/bàn)',
+            tableCount: 5,
+            eventDate: '2026-11-15',
+            eventTime: '18:30',
+            address: 'Tầng 8, Tòa nhà Saigon Centre, 65 Lê Lợi, Quận 1, TP. HCM',
+            totalAmount: 17500000,
+            depositAmount: 5250000,
+            status: 'PENDING_APPROVAL' as 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED',
+            depositPaid: true,
+          },
+          {
+            id: 'fb-02',
+            bookingCode: 'DG-FEAST-8819',
+            customerName: 'Trần Ngọc Lan',
+            customerPhone: '0912334455',
+            packageName: 'Buffet Finger Food & BBQ Sân Vườn (30 khách)',
+            tableCount: 3,
+            eventDate: '2026-11-20',
+            eventTime: '11:30',
+            address: 'Biệt thự B12 Thảo Điền, TP. Thủ Đức, TP. HCM',
+            totalAmount: 13500000,
+            depositAmount: 4050000,
+            status: 'APPROVED' as 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED',
+            depositPaid: true,
+          },
+        ]
+      : [],
+  );
+
+  const [blockedDates, setBlockedDates] = useState<string[]>(() =>
+    isSeedDemoMerchant ? ['2026-11-22', '2026-11-29'] : [],
+  );
 
   const toggleBlockedDate = (dateStr: string) => {
     setBlockedDates((prev) =>
@@ -248,22 +269,64 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     );
   };
 
-  // Merchant Revenue State
-  const [merchantRevenue] = useState({
-    merchantName: 'Cơm Tấm Sài Gòn 1985',
-    totalRevenue: 28500000,
-    platformCommission: 4275000,
-    netPayout: 24225000,
-    completedOrders: 184,
-    cancelledOrders: 6,
-    averageOrderValue: 154800,
-    topDishes: [
-      { sku: 'MN-001', name: 'Cơm Tấm Sườn Cọng Nướng Than', quantity: 94, unitPrice: 65000, totalSales: 6110000 },
-      { sku: 'MN-002', name: 'Cơm Tấm Ba Rọi Nướng Mật Ong', quantity: 52, unitPrice: 60000, totalSales: 3120000 },
-      { sku: 'MN-003', name: 'Chả Trứng Hấp Đặc Biệt', quantity: 48, unitPrice: 20000, totalSales: 960000 },
-      { sku: 'MN-004', name: 'Trứng Ốp La Lòng Đào', quantity: 110, unitPrice: 10000, totalSales: 1100000 },
-    ],
+  // Merchant Revenue State computed from actual orders for new accounts (seed merchant retains showcase summary if no live orders)
+  const completedMerchantOrders = orders.filter((o) => o.status === 'COMPLETED');
+  const computedMerchantRevenue = completedMerchantOrders.reduce(
+    (sum, o) => sum + (o.subtotal || 0),
+    0,
+  );
+  const dishSalesMap: Record<
+    string,
+    { sku: string; name: string; quantity: number; unitPrice: number; totalSales: number }
+  > = {};
+  completedMerchantOrders.forEach((o) => {
+    o.items.forEach((item, idx) => {
+      const key = item.itemName;
+      if (!dishSalesMap[key]) {
+        dishSalesMap[key] = {
+          sku: `MN-${String(idx + 1).padStart(3, '0')}`,
+          name: item.itemName,
+          quantity: 0,
+          unitPrice: item.basePrice,
+          totalSales: 0,
+        };
+      }
+      dishSalesMap[key].quantity += item.quantity;
+      dishSalesMap[key].totalSales += item.subtotal;
+    });
   });
+  const dynamicTopDishes = Object.values(dishSalesMap).sort((a, b) => b.totalSales - a.totalSales);
+
+  const merchantRevenue =
+    isSeedDemoMerchant && completedMerchantOrders.length === 0
+      ? {
+          merchantName: currentMerchant?.name || 'Cơm Tấm Sài Gòn 1985',
+          totalRevenue: 28500000,
+          platformCommission: 4275000,
+          netPayout: 24225000,
+          completedOrders: 184,
+          cancelledOrders: 6,
+          averageOrderValue: 154800,
+          topDishes: [
+            { sku: 'MN-001', name: 'Cơm Tấm Sườn Cọng Nướng Than', quantity: 94, unitPrice: 65000, totalSales: 6110000 },
+            { sku: 'MN-002', name: 'Cơm Tấm Ba Rọi Nướng Mật Ong', quantity: 52, unitPrice: 60000, totalSales: 3120000 },
+            { sku: 'MN-003', name: 'Chả Trứng Hấp Đặc Biệt', quantity: 48, unitPrice: 20000, totalSales: 960000 },
+            { sku: 'MN-004', name: 'Trứng Ốp La Lòng Đào', quantity: 110, unitPrice: 10000, totalSales: 1100000 },
+          ],
+        }
+      : {
+          merchantName: currentMerchant?.name || 'Gian hàng',
+          totalRevenue: computedMerchantRevenue,
+          platformCommission: Math.round(computedMerchantRevenue * 0.15),
+          netPayout: computedMerchantRevenue - Math.round(computedMerchantRevenue * 0.15),
+          completedOrders: completedMerchantOrders.length,
+          cancelledOrders: orders.filter((o) => o.status === 'CANCELLED').length,
+          averageOrderValue:
+            completedMerchantOrders.length > 0
+              ? Math.round(computedMerchantRevenue / completedMerchantOrders.length)
+              : 0,
+          topDishes: dynamicTopDishes,
+        };
 
   // Admin System State
   const [adminSystem] = useState({
@@ -495,26 +558,30 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   };
 
   // Merchant Reviews & Replies State
-  const [reviews, setReviews] = useState([
-    {
-      id: 'rev-01',
-      customerName: 'Trần Thị Bình',
-      orderRef: 'DG20261102-8812',
-      rating: 5,
-      comment: 'Cơm sườn ngon, miếng sườn dày ướp vừa miệng. Đóng gói hộp giấy sạch sẽ.',
-      reply: 'Cơm Tấm Sài Gòn 1985 cảm ơn quý khách đã ủng hộ. Hẹn gặp lại bạn ở những đơn tiếp theo!',
-      date: '03/11/2026',
-    },
-    {
-      id: 'rev-02',
-      customerName: 'Phạm Minh Tuấn',
-      orderRef: 'DG20261101-4409',
-      rating: 4,
-      comment: 'Đồ ăn nóng hổi nhưng lần sau quán nhớ cho thêm 1 gói nước mắm ớt riêng nhé.',
-      reply: null as string | null,
-      date: '02/11/2026',
-    },
-  ]);
+  const [reviews, setReviews] = useState(() =>
+    isSeedDemoMerchant
+      ? [
+          {
+            id: 'rev-01',
+            customerName: 'Trần Thị Bình',
+            orderRef: 'DG20261102-8812',
+            rating: 5,
+            comment: 'Cơm sườn ngon, miếng sườn dày ướp vừa miệng. Đóng gói hộp giấy sạch sẽ.',
+            reply: 'Cơm Tấm Sài Gòn 1985 cảm ơn quý khách đã ủng hộ. Hẹn gặp lại bạn ở những đơn tiếp theo!',
+            date: '03/11/2026',
+          },
+          {
+            id: 'rev-02',
+            customerName: 'Phạm Minh Tuấn',
+            orderRef: 'DG20261101-4409',
+            rating: 4,
+            comment: 'Đồ ăn nóng hổi nhưng lần sau quán nhớ cho thêm 1 gói nước mắm ớt riêng nhé.',
+            reply: null as string | null,
+            date: '02/11/2026',
+          },
+        ]
+      : [],
+  );
 
   const [replyInput, setReplyInput] = useState<{ [key: string]: string }>({});
 
@@ -591,9 +658,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               { id: 'admin-users' as NavTab, label: 'Người dùng & Phân quyền', icon: <UsersIcon size={17} /> },
               {
                 id: 'admin-complaints' as NavTab,
-                label: 'Khiếu nại & Hoàn tiền',
+                label: 'Khiếu nại & Bom hàng',
                 icon: <MessageSquare size={17} />,
-                badge: complaints.filter((c) => c.status === 'OPEN').length,
+                badge:
+                  complaints.filter((c) => c.status === 'OPEN').length +
+                  deliveryDisputes.filter((d) => d.status === 'PENDING_REVIEW').length,
               },
               { id: 'admin-reconciliation' as NavTab, label: 'Đối soát & Khuyến mãi', icon: <FileSpreadsheet size={17} /> },
               { id: 'admin-settings' as NavTab, label: 'Can thiệp & Cấu hình sàn', icon: <Sliders size={17} /> },
@@ -1113,7 +1182,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
             {/* ADMIN TAB 4: COMPLAINTS & DISPUTES */}
             {currentAdminTab === 'admin-complaints' && (
-              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
                 <div style={{ padding: '18px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <h3 style={{ fontSize: '1.02rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
@@ -1210,6 +1280,219 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       ))}
                     </tbody>
                   </table>
+                </div>
+              </div>
+
+                {/* DRIVER DELIVERY DISPUTES (BOM HÀNG) & EVIDENCE VERIFICATION */}
+                <div style={{ background: '#FFFFFF', border: '1px solid #FECACA', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(220,38,38,0.05)' }}>
+                  <div style={{ padding: '18px 24px', borderBottom: '1px solid #FEE2E2', background: '#FEF2F2', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <AlertTriangle size={20} color="#DC2626" />
+                      <div>
+                        <h3 style={{ fontSize: '1.02rem', fontWeight: 800, color: '#7F1D1D', margin: 0 }}>
+                          Hồ sơ Tài xế Tố Cáo Khách Bom Hàng & Bằng Chứng Hiện Trường ({deliveryDisputes.length})
+                        </h3>
+                        <p style={{ fontSize: '0.8rem', color: '#991B1B', margin: '3px 0 0 0' }}>
+                          Đối chiếu nhật ký cuộc gọi, ảnh chụp hiện trường, tọa độ GPS tại điểm giao và duyệt bồi hoàn cước cho Shipper
+                        </p>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#B91C1C', background: '#FFFFFF', border: '1px solid #FECACA', padding: '5px 14px', borderRadius: 6 }}>
+                      {deliveryDisputes.filter((d) => d.status === 'PENDING_REVIEW').length} hồ sơ chờ duyệt
+                    </span>
+                  </div>
+
+                  {deliveryDisputes.length === 0 ? (
+                    <div style={{ padding: '32px 24px', textAlign: 'center', color: '#64748B', fontSize: '0.88rem' }}>
+                      Chưa có hồ sơ tố cáo bom hàng nào từ tài xế.
+                    </div>
+                  ) : (
+                    <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      {deliveryDisputes.map((disp) => {
+                        const isPending = disp.status === 'PENDING_REVIEW';
+                        const isCompensated = disp.status === 'COMPENSATED_DRIVER';
+                        const statusBg = isPending ? '#FEF3C7' : isCompensated ? '#DCFCE7' : '#FEE2E2';
+                        const statusColor = isPending ? '#B45309' : isCompensated ? '#15803D' : '#B91C1C';
+                        const statusLabel = isPending
+                          ? 'Chờ thẩm định'
+                          : isCompensated
+                            ? 'Đã duyệt & Bồi hoàn'
+                            : 'Đã từ chối';
+
+                        return (
+                          <div
+                            key={disp.id}
+                            style={{
+                              border: '1px solid #E2E8F0',
+                              borderRadius: 10,
+                              padding: 18,
+                              background: '#F8FAFC',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 14,
+                            }}
+                          >
+                            {/* Top Meta Row */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.94rem' }}>{disp.reportCode}</span>
+                                <span style={{ padding: '3px 10px', borderRadius: 999, fontSize: '0.74rem', fontWeight: 700, background: statusBg, color: statusColor }}>
+                                  {statusLabel}
+                                </span>
+                                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569' }}>
+                                  Đơn #{disp.orderNumber} • {disp.merchantName}
+                                </span>
+                              </div>
+                              <span style={{ fontSize: '0.78rem', color: '#64748B' }}>
+                                Gửi lúc: {new Date(disp.createdAt).toLocaleString('vi-VN')}
+                              </span>
+                            </div>
+
+                            {/* Driver, Customer & Field Proof Grid */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, fontSize: '0.82rem' }}>
+                              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 12px' }}>
+                                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Tài xế báo cáo</div>
+                                <div style={{ fontWeight: 700, color: '#0F172A', marginTop: 3 }}>{disp.driverName}</div>
+                                <div style={{ color: '#475569', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                                  <Phone size={12} /> {disp.driverPhone}
+                                </div>
+                              </div>
+
+                              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 12px' }}>
+                                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Khách hàng & Điểm giao</div>
+                                <div style={{ fontWeight: 700, color: '#0F172A', marginTop: 3 }}>{disp.customerName} ({disp.customerPhone})</div>
+                                <div style={{ color: '#475569', display: 'flex', alignItems: 'flex-start', gap: 4, marginTop: 2 }}>
+                                  <MapPin size={12} style={{ flexShrink: 0, marginTop: 2 }} />
+                                  <span>{disp.deliveryAddress}</span>
+                                </div>
+                              </div>
+
+                              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 12px' }}>
+                                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Lý do & Đối chứng liên hệ</div>
+                                <div style={{ fontWeight: 700, color: '#DC2626', marginTop: 3 }}>{disp.reasonLabel}</div>
+                                <div style={{ color: '#475569', display: 'flex', alignItems: 'center', gap: 10, marginTop: 3, flexWrap: 'wrap' }}>
+                                  <span>Gọi: <strong>{disp.callAttemptsCount} lần</strong></span>
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                    <Clock size={12} /> Chờ: <strong>{disp.waitMinutes} phút</strong>
+                                  </span>
+                                </div>
+                                {disp.gpsSnapshot && (
+                                  <div style={{ marginTop: 4, fontSize: '0.75rem', color: '#0F766E', fontWeight: 600 }}>
+                                    GPS: {disp.gpsSnapshot.lat.toFixed(5)}, {disp.gpsSnapshot.lng.toFixed(5)} (cách điểm giao {(disp.gpsSnapshot.distanceToCustomerKm * 1000).toFixed(0)}m)
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Description */}
+                            <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 14px', fontSize: '0.83rem', color: '#334155', lineHeight: 1.5 }}>
+                              <strong style={{ color: '#0F172A' }}>Tường trình hiện trường:</strong> {disp.description}
+                            </div>
+
+                            {/* Evidence Images Strip */}
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 8 }}>
+                                <Camera size={14} /> Bằng chứng hình ảnh đính kèm ({disp.evidenceImages.length})
+                              </div>
+                              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                {disp.evidenceImages.map((imgUrl, idx) => (
+                                  <button
+                                    key={`${disp.id}-img-${idx}`}
+                                    type="button"
+                                    onClick={() => setPreviewDisputeImg(imgUrl)}
+                                    style={{
+                                      padding: 0,
+                                      border: '2px solid #CBD5E1',
+                                      borderRadius: 8,
+                                      overflow: 'hidden',
+                                      width: 88,
+                                      height: 88,
+                                      cursor: 'pointer',
+                                      background: '#FFFFFF',
+                                    }}
+                                    title="Bấm để phóng to bằng chứng"
+                                  >
+                                    <img
+                                      src={imgUrl}
+                                      alt={`Bằng chứng ${idx + 1} - ${disp.reportCode}`}
+                                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                    />
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Order Totals & Admin Action Row */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, paddingTop: 10, borderTop: '1px solid #E2E8F0' }}>
+                              <div style={{ fontSize: '0.82rem', color: '#475569', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                                <span>Giá trị đơn: <strong style={{ color: '#0F172A' }}>{disp.orderTotal.toLocaleString('vi-VN')}đ</strong> ({disp.paymentMethod})</span>
+                                <span>Đề xuất bồi hoàn tài xế: <strong style={{ color: '#059669' }}>+{(disp.compensationAmount || 15000).toLocaleString('vi-VN')}đ</strong></span>
+                              </div>
+
+                              {isPending ? (
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      onResolveDeliveryDispute?.(
+                                        disp.id,
+                                        'COMPENSATED_DRIVER',
+                                        'Admin đã xác minh ảnh hiện trường & tọa độ GPS tài xế — duyệt bồi hoàn cước.',
+                                      )
+                                    }
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 6,
+                                      padding: '7px 14px',
+                                      borderRadius: 6,
+                                      background: '#059669',
+                                      color: '#FFFFFF',
+                                      fontSize: '0.8rem',
+                                      fontWeight: 700,
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <CheckCircle2 size={15} /> Duyệt & Bồi hoàn +{(disp.compensationAmount || 15000).toLocaleString('vi-VN')}đ
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      onResolveDeliveryDispute?.(
+                                        disp.id,
+                                        'REJECTED',
+                                        'Bằng chứng hiện trường chưa đủ căn cứ xác nhận khách bom hàng.',
+                                      )
+                                    }
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 6,
+                                      padding: '7px 14px',
+                                      borderRadius: 6,
+                                      background: '#FEE2E2',
+                                      color: '#DC2626',
+                                      fontSize: '0.8rem',
+                                      fontWeight: 700,
+                                      border: '1px solid #FECACA',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <XCircle size={15} /> Từ chối
+                                  </button>
+                                </div>
+                              ) : (
+                                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>
+                                  {disp.adminNote || 'Đã xử lý'}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1773,6 +2056,69 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             )}
           </div>
         </div>
+
+        {/* Lightbox Preview for Driver Evidence Photos */}
+        {previewDisputeImg && (
+          <div
+            onClick={() => setPreviewDisputeImg(null)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(15, 23, 42, 0.82)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1200,
+              padding: 20,
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: 'relative',
+                maxWidth: '90vw',
+                maxHeight: '88vh',
+                background: '#FFFFFF',
+                borderRadius: 14,
+                padding: 12,
+                boxShadow: '0 24px 60px rgba(0,0,0,0.45)',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setPreviewDisputeImg(null)}
+                style={{
+                  position: 'absolute',
+                  top: -12,
+                  right: -12,
+                  width: 34,
+                  height: 34,
+                  borderRadius: '50%',
+                  background: '#0F172A',
+                  color: '#FFFFFF',
+                  border: '2px solid #FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={18} />
+              </button>
+              <img
+                src={previewDisputeImg}
+                alt="Bằng chứng hiện trường tài xế"
+                style={{
+                  maxWidth: '84vw',
+                  maxHeight: '80vh',
+                  borderRadius: 10,
+                  display: 'block',
+                  objectFit: 'contain',
+                }}
+              />
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1854,13 +2200,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               Gian hàng độc lập
             </div>
             <div style={{ fontWeight: 800, fontSize: '0.94rem', color: '#0F172A', lineHeight: 1.3 }}>
-              {currentMerchant?.name || 'Cơm Tấm Sài Gòn 1985'}
+              {currentMerchant?.name || 'Gian hàng của bạn'}
             </div>
             <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 4 }}>
-              Chủ quán: <strong>{currentMerchant?.ownerName || currentUser?.fullName || 'Võ Thị Bích Thủy'}</strong>
+              Chủ quán: <strong>{currentMerchant?.ownerName || currentUser?.fullName || 'Chưa cập nhật'}</strong>
             </div>
             <div style={{ fontSize: '0.72rem', color: '#94A3B8', marginTop: 1 }}>
-              TK: {currentMerchant?.ownerEmail || currentUser?.email || 'comtam1985@dinego.vn'}
+              TK: {currentMerchant?.ownerEmail || currentUser?.email || 'Chưa cập nhật'}
             </div>
           </div>
         </div>
@@ -2216,7 +2562,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                   order.status === 'PREPARING'
                                     ? '#FEF3C7'
                                     : order.status === 'READY_FOR_PICKUP'
-                                    ? '#DCFCE7'
+                                    ? order.merchantConfirmedPickup
+                                      ? '#DCFCE7'
+                                      : '#FEF3C7'
+                                    : order.status === 'CANCELLED'
+                                    ? '#FEE2E2'
                                     : order.status === 'COMPLETED'
                                     ? '#F1F5F9'
                                     : '#DBEAFE',
@@ -2224,7 +2574,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                   order.status === 'PREPARING'
                                     ? '#B45309'
                                     : order.status === 'READY_FOR_PICKUP'
-                                    ? '#15803D'
+                                    ? order.merchantConfirmedPickup
+                                      ? '#15803D'
+                                      : '#B45309'
+                                    : order.status === 'CANCELLED'
+                                    ? '#DC2626'
                                     : order.status === 'COMPLETED'
                                     ? '#475569'
                                     : '#1D4ED8',
@@ -2235,9 +2589,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                 : order.status === 'PREPARING'
                                 ? 'Bếp đang chế biến'
                                 : order.status === 'READY_FOR_PICKUP'
-                                ? 'Chờ tài xế nhận món'
+                                ? order.merchantConfirmedPickup
+                                  ? 'Đã bàn giao • Chờ Tài xế bấm lấy món'
+                                  : 'Món đã xong • Chờ bấm bàn giao Tài xế'
                                 : order.status === 'DELIVERING'
                                 ? 'Tài xế đang giao'
+                                : order.status === 'CANCELLED'
+                                ? 'Đã hủy'
                                 : 'Đã hoàn tất'}
                             </span>
                             <span style={{ fontSize: '0.8rem', color: '#64748B' }}>
@@ -2328,8 +2686,60 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                           </div>
                         </div>
 
+                        {/* Driver Arrival / Pickup Handover Status Strip */}
+                        {order.status !== 'COMPLETED' &&
+                          order.status !== 'CANCELLED' &&
+                          order.status !== 'DELIVERING' &&
+                          (order.assignedDriverName || order.status === 'READY_FOR_PICKUP') && (
+                            <div
+                              style={{
+                                marginBottom: 12,
+                                padding: '9px 14px',
+                                borderRadius: 8,
+                                background: order.driverArrivedAtStore
+                                  ? '#ECFDF5'
+                                  : order.assignedDriverName
+                                  ? '#F0F9FF'
+                                  : '#FFFBEB',
+                                border: `1px solid ${
+                                  order.driverArrivedAtStore
+                                    ? '#86EFAC'
+                                    : order.assignedDriverName
+                                    ? '#BAE6FD'
+                                    : '#FDE68A'
+                                }`,
+                                fontSize: '0.8rem',
+                                fontWeight: 700,
+                                color: order.driverArrivedAtStore
+                                  ? '#065F46'
+                                  : order.assignedDriverName
+                                  ? '#0369A1'
+                                  : '#92400E',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                flexWrap: 'wrap',
+                                gap: 8,
+                              }}
+                            >
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                <Bike size={15} />
+                                {order.driverArrivedAtStore
+                                  ? `Tài xế ${order.assignedDriverName || 'Shipper'} ĐÃ ĐẾN QUÁN chờ nhận món`
+                                  : order.assignedDriverName
+                                  ? `Tài xế ${order.assignedDriverName} đã nhận chuyến và đang trên đường tới quán`
+                                  : 'Đang chờ tài xế nhận đơn quanh khu vực'}
+                              </span>
+                              {order.status === 'READY_FOR_PICKUP' && !order.merchantConfirmedPickup && (
+                                <span style={{ fontSize: '0.75rem', color: '#B45309' }}>
+                                  Bấm &ldquo;Xác nhận bàn giao món&rdquo; để mở khóa nút lấy hàng cho Tài xế
+                                </span>
+                              )}
+                            </div>
+                          )}
+
                         {/* Action Bar */}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
                           {(order.status === 'PENDING' || order.status === 'CONFIRMED') && (
                             <>
                               <button
@@ -2357,7 +2767,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                   fontWeight: 700,
                                 }}
                               >
-                                Nhận đơn & Chuyển vào bếp
+                                Nhận đơn &amp; Chuyển vào bếp
                               </button>
                             </>
                           )}
@@ -2374,8 +2784,61 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                 fontWeight: 700,
                               }}
                             >
-                              Xác nhận hoàn tất món • Bàn giao Tài xế
+                              Xác nhận xong món • Chờ bàn giao Tài xế
                             </button>
+                          )}
+
+                          {order.status === 'READY_FOR_PICKUP' && !order.merchantConfirmedPickup && (
+                            <button
+                              type="button"
+                              onClick={() => onConfirmMerchantPickup?.(order.id)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 7,
+                                padding: '9px 20px',
+                                borderRadius: 8,
+                                background: '#00B14F',
+                                color: '#FFFFFF',
+                                fontSize: '0.86rem',
+                                fontWeight: 800,
+                                border: 'none',
+                                cursor: 'pointer',
+                                boxShadow: '0 4px 12px rgba(0, 177, 79, 0.25)',
+                              }}
+                            >
+                              <CheckCircle2 size={16} />
+                              <span>Xác nhận bàn giao món cho Tài xế</span>
+                            </button>
+                          )}
+
+                          {order.status === 'READY_FOR_PICKUP' && order.merchantConfirmedPickup && (
+                            <div
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 7,
+                                padding: '8px 14px',
+                                borderRadius: 8,
+                                background: '#DCFCE7',
+                                border: '1px solid #86EFAC',
+                                color: '#15803D',
+                                fontSize: '0.82rem',
+                                fontWeight: 700,
+                              }}
+                            >
+                              <CheckCircle2 size={15} />
+                              <span>
+                                Đã xác nhận bàn giao món
+                                {order.merchantConfirmedPickupAt
+                                  ? ` lúc ${new Date(order.merchantConfirmedPickupAt).toLocaleTimeString('vi-VN', {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}`
+                                  : ''}{' '}
+                                — Đã mở khóa nút lấy món cho Tài xế
+                              </span>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -2587,7 +3050,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       </tr>
                     </thead>
                     <tbody>
-                      {feastBookings.map((fb) => (
+                      {feastBookings.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} style={{ padding: '32px 18px', textAlign: 'center', color: '#64748B' }}>
+                            Chưa có hợp đồng đặt tiệc nào cho gian hàng này.
+                          </td>
+                        </tr>
+                      ) : (
+                      feastBookings.map((fb) => (
                         <tr key={fb.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
                           <td style={{ padding: '14px 18px', fontWeight: 700, color: '#0F172A' }}>#{fb.bookingCode}</td>
                           <td style={{ padding: '14px 18px' }}>
@@ -2662,7 +3132,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                             )}
                           </td>
                         </tr>
-                      ))}
+                      ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -2740,22 +3211,27 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '18px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                   <div style={{ fontSize: '0.76rem', color: '#64748B', fontWeight: 600 }}>LỆNH RÚT DOANH THU</div>
                   <button
+                    disabled={merchantRevenue.netPayout <= 0}
                     onClick={() => setMerchantWithdrawSuccess(true)}
                     style={{
                       marginTop: 8,
                       padding: '9px 14px',
                       borderRadius: 6,
-                      background: '#0F172A',
-                      color: '#FFFFFF',
+                      background: merchantRevenue.netPayout > 0 ? '#0F172A' : '#E2E8F0',
+                      color: merchantRevenue.netPayout > 0 ? '#FFFFFF' : '#94A3B8',
                       fontSize: '0.8rem',
                       fontWeight: 700,
+                      cursor: merchantRevenue.netPayout > 0 ? 'pointer' : 'not-allowed',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: 6,
                     }}
                   >
-                    <ArrowUpRight size={15} /> {merchantWithdrawSuccess ? 'Đã gửi yêu cầu rút tiền' : 'Rút về Vietcombank'}
+                    <ArrowUpRight size={15} />{' '}
+                    {merchantWithdrawSuccess
+                      ? 'Đã gửi yêu cầu rút tiền'
+                      : `Rút về ${currentMerchant?.bankName || 'Ngân hàng'}`}
                   </button>
                 </div>
               </div>
@@ -2778,7 +3254,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       </tr>
                     </thead>
                     <tbody>
-                      {merchantRevenue.topDishes.map((dish, i) => (
+                      {merchantRevenue.topDishes.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} style={{ padding: '28px 16px', textAlign: 'center', color: '#64748B' }}>
+                            Chưa có món ăn nào phát sinh doanh thu hoàn tất.
+                          </td>
+                        </tr>
+                      ) : (
+                      merchantRevenue.topDishes.map((dish, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid #F1F5F9' }}>
                           <td style={{ padding: '12px 16px', color: '#64748B', fontWeight: 600 }}>{dish.sku}</td>
                           <td style={{ padding: '12px 16px', fontWeight: 700, color: '#0F172A' }}>{dish.name}</td>
@@ -2787,7 +3270,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                             {dish.totalSales.toLocaleString('vi-VN')}đ
                           </td>
                         </tr>
-                      ))}
+                      ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -2798,7 +3282,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     Phản hồi đánh giá từ thực khách
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                    {reviews.map((rev) => (
+                    {reviews.length === 0 ? (
+                      <div style={{ padding: '28px 16px', textAlign: 'center', color: '#64748B', fontSize: '0.86rem' }}>
+                        Chưa có đánh giá nào từ thực khách.
+                      </div>
+                    ) : (
+                    reviews.map((rev) => (
                       <div key={rev.id} style={{ padding: 14, borderRadius: 8, background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                           <span style={{ fontWeight: 700, fontSize: '0.86rem', color: '#0F172A' }}>
@@ -2829,7 +3318,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                           </div>
                         )}
                       </div>
-                    ))}
+                    ))
+                    )}
                   </div>
                 </div>
               </div>
@@ -2862,7 +3352,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     <input
                       type="text"
                       readOnly
-                      value={currentMerchant?.name || 'Cơm Tấm Sài Gòn 1985'}
+                      value={currentMerchant?.name || 'Chưa cập nhật'}
                       style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#F8FAFC', fontWeight: 700 }}
                     />
                   </div>
@@ -2873,7 +3363,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     <input
                       type="text"
                       readOnly
-                      value={currentMerchant?.ownerName || 'Võ Thị Bích Thủy'}
+                      value={currentMerchant?.ownerName || currentUser?.fullName || 'Chưa cập nhật'}
                       style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#F8FAFC' }}
                     />
                   </div>
@@ -2884,7 +3374,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     <input
                       type="text"
                       readOnly
-                      value={currentMerchant?.address || '123 Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. HCM'}
+                      value={currentMerchant?.address || 'Chưa cập nhật'}
                       style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#F8FAFC' }}
                     />
                   </div>
@@ -2895,7 +3385,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     <input
                       type="text"
                       readOnly
-                      value={currentMerchant?.businessLicenseImage || 'GPKD số 0318992819 • ATTP số 288/ATTP-Q1'}
+                      value={currentMerchant?.businessLicenseImage || 'Chưa cập nhật giấy phép'}
                       style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#F8FAFC' }}
                     />
                   </div>
@@ -2905,11 +3395,31 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   <div style={{ fontSize: '0.76rem', fontWeight: 700, color: '#64748B', marginBottom: 8 }}>
                     HÌNH ẢNH MẶT TIỀN ĐÃ NGHIỆM THU THỰC ĐỊA
                   </div>
-                  <img
-                    src={currentMerchant?.storeFrontImage || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80'}
-                    alt="Mặt tiền quán"
-                    style={{ width: '100%', height: 220, objectFit: 'cover', borderRadius: 8, border: '1px solid #E2E8F0' }}
-                  />
+                  {currentMerchant?.storeFrontImage ? (
+                    <img
+                      src={currentMerchant.storeFrontImage}
+                      alt="Mặt tiền quán"
+                      style={{ width: '100%', height: 220, objectFit: 'cover', borderRadius: 8, border: '1px solid #E2E8F0' }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: '100%',
+                        height: 220,
+                        borderRadius: 8,
+                        border: '1px dashed #CBD5E1',
+                        background: '#F8FAFC',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#64748B',
+                        fontSize: '0.84rem',
+                        fontWeight: 600,
+                      }}
+                    >
+                      Chưa cập nhật ảnh mặt tiền quán
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -2923,7 +3433,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <div className="modal-box" style={{ maxWidth: 400, padding: 24, borderRadius: 12 }}>
             <div style={{ textAlign: 'center', borderBottom: '1px dashed #CBD5E1', paddingBottom: 12, marginBottom: 14 }}>
               <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0F172A' }}>
-                {currentMerchant?.name || 'CƠM TẤM SÀI GÒN 1985'}
+                {currentMerchant?.name || 'GIAN HÀNG DINEGO'}
               </div>
               <div style={{ fontSize: '0.78rem', color: '#64748B' }}>PHIẾU CHẾ BIẾN BẾP & GIAO HÀNG</div>
               <div style={{ fontWeight: 800, fontSize: '0.95rem', marginTop: 6 }}>Mã đơn: #{printingOrder.orderNumber}</div>
