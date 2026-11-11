@@ -3,12 +3,17 @@
 // Commercial Catering Experience, 72h Advance Rule, 2-Stage Deposit, MoMo QR
 // ==============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   AlertCircle,
   DollarSign,
   UtensilsCrossed,
 } from 'lucide-react';
+import type { User } from '../types';
+
+interface CateringPageProps {
+  currentUser?: User | null;
+}
 
 interface FeastPackage {
   id: string;
@@ -93,7 +98,10 @@ interface BookingRecord {
   createdAt: string;
 }
 
-export const CateringPage: React.FC = () => {
+const getCateringStorageKey = (userId?: string | null) =>
+  `dinego_catering_${userId ? userId : 'guest'}`;
+
+export const CateringPage: React.FC<CateringPageProps> = ({ currentUser }) => {
   const [selectedPackage, setSelectedPackage] = useState<FeastPackage>(FEAST_PACKAGES[0]);
   const [tableCount, setTableCount] = useState<number>(5);
   const [depositPercent, setDepositPercent] = useState<30 | 50>(30);
@@ -102,27 +110,58 @@ export const CateringPage: React.FC = () => {
     .toISOString()
     .split('T')[0];
   const [eventDate, setEventDate] = useState<string>(defaultEventDate);
-  const [eventAddress, setEventAddress] = useState<string>(
-    'Trung tâm Hội nghị Tiệc cưới Riverside, 360 Bến Vân Đồn, Quận 4, TP. HCM',
-  );
+  const [eventAddress, setEventAddress] = useState<string>(currentUser?.address || '');
 
-  const [bookings, setBookings] = useState<BookingRecord[]>([
-    {
-      id: 'bk-sample-01',
-      bookingCode: 'DG-FEAST-902144',
-      packageName: 'Mâm Cỗ Tân Gia Thịnh Vượng',
-      tableCount: 6,
-      eventDate: defaultEventDate,
-      eventAddress: 'Biệt thự 12, Thảo Điền, TP. Thủ Đức',
-      totalAmount: 14250000,
-      depositAmount: 4275000,
-      remainingAmount: 9975000,
-      status: 'DEPOSIT_PAID',
-      createdAt: '2026-11-01',
-    },
-  ]);
+  const getInitialBookings = (userId?: string | null): BookingRecord[] => {
+    const key = getCateringStorageKey(userId);
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        // Ignore malformed local data
+      }
+    }
+    if (userId === 'u-user1-001') {
+      return [
+        {
+          id: 'bk-sample-01',
+          bookingCode: 'DG-FEAST-902144',
+          packageName: 'Mâm Cỗ Tân Gia Thịnh Vượng',
+          tableCount: 6,
+          eventDate: defaultEventDate,
+          eventAddress: 'Biệt thự 12, Thảo Điền, TP. Thủ Đức',
+          totalAmount: 14250000,
+          depositAmount: 4275000,
+          remainingAmount: 9975000,
+          status: 'DEPOSIT_PAID',
+          createdAt: '2026-11-01',
+        },
+      ];
+    }
+    return [];
+  };
+
+  const cateringOwnerId = currentUser?.id ?? null;
+  const [bookingState, setBookingState] = useState<{ ownerId: string | null; items: BookingRecord[] }>(() => ({
+    ownerId: cateringOwnerId,
+    items: getInitialBookings(cateringOwnerId),
+  }));
+  const bookings = bookingState.ownerId === cateringOwnerId ? bookingState.items : [];
+  const setBookings = (updater: BookingRecord[] | ((prev: BookingRecord[]) => BookingRecord[])) => {
+    setBookingState((prev) => {
+      const current = prev.ownerId === cateringOwnerId ? prev.items : getInitialBookings(cateringOwnerId);
+      const next = typeof updater === 'function' ? updater(current) : updater;
+      return { ownerId: cateringOwnerId, items: next };
+    });
+  };
 
   const [activeMomoModal, setActiveMomoModal] = useState<BookingRecord | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem(getCateringStorageKey(bookingState.ownerId), JSON.stringify(bookingState.items));
+  }, [bookingState]);
 
   const grossTotal = selectedPackage.pricePerTable * tableCount;
   let discountRate = 0;

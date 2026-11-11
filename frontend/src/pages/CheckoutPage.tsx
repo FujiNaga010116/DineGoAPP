@@ -23,15 +23,20 @@ import {
   Lock,
   LogIn,
 } from 'lucide-react';
-import { CURRENT_USER } from '../api/client';
 import { useCart } from '../context/CartContext';
-import type { Order, PaymentMethod, User } from '../types';
+import {
+  getDefaultVerifiedAddress,
+  hasVerifiedCustomerAddress,
+} from '../utils/routing';
+import type { Merchant, Order, PaymentMethod, SavedAddress, User } from '../types';
 
 interface CheckoutPageProps {
   onBack: () => void;
   onOrderPlaced: (order: Order) => void;
   currentUser: User | null;
   onOpenAuthModal: (mode?: 'login' | 'register') => void;
+  merchants?: Merchant[];
+  onOpenAddressSetup?: () => void;
 }
 
 export const CheckoutPage: React.FC<CheckoutPageProps> = ({
@@ -39,18 +44,30 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   onOrderPlaced,
   currentUser,
   onOpenAuthModal,
+  merchants,
+  onOpenAddressSetup,
 }) => {
   const { cart, updateQuantity, removeItem, applyVoucher, removeVoucher, clearCart } =
     useCart();
 
-  const [address, setAddress] = useState(
-    currentUser?.address || '123 Lê Lợi, Phường Bến Nghé, Quận 1, TP. HCM',
+  const verifiedDefault = getDefaultVerifiedAddress(currentUser);
+  const hasVerifiedAddress = hasVerifiedCustomerAddress(currentUser);
+
+  const [selectedAddressId, setSelectedAddressId] = useState<string>(
+    verifiedDefault?.id || '',
+  );
+  const [address, setAddress] = useState(verifiedDefault?.fullAddress || '');
+  const [deliveryLat, setDeliveryLat] = useState<number | undefined>(
+    verifiedDefault?.latitude,
+  );
+  const [deliveryLng, setDeliveryLng] = useState<number | undefined>(
+    verifiedDefault?.longitude,
   );
   const [recipientName, setRecipientName] = useState(
-    currentUser?.fullName || CURRENT_USER.fullName,
+    verifiedDefault?.recipientName || currentUser?.fullName || '',
   );
   const [recipientPhone, setRecipientPhone] = useState(
-    currentUser?.phoneNumber || CURRENT_USER.phoneNumber || '0987654321',
+    verifiedDefault?.phone || currentUser?.phoneNumber || '',
   );
   const [customerNote, setCustomerNote] = useState('');
   const [voucherInput, setVoucherInput] = useState('');
@@ -60,12 +77,50 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   const [showMomoModal, setShowMomoModal] = useState<Order | null>(null);
 
   useEffect(() => {
-    if (currentUser) {
-      if (currentUser.fullName) setRecipientName(currentUser.fullName);
-      if (currentUser.phoneNumber) setRecipientPhone(currentUser.phoneNumber);
-      if (currentUser.address) setAddress(currentUser.address);
+    const savedList = currentUser?.savedAddresses || [];
+    const currentVerifiedChoice = savedList.find(
+      (a) =>
+        a.id === selectedAddressId &&
+        a.mapVerified !== false &&
+        typeof a.latitude === 'number' &&
+        typeof a.longitude === 'number',
+    );
+    const chosen = currentVerifiedChoice || getDefaultVerifiedAddress(currentUser);
+
+    if (chosen) {
+      setSelectedAddressId(chosen.id);
+      setAddress(chosen.fullAddress);
+      setDeliveryLat(chosen.latitude);
+      setDeliveryLng(chosen.longitude);
+      if (chosen.recipientName) setRecipientName(chosen.recipientName);
+      if (chosen.phone) setRecipientPhone(chosen.phone);
+    } else {
+      setSelectedAddressId('');
+      setAddress('');
+      setDeliveryLat(undefined);
+      setDeliveryLng(undefined);
+      setRecipientName(currentUser?.fullName || '');
+      setRecipientPhone(currentUser?.phoneNumber || '');
     }
-  }, [currentUser]);
+  }, [currentUser, selectedAddressId]);
+
+  const handleSelectSavedAddress = (addr: SavedAddress) => {
+    const isVerified = Boolean(
+      addr.mapVerified !== false &&
+        typeof addr.latitude === 'number' &&
+        typeof addr.longitude === 'number',
+    );
+    if (!isVerified) {
+      onOpenAddressSetup?.();
+      return;
+    }
+    setSelectedAddressId(addr.id);
+    setAddress(addr.fullAddress);
+    setDeliveryLat(addr.latitude);
+    setDeliveryLng(addr.longitude);
+    if (addr.recipientName) setRecipientName(addr.recipientName);
+    if (addr.phone) setRecipientPhone(addr.phone);
+  };
 
   const handleApplyVoucher = (codeToApply?: string) => {
     const code = (codeToApply || voucherInput).trim();
@@ -83,27 +138,50 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       onOpenAuthModal('login');
       return;
     }
+    if (
+      !hasVerifiedCustomerAddress(currentUser) ||
+      typeof deliveryLat !== 'number' ||
+      typeof deliveryLng !== 'number'
+    ) {
+      if (onOpenAddressSetup) {
+        onOpenAddressSetup();
+      } else {
+        alert('Vui lòng thiết lập địa chỉ giao hàng chuẩn trên bản đồ trước khi đặt đơn.');
+      }
+      return;
+    }
+    if (!recipientName.trim() || !recipientPhone.trim() || !address.trim()) {
+      alert('Vui lòng nhập đầy đủ Họ tên người nhận, Số điện thoại và Địa chỉ giao hàng.');
+      return;
+    }
     setIsSubmitting(true);
 
+    const matchedMerchant = merchants?.find((m) => m.id === cart.merchantId);
     const orderNumber = `DG20261103-${Math.random().toString(16).substring(2, 8).toUpperCase()}`;
     const newOrder: Order = {
       id: `ord-${Date.now()}`,
       orderNumber,
+      customerId: currentUser.id,
+      customerEmail: currentUser.email,
       status: paymentMethod === 'COD' ? 'CONFIRMED' : 'PENDING',
       subtotal: cart.subtotal,
       discountAmount: cart.discountAmount,
       deliveryFee: cart.deliveryFee,
       finalTotal: cart.finalTotal,
       deliveryAddress: address,
+      deliveryLatitude: deliveryLat,
+      deliveryLongitude: deliveryLng,
       recipientName,
       recipientPhone,
       customerNote: customerNote || null,
       createdAt: new Date().toISOString(),
       merchant: {
         id: cart.merchantId || '',
-        name: cart.merchantName || 'Nhà hàng DineGo',
-        address: 'Địa chỉ quán',
-        phoneNumber: '0901234567',
+        name: matchedMerchant?.name || cart.merchantName || 'Nhà hàng DineGo',
+        address: matchedMerchant?.address || 'Địa chỉ quán',
+        phoneNumber: matchedMerchant?.phoneNumber || '0901234567',
+        latitude: matchedMerchant?.latitude,
+        longitude: matchedMerchant?.longitude,
       },
       items: cart.items.map((ci) => ({
         id: ci.id,
@@ -276,7 +354,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 Yêu cầu đăng nhập để hoàn tất đặt món
               </div>
               <div style={{ fontSize: '0.85rem', color: '#B91C1C' }}>
-                Vui lòng đăng nhập hoặc đăng ký (Họ tên, SĐT và Địa chỉ giao hàng) để Quán và Shipper phục vụ bạn.
+                Vui lòng đăng nhập hoặc đăng ký tài khoản, sau đó thiết lập địa chỉ giao hàng chuẩn trên bản đồ để Quán và Shipper phục vụ bạn.
               </div>
             </div>
           </div>
@@ -297,6 +375,69 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
             }}
           >
             <LogIn size={16} /> Đăng nhập / Đăng ký ngay
+          </button>
+        </div>
+      )}
+
+      {currentUser && !hasVerifiedAddress && (
+        <div
+          style={{
+            marginBottom: 20,
+            padding: '16px 20px',
+            borderRadius: 16,
+            background: '#FFFBEB',
+            border: '1px solid #FDE68A',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 16,
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                background: '#F59E0B',
+                color: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <MapPin size={22} />
+            </div>
+            <div>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: '#92400E' }}>
+                Tài khoản chưa thiết lập địa chỉ giao hàng trên bản đồ
+              </div>
+              <div style={{ fontSize: '0.85rem', color: '#B45309' }}>
+                Bạn cần chọn và xác thực địa chỉ khớp với vị trí trên bản đồ trước khi đặt món ăn.
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onOpenAddressSetup?.()}
+            className="btn"
+            style={{
+              background: '#D97706',
+              color: '#FFFFFF',
+              fontWeight: 700,
+              padding: '10px 18px',
+              borderRadius: 12,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            <MapPin size={16} /> Thiết lập địa chỉ trên bản đồ ngay
           </button>
         </div>
       )}
@@ -347,25 +488,135 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>
-                  Địa chỉ chi tiết (Số nhà, Tên đường, Phường/Xã, Quận)
-                </label>
-                <input
-                  type="text"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '11px 14px',
-                    borderRadius: 12,
-                    background: 'var(--bg-main)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text-main)',
-                    fontSize: '0.92rem',
-                    fontWeight: 600,
-                    outline: 'none',
-                  }}
-                />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                    Địa chỉ giao hàng đã xác thực trên bản đồ *
+                  </label>
+                  {currentUser && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenAddressSetup?.()}
+                      style={{
+                        background: '#ECFDF5',
+                        color: '#047857',
+                        border: '1px solid #A7F3D0',
+                        borderRadius: 8,
+                        padding: '5px 10px',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Plus size={14} />
+                      {hasVerifiedAddress ? 'Thêm / Chọn vị trí khác trên bản đồ' : 'Ghim địa chỉ trên bản đồ'}
+                    </button>
+                  )}
+                </div>
+
+                {!currentUser ? (
+                  <div
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: 12,
+                      background: '#F8FAFC',
+                      border: '1px dashed #CBD5E1',
+                      color: '#64748B',
+                      fontSize: '0.85rem',
+                    }}
+                  >
+                    Đăng nhập xong bạn sẽ chọn hoặc thiết lập địa chỉ giao hàng trực tiếp trên bản đồ.
+                  </div>
+                ) : hasVerifiedAddress ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {(currentUser.savedAddresses && currentUser.savedAddresses.length > 0
+                      ? currentUser.savedAddresses
+                      : verifiedDefault
+                      ? [verifiedDefault]
+                      : []
+                    ).map((saved) => {
+                      const isSavedVerified = Boolean(
+                        saved.mapVerified !== false &&
+                          typeof saved.latitude === 'number' &&
+                          typeof saved.longitude === 'number',
+                      );
+                      const isSelected = isSavedVerified && selectedAddressId === saved.id;
+                      return (
+                        <button
+                          key={saved.id}
+                          type="button"
+                          onClick={() => handleSelectSavedAddress(saved)}
+                          style={{
+                            textAlign: 'left',
+                            padding: '12px 14px',
+                            borderRadius: 12,
+                            border: isSelected ? '2px solid #00B14F' : '1px solid #CBD5E1',
+                            background: isSelected ? '#F0FDF4' : '#FFFFFF',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            justifyContent: 'space-between',
+                            gap: 12,
+                          }}
+                        >
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 3 }}>
+                              <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '2px 7px', borderRadius: 6, background: '#0F172A', color: '#FFFFFF' }}>
+                                {saved.label}
+                              </span>
+                              <span style={{ fontSize: '0.86rem', fontWeight: 700, color: '#0F172A' }}>
+                                {saved.recipientName || currentUser.fullName} • {saved.phone || currentUser.phoneNumber}
+                              </span>
+                              {isSavedVerified ? (
+                                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#047857', background: '#DCFCE7', padding: '2px 7px', borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  <CheckCircle2 size={12} /> Khớp bản đồ
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#B45309', background: '#FEF3C7', padding: '2px 7px', borderRadius: 6 }}>
+                                  Cần ghim lại bản đồ
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: '0.85rem', color: '#334155', fontWeight: 600 }}>
+                              {saved.fullAddress}
+                            </div>
+                            {isSavedVerified && typeof saved.latitude === 'number' && typeof saved.longitude === 'number' && (
+                              <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 2 }}>
+                                Tọa độ giao hàng: {saved.latitude.toFixed(5)}, {saved.longitude.toFixed(5)}
+                              </div>
+                            )}
+                          </div>
+                          {isSelected && <CheckCircle2 size={18} color="#00B14F" style={{ flexShrink: 0, marginTop: 2 }} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onOpenAddressSetup?.()}
+                    style={{
+                      width: '100%',
+                      padding: '14px 16px',
+                      borderRadius: 12,
+                      border: '1.5px dashed #F59E0B',
+                      background: '#FFFBEB',
+                      color: '#B45309',
+                      fontSize: '0.86rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    <MapPin size={16} />
+                    <span>Nhấn để thiết lập và ghim địa chỉ giao hàng chuẩn trên bản đồ</span>
+                  </button>
+                )}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -862,7 +1113,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
             <button
               onClick={handlePlaceOrder}
               disabled={isSubmitting}
-              className={paymentMethod === 'MOMO_QR' && currentUser ? 'btn-momo' : 'btn btn-primary'}
+              className={
+                paymentMethod === 'MOMO_QR' && currentUser && hasVerifiedAddress
+                  ? 'btn-momo'
+                  : 'btn btn-primary'
+              }
               style={{
                 width: '100%',
                 padding: '15px 20px',
@@ -874,7 +1129,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 justifyContent: 'center',
                 gap: 10,
                 cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                background: !currentUser ? '#EF4444' : undefined,
+                background: !currentUser
+                  ? '#EF4444'
+                  : !hasVerifiedAddress
+                  ? '#D97706'
+                  : undefined,
                 color: '#FFFFFF',
               }}
             >
@@ -882,6 +1141,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 <>
                   <Lock size={18} />
                   <span>Đăng nhập để đặt món • {cart.finalTotal.toLocaleString('vi-VN')}đ</span>
+                </>
+              ) : !hasVerifiedAddress ? (
+                <>
+                  <MapPin size={18} />
+                  <span>Thiết lập địa chỉ trên bản đồ để đặt món</span>
                 </>
               ) : (
                 <>

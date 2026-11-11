@@ -5,10 +5,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   Matches,
+  Max,
   MaxLength,
+  Min,
 } from 'class-validator';
 
 export class CreateOrderDto {
@@ -20,6 +23,26 @@ export class CreateOrderDto {
   @IsNotEmpty({ message: 'deliveryAddress is required' })
   @MaxLength(500, { message: 'deliveryAddress cannot exceed 500 characters' })
   deliveryAddress: string;
+
+  @ApiPropertyOptional({
+    description: 'Vĩ độ địa chỉ giao hàng (Latitude)',
+    example: 10.776889,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  deliveryLatitude?: number;
+
+  @ApiPropertyOptional({
+    description: 'Kinh độ địa chỉ giao hàng (Longitude)',
+    example: 106.700806,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  deliveryLongitude?: number;
 
   @ApiProperty({
     description: 'Họ tên người nhận hàng',

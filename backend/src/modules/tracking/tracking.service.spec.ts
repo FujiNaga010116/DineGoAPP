@@ -4,6 +4,10 @@ import { Role } from '../../common/enums/index.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface.js';
 import { TrackingService } from './tracking.service.js';
+import {
+  buildVietnamSearchVariants,
+  findLocalVietnamMatches,
+} from './vietnam-geocode.helper.js';
 
 describe('TrackingService (Sprint 4 — U039 đến U042)', () => {
   let service: TrackingService;
@@ -149,6 +153,124 @@ describe('TrackingService (Sprint 4 — U039 đến U042)', () => {
       expect(tracking.orderNumber).toBe(mockOrder.orderNumber);
       expect(tracking.storeLocation.name).toBe(mockOrder.merchant.name);
       expect(tracking.customerLocation.address).toBe(mockOrder.deliveryAddress);
+    });
+
+    it('should resolve real driver info, persist OrderTracking, enforce viewer permissions, and stream SSE updates', async () => {
+      const orderWithCoords = {
+        ...mockOrder,
+        id: 'ord-track-persist',
+        userId: 'cust-1',
+        deliveryLatitude: 10.785,
+        deliveryLongitude: 106.695,
+        merchant: { ...mockOrder.merchant, ownerId: 'merch-owner-1' },
+      };
+      const extendedPrisma = {
+        order: { findUnique: vi.fn().mockResolvedValue(orderWithCoords) },
+        orderTracking: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          upsert: vi.fn().mockResolvedValue({}),
+        },
+        user: {
+          findUnique: vi.fn().mockResolvedValue({
+            fullName: 'Trần Quốc Tuấn',
+            phoneNumber: '0909123456',
+          }),
+        },
+      };
+
+      const persistedService = new TrackingService(
+        extendedPrisma as unknown as PrismaService,
+      );
+
+      const assigned = await persistedService.assignShipper(
+        'ord-track-persist',
+        { ...mockShipperUser, fullName: 'Trần Quốc Tuấn' },
+        { vehiclePlate: '59-X3 892.14' },
+      );
+
+      expect(assigned.shipper?.fullName).toBe('Trần Quốc Tuấn');
+      expect(assigned.shipper?.phoneNumber).toBe('0909123456');
+      expect(assigned.shipper?.vehiclePlate).toBe('59-X3 892.14');
+      expect(assigned.customerLocation.latitude).toBe(10.785);
+      expect(extendedPrisma.orderTracking.upsert).toHaveBeenCalled();
+
+      const ownerUser: AuthenticatedUser = {
+        id: 'cust-1',
+        email: 'cust1@dinego.vn',
+        fullName: 'Khách 1',
+        roles: [Role.CUSTOMER],
+        isActive: true,
+      };
+      const strangerUser: AuthenticatedUser = {
+        id: 'cust-2',
+        email: 'cust2@dinego.vn',
+        fullName: 'Khách 2',
+        roles: [Role.CUSTOMER],
+        isActive: true,
+      };
+
+      await expect(
+        persistedService.getLiveTracking('ord-track-persist', ownerUser),
+      ).resolves.toMatchObject({ orderId: 'ord-track-persist' });
+
+      await expect(
+        persistedService.getLiveTracking('ord-track-persist', strangerUser),
+      ).rejects.toThrow(ForbiddenException);
+
+      const stream$ = await persistedService.streamOrderTracking(
+        'ord-track-persist',
+        ownerUser,
+      );
+      const emitted: unknown[] = [];
+      const sub = stream$.subscribe((evt) => emitted.push(evt.data));
+      await persistedService.updateShipperGps('ord-track-persist', mockShipperUser, {
+        latitude: 10.781,
+        longitude: 106.691,
+        heading: 95,
+      });
+      sub.unsubscribe();
+
+      expect(emitted.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe('Vietnam All-Region Geocoding (Nominatim/Photon/ArcGIS & 2025 VN Wards)', () => {
+    it('builds smart query variants for unpunctuated 2025 VN merged wards without corrupting street names', () => {
+      const variants = buildVietnamSearchVariants('Phường Nam Đông Hà tỉnh Quảng Trị');
+      expect(variants).toContain('Phường Nam Đông Hà, tỉnh Quảng Trị');
+      expect(variants).toContain('Nam Đông Hà, Quảng Trị');
+      expect(variants).toContain('Đông Hà, Quảng Trị');
+
+      const streetVariants = buildVietnamSearchVariants('120 Nam Kỳ Khởi Nghĩa, Quận 3');
+      expect(streetVariants[0]).toContain('Nam Kỳ Khởi Nghĩa');
+      expect(streetVariants.every((v) => !v.includes('120 Kỳ Khởi Nghĩa'))).toBe(true);
+      expect(streetVariants).toContain('Quận 3');
+    });
+
+    it('matches Phường Nam Đông Hà & Quảng Trị in local Vietnam registry fallback', () => {
+      const namDongHa = findLocalVietnamMatches('Phường Nam Đông Hà tỉnh Quảng Trị');
+      expect(namDongHa.some((r) => r.shortAddress.includes('Nam Đông Hà') && Math.abs(r.lat - 16.802) < 0.01)).toBe(true);
+
+      const quangTri = findLocalVietnamMatches('Quảng Trị');
+      expect(quangTri.some((r) => r.city === 'Quảng Trị')).toBe(true);
+    });
+
+    it('returns fallback results across Vietnam even if upstream APIs are offline', async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockRejectedValue(new Error('Network offline'));
+
+      try {
+        const res = await service.searchVietnamAddress('Phường Nam Đông Hà tỉnh Quảng Trị');
+        expect(res.length).toBeGreaterThan(0);
+        expect(res[0].shortAddress).toContain('Quảng Trị');
+
+        const rev = await service.reverseVietnamCoordinates(16.802, 107.1113);
+        expect(rev).not.toBeNull();
+        expect(rev?.city).toBe('Quảng Trị');
+      } finally {
+        fetchSpy.mockRestore();
+      }
     });
   });
 });

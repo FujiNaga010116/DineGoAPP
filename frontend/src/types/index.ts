@@ -29,6 +29,10 @@ export interface SavedAddress {
   recipientName: string;
   phone: string;
   fullAddress: string;
+  latitude?: number;
+  longitude?: number;
+  mapReferenceName?: string;
+  mapVerified?: boolean;
   isDefault: boolean;
 }
 
@@ -40,6 +44,8 @@ export interface User {
   phoneNumber?: string;
   avatarUrl?: string;
   address?: string;
+  addressLat?: number;
+  addressLng?: number;
   dateOfBirth?: string;
   gender?: 'Nam' | 'Nữ' | 'Khác';
   savedAddresses?: SavedAddress[];
@@ -84,6 +90,8 @@ export interface Merchant {
   name: string;
   slug: string;
   address: string;
+  latitude?: number;
+  longitude?: number;
   phoneNumber: string;
   ownerName?: string;
   storeFrontImage?: string;
@@ -192,12 +200,16 @@ export interface PaymentSummary {
 export interface Order {
   id: string;
   orderNumber: string;
+  customerId?: string;
+  customerEmail?: string;
   status: OrderStatus;
   subtotal: number;
   discountAmount: number;
   deliveryFee: number;
   finalTotal: number;
   deliveryAddress: string;
+  deliveryLatitude?: number;
+  deliveryLongitude?: number;
   recipientName: string;
   recipientPhone: string;
   customerNote?: string | null;
@@ -212,6 +224,8 @@ export interface Order {
     address: string;
     phoneNumber: string;
     logoUrl?: string | null;
+    latitude?: number;
+    longitude?: number;
   };
   items: OrderItem[];
   payment?: PaymentSummary | null;

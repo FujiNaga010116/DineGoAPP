@@ -144,13 +144,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       const role = initialRole || 'CUSTOMER';
       setSelectedRole(role);
       setErrorMsg('');
+      setFullName('');
+      setRegEmail('');
+      setRegPhone('');
+      setRegAddress('');
+      setRegPassword('');
+      setConfirmPassword('');
       const firstForRole = allUsers.find((u) => u.roles.includes(role));
       if (firstForRole) {
         setEmailOrPhone(firstForRole.email);
         setPassword(firstForRole.password || 'DineGo@2026_SecurePass');
+      } else {
+        setEmailOrPhone('');
+        setPassword('');
       }
     }
-  }, [isOpen, initialMode, initialRole, allUsers]);
+  }, [isOpen, initialMode, initialRole]);
 
   const handleSelectRoleTab = (role: Role) => {
     setSelectedRole(role);
@@ -196,6 +205,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     if (foundUser.isActive === false) {
       setErrorMsg('Tài khoản này hiện đang bị khóa bởi Quản trị viên hệ thống.');
+      return;
+    }
+
+    if (foundUser.password && foundUser.password !== password) {
+      setErrorMsg('Mật khẩu không chính xác. Vui lòng kiểm tra lại.');
       return;
     }
 
@@ -346,24 +360,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    // CUSTOMER Registration
+    // CUSTOMER Registration (No address collected upfront — user sets up map-verified address before ordering)
     const newCustomerUser: User = {
       id: `u-cust-${Date.now()}`,
       email: regEmail.trim(),
       password: regPassword,
       fullName: fullName.trim(),
       phoneNumber: regPhone.trim(),
-      address: regAddress.trim() || '45 Lê Duẩn, Phường Bến Nghé, Quận 1, TP. HCM',
-      savedAddresses: [
-        {
-          id: `addr-${Date.now()}`,
-          label: 'Nhà riêng',
-          recipientName: fullName.trim(),
-          phone: regPhone.trim(),
-          fullAddress: regAddress.trim() || '45 Lê Duẩn, Phường Bến Nghé, Quận 1, TP. HCM',
-          isDefault: true,
-        },
-      ],
+      address: '',
+      savedAddresses: [],
       roles: ['CUSTOMER'],
       isActive: true,
       createdAt: nowDate,
@@ -907,10 +912,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </>
               )}
 
-              {selectedRole !== 'DRIVER' && (
+              {selectedRole === 'MERCHANT' && (
                 <div>
                   <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                    {selectedRole === 'MERCHANT' ? 'Địa chỉ kinh doanh của nhà hàng *' : 'Địa chỉ nhận hàng mặc định'}
+                    Địa chỉ kinh doanh của nhà hàng *
                   </label>
                   <input
                     type="text"
@@ -919,6 +924,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     onChange={(e) => setRegAddress(e.target.value)}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem' }}
                   />
+                </div>
+              )}
+
+              {selectedRole === 'CUSTOMER' && (
+                <div style={{
+                  padding: '9px 12px',
+                  borderRadius: 8,
+                  background: '#F0F9FF',
+                  border: '1px solid #BAE6FD',
+                  color: '#0369A1',
+                  fontSize: '0.78rem',
+                  lineHeight: 1.45,
+                }}>
+                  Sau khi tạo tài khoản xong, khi đặt món ăn bạn sẽ thiết lập địa chỉ giao hàng và ghim xác thực vị trí trên bản đồ để shipper giao chuẩn xác.
                 </div>
               )}
 

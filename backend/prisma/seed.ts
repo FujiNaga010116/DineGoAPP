@@ -80,7 +80,10 @@ async function main() {
   // 5. Seed Sample Merchant Store: Cơm Tấm 1985
   const sampleMerchant = await prisma.merchant.upsert({
     where: { slug: 'com-tam-1985' },
-    update: {},
+    update: {
+      latitude: 10.7736,
+      longitude: 106.7037,
+    },
     create: {
       ownerId: merchantUser.id,
       name: 'Cơm Tấm Sài Gòn 1985',
@@ -88,6 +91,8 @@ async function main() {
       description: 'Cơm tấm sườn bì chả đặc biệt, hương vị truyền thống chuẩn Sài Gòn.',
       address: '123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
       phoneNumber: '0901000002',
+      latitude: 10.7736,
+      longitude: 106.7037,
       status: 'APPROVED',
       deliveryType: 'BOTH',
       isOpen: true,

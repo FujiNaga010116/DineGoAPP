@@ -15,8 +15,13 @@ import {
   CreditCard,
   Lock,
   Save,
+  AlertTriangle,
 } from 'lucide-react';
 import type { SavedAddress, User } from '../types';
+import {
+  AddressMapPicker,
+  type AddressPickerValue,
+} from '../components/common/AddressMapPicker';
 
 interface CustomerProfilePageProps {
   currentUser: User | null;
@@ -42,10 +47,10 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
   );
 
   // Payment Bank Info Form
-  const [bankName, setBankName] = useState(currentUser?.bankName || 'Vietcombank');
-  const [bankAccountNumber, setBankAccountNumber] = useState(currentUser?.bankAccountNumber || '0071009988776');
+  const [bankName, setBankName] = useState(currentUser?.bankName || '');
+  const [bankAccountNumber, setBankAccountNumber] = useState(currentUser?.bankAccountNumber || '');
   const [bankAccountHolder, setBankAccountHolder] = useState(
-    currentUser?.bankAccountHolder || (currentUser?.fullName || 'NGUYEN VAN AN').toUpperCase(),
+    currentUser?.bankAccountHolder || (currentUser?.fullName ? currentUser.fullName.toUpperCase() : ''),
   );
 
   // Password Change Form
@@ -54,27 +59,43 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
   // Address Book Management
-  const [addresses, setAddresses] = useState<SavedAddress[]>(
-    currentUser?.savedAddresses && currentUser.savedAddresses.length > 0
-      ? currentUser.savedAddresses
-      : [
-          {
-            id: 'addr-1',
-            label: 'Văn phòng',
-            recipientName: currentUser?.fullName || 'Nguyễn Văn An',
-            phone: currentUser?.phoneNumber || '0901000004',
-            fullAddress: currentUser?.address || '45 Lê Duẩn, Phường Bến Nghé, Quận 1, TP. HCM',
-            isDefault: true,
-          },
-        ],
-  );
+  const getInitialAddresses = (user: User | null): SavedAddress[] => {
+    if (!user) return [];
+    if (user.savedAddresses && user.savedAddresses.length > 0) {
+      return user.savedAddresses;
+    }
+    if (user.address) {
+      const hasCoords =
+        typeof user.addressLat === 'number' && typeof user.addressLng === 'number';
+      return [
+        {
+          id: `addr-${user.id}`,
+          label: 'Nhà riêng',
+          recipientName: user.fullName || '',
+          phone: user.phoneNumber || '',
+          fullAddress: user.address,
+          latitude: user.addressLat,
+          longitude: user.addressLng,
+          mapVerified: hasCoords,
+          isDefault: true,
+        },
+      ];
+    }
+    return [];
+  };
+
+  const [addresses, setAddresses] = useState<SavedAddress[]>(() => getInitialAddresses(currentUser));
 
   const [editingAddress, setEditingAddress] = useState<SavedAddress | null>(null);
   const [isAddressFormOpen, setIsAddressFormOpen] = useState(false);
   const [addrLabel, setAddrLabel] = useState('Nhà riêng');
   const [addrRecipient, setAddrRecipient] = useState(currentUser?.fullName || '');
   const [addrPhone, setAddrPhone] = useState(currentUser?.phoneNumber || '');
-  const [addrFull, setAddrFull] = useState('');
+  const [addrPickerValue, setAddrPickerValue] = useState<AddressPickerValue>({
+    fullAddress: '',
+    isSynced: false,
+  });
+  const [pickerKey, setPickerKey] = useState(0);
   const [addrDefault, setAddrDefault] = useState(false);
 
   if (!currentUser) {
@@ -95,7 +116,8 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
   const handleSavePersonalInfo = (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim() || !email.trim()) return;
-    const defaultAddr = addresses.find((a) => a.isDefault)?.fullAddress || currentUser.address;
+    const defaultObj = addresses.find((a) => a.isDefault) || addresses[0];
+    const defaultAddr = defaultObj?.fullAddress || currentUser.address;
     const updated: User = {
       ...currentUser,
       fullName: fullName.trim(),
@@ -105,6 +127,8 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
       gender,
       avatarUrl: avatarUrl.trim(),
       address: defaultAddr,
+      addressLat: defaultObj?.latitude ?? currentUser.addressLat,
+      addressLng: defaultObj?.longitude ?? currentUser.addressLng,
       savedAddresses: addresses,
     };
     onUpdateUser(updated);
@@ -116,7 +140,8 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
     setAddrLabel('Nhà riêng');
     setAddrRecipient(currentUser.fullName);
     setAddrPhone(currentUser.phoneNumber || '');
-    setAddrFull('');
+    setAddrPickerValue({ fullAddress: '', isSynced: false });
+    setPickerKey((k) => k + 1);
     setAddrDefault(addresses.length === 0);
     setIsAddressFormOpen(true);
   };
@@ -126,14 +151,39 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
     setAddrLabel(addr.label);
     setAddrRecipient(addr.recipientName);
     setAddrPhone(addr.phone);
-    setAddrFull(addr.fullAddress);
+    setAddrPickerValue({
+      fullAddress: addr.fullAddress,
+      latitude: addr.latitude,
+      longitude: addr.longitude,
+      mapReferenceName: addr.mapReferenceName,
+      isSynced: Boolean(
+        addr.mapVerified &&
+          typeof addr.latitude === 'number' &&
+          typeof addr.longitude === 'number',
+      ),
+    });
+    setPickerKey((k) => k + 1);
     setAddrDefault(addr.isDefault);
     setIsAddressFormOpen(true);
   };
 
+  const canSaveAddress = Boolean(
+    addrRecipient.trim() &&
+      addrPhone.trim() &&
+      addrPickerValue.fullAddress.trim() &&
+      addrPickerValue.isSynced &&
+      typeof addrPickerValue.latitude === 'number' &&
+      typeof addrPickerValue.longitude === 'number',
+  );
+
   const handleSaveAddress = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addrFull.trim() || !addrRecipient.trim()) return;
+    if (!canSaveAddress) return;
+
+    const cleanAddress = addrPickerValue.fullAddress.trim();
+    const lat = addrPickerValue.latitude!;
+    const lng = addrPickerValue.longitude!;
+    const mapRefName = addrPickerValue.mapReferenceName;
 
     let nextAddresses: SavedAddress[];
     if (editingAddress) {
@@ -144,7 +194,11 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
               label: addrLabel,
               recipientName: addrRecipient.trim(),
               phone: addrPhone.trim(),
-              fullAddress: addrFull.trim(),
+              fullAddress: cleanAddress,
+              latitude: lat,
+              longitude: lng,
+              mapReferenceName: mapRefName,
+              mapVerified: true,
               isDefault: addrDefault,
             }
           : addrDefault
@@ -157,7 +211,11 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
         label: addrLabel,
         recipientName: addrRecipient.trim(),
         phone: addrPhone.trim(),
-        fullAddress: addrFull.trim(),
+        fullAddress: cleanAddress,
+        latitude: lat,
+        longitude: lng,
+        mapReferenceName: mapRefName,
+        mapVerified: true,
         isDefault: addrDefault || addresses.length === 0,
       };
       nextAddresses = newAddr.isDefault
@@ -167,13 +225,19 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
 
     setAddresses(nextAddresses);
     setIsAddressFormOpen(false);
-    const defaultAddr = nextAddresses.find((a) => a.isDefault)?.fullAddress || nextAddresses[0]?.fullAddress;
+    const defaultObj = nextAddresses.find((a) => a.isDefault) || nextAddresses[0];
     onUpdateUser({
       ...currentUser,
-      address: defaultAddr,
+      address: defaultObj?.fullAddress || '',
+      addressLat: defaultObj?.latitude,
+      addressLng: defaultObj?.longitude,
       savedAddresses: nextAddresses,
     });
-    triggerSavedBanner(editingAddress ? 'Đã cập nhật địa chỉ giao hàng.' : 'Đã thêm địa chỉ giao hàng mới.');
+    triggerSavedBanner(
+      editingAddress
+        ? 'Đã cập nhật địa chỉ giao hàng chuẩn theo bản đồ.'
+        : 'Đã thêm địa chỉ giao hàng mới chuẩn theo bản đồ.',
+    );
   };
 
   const handleSetDefaultAddress = (id: string) => {
@@ -182,10 +246,12 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
       isDefault: a.id === id,
     }));
     setAddresses(nextAddresses);
-    const defaultAddr = nextAddresses.find((a) => a.isDefault)?.fullAddress;
+    const defaultObj = nextAddresses.find((a) => a.isDefault) || nextAddresses[0];
     onUpdateUser({
       ...currentUser,
-      address: defaultAddr,
+      address: defaultObj?.fullAddress || '',
+      addressLat: defaultObj?.latitude,
+      addressLng: defaultObj?.longitude,
       savedAddresses: nextAddresses,
     });
     triggerSavedBanner('Đã đặt làm địa chỉ nhận hàng mặc định.');
@@ -197,10 +263,12 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
       nextAddresses[0].isDefault = true;
     }
     setAddresses(nextAddresses);
-    const defaultAddr = nextAddresses.find((a) => a.isDefault)?.fullAddress || '';
+    const defaultObj = nextAddresses.find((a) => a.isDefault) || nextAddresses[0];
     onUpdateUser({
       ...currentUser,
-      address: defaultAddr,
+      address: defaultObj?.fullAddress || '',
+      addressLat: defaultObj?.latitude,
+      addressLng: defaultObj?.longitude,
       savedAddresses: nextAddresses,
     });
     triggerSavedBanner('Đã xóa địa chỉ khỏi sổ địa chỉ.');
@@ -486,16 +554,18 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
                     </div>
                   </div>
 
-                  <div style={{ marginBottom: 12 }}>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                      Địa chỉ chi tiết (Số nhà, Tòa nhà, Đường, Phường/Xã, Quận/Huyện) *
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                      Địa chỉ & ghim xác thực trên bản đồ *
                     </label>
-                    <input
-                      type="text"
-                      placeholder="VD: Số 45 Lê Duẩn, Phường Bến Nghé, Quận 1, TP. HCM"
-                      value={addrFull}
-                      onChange={(e) => setAddrFull(e.target.value)}
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem' }}
+                    <AddressMapPicker
+                      key={`${editingAddress?.id || 'new'}-${pickerKey}`}
+                      initialAddress={editingAddress?.fullAddress || ''}
+                      initialLat={editingAddress?.latitude}
+                      initialLng={editingAddress?.longitude}
+                      initialMapReferenceName={editingAddress?.mapReferenceName}
+                      height={250}
+                      onChange={setAddrPickerValue}
                     />
                   </div>
 
@@ -508,8 +578,19 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
                     <span>Đặt làm địa chỉ nhận hàng mặc định</span>
                   </label>
 
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <button type="submit" className="btn btn-primary" style={{ padding: '8px 18px', borderRadius: 8, fontSize: '0.84rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                    <button
+                      type="submit"
+                      disabled={!canSaveAddress}
+                      className="btn btn-primary"
+                      style={{
+                        padding: '8px 18px',
+                        borderRadius: 8,
+                        fontSize: '0.84rem',
+                        opacity: canSaveAddress ? 1 : 0.55,
+                        cursor: canSaveAddress ? 'pointer' : 'not-allowed',
+                      }}
+                    >
                       Lưu địa chỉ
                     </button>
                     <button
@@ -520,59 +601,112 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
                     >
                       Hủy
                     </button>
+                    {!canSaveAddress && (
+                      <span style={{ fontSize: '0.78rem', color: '#B45309', fontWeight: 600 }}>
+                        Vui lòng nhập đầy đủ người nhận, SĐT và chọn địa chỉ khớp vị trí bản đồ.
+                      </span>
+                    )}
                   </div>
                 </form>
               )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {addresses.map((addr) => (
-                  <div
-                    key={addr.id}
-                    style={{
-                      padding: 18,
-                      borderRadius: 12,
-                      border: `1.5px solid ${addr.isDefault ? '#00B14F' : '#E2E8F0'}`,
-                      background: addr.isDefault ? '#F0FDF4' : '#FFFFFF',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      gap: 16,
-                    }}
-                  >
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <span
-                          style={{
-                            padding: '2px 8px',
-                            borderRadius: 6,
-                            background: '#0F172A',
-                            color: '#FFFFFF',
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                          }}
-                        >
-                          {addr.label}
-                        </span>
-                        <span style={{ fontWeight: 800, fontSize: '0.94rem', color: '#0F172A' }}>
-                          {addr.recipientName} • {addr.phone}
-                        </span>
-                        {addr.isDefault && (
+                {addresses.map((addr) => {
+                  const isMapVerified = Boolean(
+                    addr.mapVerified &&
+                      typeof addr.latitude === 'number' &&
+                      typeof addr.longitude === 'number',
+                  );
+                  return (
+                    <div
+                      key={addr.id}
+                      style={{
+                        padding: 18,
+                        borderRadius: 12,
+                        border: `1.5px solid ${addr.isDefault ? '#00B14F' : '#E2E8F0'}`,
+                        background: addr.isDefault ? '#F0FDF4' : '#FFFFFF',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: 16,
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
                           <span
                             style={{
                               padding: '2px 8px',
                               borderRadius: 6,
-                              background: '#DCFCE7',
-                              color: '#15803D',
+                              background: '#0F172A',
+                              color: '#FFFFFF',
                               fontSize: '0.72rem',
                               fontWeight: 700,
                             }}
                           >
-                            Mặc định
+                            {addr.label}
                           </span>
+                          <span style={{ fontWeight: 800, fontSize: '0.94rem', color: '#0F172A' }}>
+                            {addr.recipientName} • {addr.phone}
+                          </span>
+                          {addr.isDefault && (
+                            <span
+                              style={{
+                                padding: '2px 8px',
+                                borderRadius: 6,
+                                background: '#DCFCE7',
+                                color: '#15803D',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                              }}
+                            >
+                              Mặc định
+                            </span>
+                          )}
+                          {isMapVerified ? (
+                            <span
+                              style={{
+                                padding: '2px 8px',
+                                borderRadius: 6,
+                                background: '#ECFDF5',
+                                border: '1px solid #A7F3D0',
+                                color: '#047857',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                              }}
+                            >
+                              <CheckCircle2 size={12} />
+                              Khớp bản đồ
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                padding: '2px 8px',
+                                borderRadius: 6,
+                                background: '#FEF3C7',
+                                border: '1px solid #FDE68A',
+                                color: '#B45309',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                              }}
+                            >
+                              <AlertTriangle size={12} />
+                              Chưa xác thực bản đồ
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '0.85rem', color: '#475569' }}>{addr.fullAddress}</div>
+                        {isMapVerified && typeof addr.latitude === 'number' && typeof addr.longitude === 'number' && (
+                          <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: 3 }}>
+                            Tọa độ ghim: {addr.latitude.toFixed(5)}, {addr.longitude.toFixed(5)}
+                          </div>
                         )}
                       </div>
-                      <div style={{ fontSize: '0.85rem', color: '#475569' }}>{addr.fullAddress}</div>
-                    </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                       {!addr.isDefault && (
@@ -627,7 +761,8 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

@@ -23,14 +23,17 @@ import { CustomerProfilePage } from './pages/CustomerProfilePage';
 import { AuthModal } from './components/common/AuthModal';
 import { ReviewModal } from './components/common/ReviewModal';
 import { MerchantRegistrationModal } from './components/common/MerchantRegistrationModal';
+import { AddressSetupModal } from './components/common/AddressSetupModal';
 import { CartProvider } from './context/CartContext';
 import { MOCK_MERCHANTS, MOCK_MENU_ITEMS, MOCK_DRIVERS, MOCK_USERS } from './api/client';
-import type { DriverProfile, Merchant, MenuItem, Order, OrderStatus, Role, User } from './types';
+import type { DriverProfile, Merchant, MenuItem, Order, OrderStatus, Role, SavedAddress, User } from './types';
 import { QrCode, CheckCircle2 } from 'lucide-react';
 
 const INITIAL_SAMPLE_ORDER: Order = {
   id: 'ord-sample-01',
   orderNumber: 'DG20261103-TRK88',
+  customerId: 'u-user1-001',
+  customerEmail: 'customer@dinego.vn',
   status: 'PREPARING',
   subtotal: 150000,
   deliveryFee: 15000,
@@ -69,29 +72,54 @@ const INITIAL_SAMPLE_ORDER: Order = {
   },
 };
 
-export const AppContent: React.FC = () => {
+interface AppContentProps {
+  currentUser: User | null;
+  setCurrentUser: React.Dispatch<React.SetStateAction<User | null>>;
+}
+
+function hydrateSeedCustomerCoords(user: User): User {
+  const seedMatch = MOCK_USERS.find((m) => m.id === user.id);
+  if (!seedMatch || user.addressLat != null) return user;
+  if (seedMatch.addressLat != null && seedMatch.address === user.address) {
+    return {
+      ...user,
+      addressLat: seedMatch.addressLat,
+      addressLng: seedMatch.addressLng,
+      savedAddresses:
+        user.savedAddresses && user.savedAddresses.length > 0
+          ? user.savedAddresses.map((addr, idx) =>
+              idx === 0 &&
+              seedMatch.savedAddresses?.[0] &&
+              addr.fullAddress === seedMatch.savedAddresses[0].fullAddress
+                ? {
+                    ...addr,
+                    latitude: addr.latitude ?? seedMatch.savedAddresses[0].latitude,
+                    longitude: addr.longitude ?? seedMatch.savedAddresses[0].longitude,
+                    mapReferenceName:
+                      addr.mapReferenceName ?? seedMatch.savedAddresses[0].mapReferenceName,
+                    mapVerified: addr.mapVerified ?? seedMatch.savedAddresses[0].mapVerified,
+                  }
+                : addr,
+            )
+          : seedMatch.savedAddresses,
+    };
+  }
+  return user;
+}
+
+export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentUser }) => {
   // 1. Users state
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('dinego_users_list');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((u) => hydrateSeedCustomerCoords(u));
+        }
       } catch {}
     }
     return MOCK_USERS;
-  });
-
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('dinego_user');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return null;
-      }
-    }
-    return null;
   });
 
   const [currentTab, setCurrentTab] = useState<NavTab>(() => {
@@ -172,7 +200,15 @@ export const AppContent: React.FC = () => {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          return parsed.map((o: Order) =>
+            o.id === INITIAL_SAMPLE_ORDER.id && !o.customerId
+              ? {
+                  ...o,
+                  customerId: INITIAL_SAMPLE_ORDER.customerId,
+                  customerEmail: INITIAL_SAMPLE_ORDER.customerEmail,
+                }
+              : o,
+          );
         }
       } catch {
         return [INITIAL_SAMPLE_ORDER];
@@ -186,6 +222,8 @@ export const AppContent: React.FC = () => {
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   const [authTargetRole, setAuthTargetRole] = useState<Role>('CUSTOMER');
   const [reviewModalOrder, setReviewModalOrder] = useState<Order | null>(null);
+  const [isAddressSetupModalOpen, setIsAddressSetupModalOpen] = useState(false);
+  const [pendingAfterAddressSetup, setPendingAfterAddressSetup] = useState<(() => void) | null>(null);
 
   useEffect(() => {
     localStorage.setItem('dinego_orders', JSON.stringify(orders));
@@ -194,6 +232,10 @@ export const AppContent: React.FC = () => {
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem('dinego_user');
+    setActiveMomoPaymentOrder(null);
+    setReviewModalOrder(null);
+    setIsAddressSetupModalOpen(false);
+    setPendingAfterAddressSetup(null);
     setCurrentTab('home');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -258,6 +300,8 @@ export const AppContent: React.FC = () => {
     }));
     setCurrentUser(newOwnerUser);
     localStorage.setItem('dinego_user', JSON.stringify(newOwnerUser));
+    setActiveMomoPaymentOrder(null);
+    setReviewModalOrder(null);
     setCurrentTab('merchant-orders');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -268,6 +312,8 @@ export const AppContent: React.FC = () => {
     setUsers((prev) => [newDriverUser, ...prev]);
     setCurrentUser(newDriverUser);
     localStorage.setItem('dinego_user', JSON.stringify(newDriverUser));
+    setActiveMomoPaymentOrder(null);
+    setReviewModalOrder(null);
     setCurrentTab('driver-orders');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -277,7 +323,11 @@ export const AppContent: React.FC = () => {
     setUsers((prev) => [newCustUser, ...prev]);
     setCurrentUser(newCustUser);
     localStorage.setItem('dinego_user', JSON.stringify(newCustUser));
-    setCurrentTab('home');
+    setActiveMomoPaymentOrder(null);
+    setReviewModalOrder(null);
+    if (currentTab !== 'checkout') {
+      setCurrentTab('home');
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -286,6 +336,36 @@ export const AppContent: React.FC = () => {
     setCurrentUser(updatedUser);
     localStorage.setItem('dinego_user', JSON.stringify(updatedUser));
     setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+  };
+
+  const handleRequireAddressSetup = (afterSetup?: () => void) => {
+    setPendingAfterAddressSetup(() => afterSetup || null);
+    setIsAddressSetupModalOpen(true);
+  };
+
+  const handleSaveCustomerAddress = (savedAddress: SavedAddress, makeDefault: boolean) => {
+    if (!currentUser) return;
+    const existing = currentUser.savedAddresses || [];
+    const shouldDefault = makeDefault || existing.length === 0;
+    const normalizedExisting = shouldDefault
+      ? existing.map((a) => ({ ...a, isDefault: false }))
+      : [...existing];
+    const nextSaved = [{ ...savedAddress, isDefault: shouldDefault }, ...normalizedExisting];
+    const defaultObj = nextSaved.find((a) => a.isDefault) || nextSaved[0];
+    const updatedUser: User = {
+      ...currentUser,
+      address: defaultObj.fullAddress,
+      addressLat: defaultObj.latitude,
+      addressLng: defaultObj.longitude,
+      savedAddresses: nextSaved,
+    };
+    handleUpdateUser(updatedUser);
+    setIsAddressSetupModalOpen(false);
+    if (pendingAfterAddressSetup) {
+      const callback = pendingAfterAddressSetup;
+      setPendingAfterAddressSetup(null);
+      callback();
+    }
   };
 
   // Update Driver profile & vehicle info
@@ -325,7 +405,13 @@ export const AppContent: React.FC = () => {
   };
 
   const handleOrderPlaced = (newOrder: Order) => {
-    setOrders([newOrder, ...orders]);
+    if (!currentUser) return;
+    const ownedOrder: Order = {
+      ...newOrder,
+      customerId: newOrder.customerId || currentUser.id,
+      customerEmail: newOrder.customerEmail || currentUser.email,
+    };
+    setOrders([ownedOrder, ...orders]);
     setCurrentTab('orders');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -345,6 +431,13 @@ export const AppContent: React.FC = () => {
   };
 
   const handlePayMoMo = (order: Order) => {
+    if (!currentUser) return;
+    const isOwner =
+      order.customerId === currentUser.id ||
+      (!order.customerId &&
+        !!order.customerEmail &&
+        order.customerEmail.toLowerCase() === currentUser.email.toLowerCase());
+    if (!isOwner && !currentUser.roles.includes('ADMIN')) return;
     setActiveMomoPaymentOrder(order);
   };
 
@@ -413,7 +506,20 @@ export const AppContent: React.FC = () => {
   const isCustomerStorefrontShell =
     !isMerchantPortalTab && !isAdminPortalTab && !isDriverPortalMode;
 
-  const activeKitchenOrdersCount = orders.filter((o) =>
+  // Strictly scope orders by owning account / merchant
+  const customerOrders = currentUser
+    ? orders.filter(
+        (o) =>
+          o.customerId === currentUser.id ||
+          (!o.customerId &&
+            !!o.customerEmail &&
+            o.customerEmail.toLowerCase() === currentUser.email.toLowerCase()),
+      )
+    : [];
+
+  const merchantOrders = orders.filter((o) => o.merchant?.id === selectedMerchant.id);
+
+  const activeCustomerOrdersCount = customerOrders.filter((o) =>
     ['PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'].includes(o.status),
   ).length;
 
@@ -421,6 +527,7 @@ export const AppContent: React.FC = () => {
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {isCustomerStorefrontShell && (
         <Header
+          key={currentUser?.id || 'guest'}
           currentTab={currentTab}
           onNavigate={(tab) => {
             setCurrentTab(tab);
@@ -430,7 +537,7 @@ export const AppContent: React.FC = () => {
           onOpenAuthModal={handleOpenAuthModal}
           onLogout={handleLogout}
           onOpenMerchantRegisterModal={() => setIsMerchantRegisterModalOpen(true)}
-          activeOrdersCount={activeKitchenOrdersCount}
+          activeOrdersCount={activeCustomerOrdersCount}
         />
       )}
 
@@ -451,21 +558,27 @@ export const AppContent: React.FC = () => {
             onBack={() => setCurrentTab('home')}
             onGoToCheckout={() => setCurrentTab('checkout')}
             menuItems={allMenuItems}
+            currentUser={currentUser}
+            onRequireAddressSetup={handleRequireAddressSetup}
           />
         )}
 
         {currentTab === 'checkout' && (
           <CheckoutPage
+            key={currentUser?.id || 'guest'}
             onBack={() => setCurrentTab('restaurant')}
             onOrderPlaced={handleOrderPlaced}
             currentUser={currentUser}
             onOpenAuthModal={(mode) => handleOpenAuthModal(mode, 'CUSTOMER')}
+            merchants={merchants}
+            onOpenAddressSetup={() => handleRequireAddressSetup()}
           />
         )}
 
         {currentTab === 'orders' && (
           <OrdersPage
-            orders={orders}
+            key={currentUser?.id || 'guest'}
+            orders={customerOrders}
             onUpdateOrderStatus={handleUpdateOrderStatus}
             onPayMoMo={handlePayMoMo}
             onExplore={() => setCurrentTab('home')}
@@ -473,7 +586,9 @@ export const AppContent: React.FC = () => {
           />
         )}
 
-        {currentTab === 'catering' && <CateringPage />}
+        {currentTab === 'catering' && (
+          <CateringPage key={currentUser?.id || 'guest'} currentUser={currentUser} />
+        )}
 
         {currentTab === 'group-order' && <GroupOrderPage />}
 
@@ -483,6 +598,7 @@ export const AppContent: React.FC = () => {
 
         {currentTab === 'customer-profile' && (
           <CustomerProfilePage
+            key={currentUser?.id || 'guest'}
             currentUser={currentUser}
             onUpdateUser={handleUpdateUser}
           />
@@ -491,8 +607,9 @@ export const AppContent: React.FC = () => {
         {/* 2. DRIVER PARTNER CONSOLE SHELL & CUSTOMER TRACKING VIEW */}
         {isDriverOrTrackingTab && (
           <TrackingPage
-            activeOrder={orders[0] || null}
-            allOrders={orders}
+            key={isDriverPortalMode ? currentDriverProfile.id : currentUser?.id || 'guest'}
+            activeOrder={isDriverPortalMode ? orders[0] || null : customerOrders[0] || null}
+            allOrders={isDriverPortalMode ? orders : customerOrders}
             activeTab={currentTab}
             onNavigate={(tab) => {
               setCurrentTab(tab);
@@ -520,7 +637,7 @@ export const AppContent: React.FC = () => {
             }}
             onOpenAuthModal={handleOpenAuthModal}
             onLogout={handleLogout}
-            orders={orders}
+            orders={isAdminPortalTab ? orders : merchantOrders}
             onUpdateOrderStatus={handleUpdateOrderStatus}
             merchantDishes={allMenuItems[selectedMerchant.id] || MOCK_MENU_ITEMS[selectedMerchant.id] || []}
             onToggleDishAvailability={handleToggleDishAvailability}
@@ -570,6 +687,8 @@ export const AppContent: React.FC = () => {
         onLoginSuccess={(user) => {
           setCurrentUser(user);
           localStorage.setItem('dinego_user', JSON.stringify(user));
+          setActiveMomoPaymentOrder(null);
+          setReviewModalOrder(null);
           setIsAuthModalOpen(false);
           if (user.roles.includes('ADMIN')) {
             setCurrentTab('admin-overview');
@@ -577,12 +696,26 @@ export const AppContent: React.FC = () => {
             setCurrentTab('merchant-orders');
           } else if (user.roles.includes('DRIVER')) {
             setCurrentTab('driver-orders');
-          } else {
+          } else if (currentTab !== 'checkout') {
             setCurrentTab('home');
           }
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
       />
+
+      {/* Mandatory Map-Verified Address Setup Modal for Ordering */}
+      {isAddressSetupModalOpen && (
+        <AddressSetupModal
+          key={currentUser?.id || 'guest'}
+          isOpen={isAddressSetupModalOpen}
+          currentUser={currentUser}
+          onClose={() => {
+            setIsAddressSetupModalOpen(false);
+            setPendingAfterAddressSetup(null);
+          }}
+          onSaveAddress={handleSaveCustomerAddress}
+        />
+      )}
 
       {/* Customer Review & Complaint Modal */}
       <ReviewModal
@@ -688,9 +821,21 @@ export const AppContent: React.FC = () => {
 };
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const saved = localStorage.getItem('dinego_user');
+    if (saved) {
+      try {
+        return hydrateSeedCustomerCoords(JSON.parse(saved));
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+
   return (
-    <CartProvider>
-      <AppContent />
+    <CartProvider userId={currentUser?.id ?? null}>
+      <AppContent currentUser={currentUser} setCurrentUser={setCurrentUser} />
     </CartProvider>
   );
 }

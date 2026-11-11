@@ -22,11 +22,13 @@ import {
 } from 'lucide-react';
 import { MOCK_MENU_ITEMS } from '../api/client';
 import { useCart } from '../context/CartContext';
+import { hasVerifiedCustomerAddress } from '../utils/routing';
 import type {
   CartItemTopping,
   MenuItem,
   Merchant,
   Topping,
+  User,
 } from '../types';
 
 interface RestaurantPageProps {
@@ -34,6 +36,8 @@ interface RestaurantPageProps {
   onBack: () => void;
   onGoToCheckout: () => void;
   menuItems?: Record<string, MenuItem[]>;
+  currentUser?: User | null;
+  onRequireAddressSetup?: (afterSetup: () => void) => void;
 }
 
 export const RestaurantPage: React.FC<RestaurantPageProps> = ({
@@ -41,6 +45,8 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
   onBack,
   onGoToCheckout,
   menuItems,
+  currentUser,
+  onRequireAddressSetup,
 }) => {
   const { addItem, cartCount, cart } = useCart();
   const [selectedDish, setSelectedDish] = useState<MenuItem | null>(null);
@@ -101,20 +107,34 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
   const handleAddToCart = () => {
     if (!selectedDish) return;
 
-    const success = addItem(
-      merchant.id,
-      merchant.name,
-      selectedDish,
-      quantity,
-      selectedToppings,
-      itemNote || undefined,
-    );
+    const performAddToCart = () => {
+      const success = addItem(
+        merchant.id,
+        merchant.name,
+        selectedDish,
+        quantity,
+        selectedToppings,
+        itemNote || undefined,
+      );
 
-    if (success) {
-      setToastMessage(`Đã thêm ${quantity}x "${selectedDish.name}" vào giỏ hàng!`);
-      setSelectedDish(null);
-      setTimeout(() => setToastMessage(null), 3000);
+      if (success) {
+        setToastMessage(`Đã thêm ${quantity}x "${selectedDish.name}" vào giỏ hàng!`);
+        setSelectedDish(null);
+        setTimeout(() => setToastMessage(null), 3000);
+      }
+    };
+
+    if (
+      currentUser &&
+      currentUser.roles.includes('CUSTOMER') &&
+      !hasVerifiedCustomerAddress(currentUser) &&
+      onRequireAddressSetup
+    ) {
+      onRequireAddressSetup(performAddToCart);
+      return;
     }
+
+    performAddToCart();
   };
 
   const currentDishToppingTotal = selectedToppings.reduce((sum, t) => sum + t.price, 0);
@@ -430,7 +450,18 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
             {cartCount > 0 && cart.merchantId === merchant.id && (
               <button
                 className="btn btn-primary"
-                onClick={onGoToCheckout}
+                onClick={() => {
+                  if (
+                    currentUser &&
+                    currentUser.roles.includes('CUSTOMER') &&
+                    !hasVerifiedCustomerAddress(currentUser) &&
+                    onRequireAddressSetup
+                  ) {
+                    onRequireAddressSetup(onGoToCheckout);
+                    return;
+                  }
+                  onGoToCheckout();
+                }}
                 style={{
                   padding: '14px 26px',
                   borderRadius: 16,

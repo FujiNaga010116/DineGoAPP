@@ -26,6 +26,8 @@ export interface LiveTrackingData {
   status: DeliveryStatus;
   shipper?: ShipperInfo;
   shipperLocation?: Coordinates;
+  heading?: number;
+  speed?: number;
   storeLocation: Coordinates & { name: string; address: string };
   customerLocation: Coordinates & { address: string };
   distanceRemainingKm: number;

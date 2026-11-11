@@ -2,7 +2,7 @@
 // DineGo Frontend — Cart Context (Phase 5.1 & Phase 5.2 Integration)
 // ==============================================================================
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { VALID_VOUCHERS } from '../api/client';
 import type { Cart, CartItem, CartItemTopping, MenuItem } from '../types';
 
@@ -37,22 +37,78 @@ const initialCart: Cart = {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
-export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [cart, setCart] = useState<Cart>(() => {
-    const saved = localStorage.getItem('dinego_cart');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return initialCart;
-      }
+const getCartStorageKey = (userId?: string | null) =>
+  `dinego_cart_${userId ? userId : 'guest'}`;
+
+const readCartFromStorage = (key: string): Cart => {
+  const saved = localStorage.getItem(key);
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {
+      return initialCart;
     }
-    return initialCart;
+  }
+  return initialCart;
+};
+
+export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string | null }> = ({
+  children,
+  userId = null,
+}) => {
+  const ownerId = userId ?? null;
+  const prevOwnerRef = useRef<string | null>(ownerId);
+  const [cartState, setCartState] = useState<{ ownerId: string | null; data: Cart }>(() => {
+    localStorage.removeItem('dinego_cart');
+    return {
+      ownerId,
+      data: readCartFromStorage(getCartStorageKey(ownerId)),
+    };
   });
 
+  const cart: Cart = cartState.ownerId === ownerId ? cartState.data : initialCart;
+
+  const setCart: React.Dispatch<React.SetStateAction<Cart>> = (action) => {
+    setCartState((prev) => {
+      const currentData =
+        prev.ownerId === ownerId ? prev.data : readCartFromStorage(getCartStorageKey(ownerId));
+      const nextData = typeof action === 'function' ? action(currentData) : action;
+      return { ownerId, data: nextData };
+    });
+  };
+
   useEffect(() => {
-    localStorage.setItem('dinego_cart', JSON.stringify(cart));
-  }, [cart]);
+    const prevOwner = prevOwnerRef.current;
+    if (prevOwner === ownerId) return;
+    prevOwnerRef.current = ownerId;
+
+    const nextKey = getCartStorageKey(ownerId);
+    let nextCart = readCartFromStorage(nextKey);
+
+    // Transfer guest draft cart once when authenticating, then delete guest storage
+    // so subsequent accounts never inherit another session's draft items.
+    if (prevOwner === null && ownerId !== null) {
+      const guestKey = getCartStorageKey(null);
+      const guestCart = readCartFromStorage(guestKey);
+      localStorage.removeItem(guestKey);
+
+      if (guestCart.items.length > 0 && nextCart.items.length === 0) {
+        nextCart = guestCart;
+        localStorage.setItem(nextKey, JSON.stringify(guestCart));
+      }
+    }
+
+    setCartState({ ownerId, data: nextCart });
+  }, [ownerId]);
+
+  useEffect(() => {
+    const key = getCartStorageKey(cartState.ownerId);
+    if (cartState.data.items.length === 0) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(key, JSON.stringify(cartState.data));
+    }
+  }, [cartState]);
 
   // Recalculate totals
   const recalculateCart = (
@@ -187,7 +243,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearCart = () => {
     setCart(initialCart);
-    localStorage.removeItem('dinego_cart');
+    localStorage.removeItem(getCartStorageKey(ownerId));
   };
 
   const cartCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);

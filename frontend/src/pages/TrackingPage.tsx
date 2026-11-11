@@ -5,7 +5,7 @@
 // - No cross-role switching buttons (Logout only)
 // ==============================================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Bike,
   MapPin,
@@ -13,7 +13,7 @@ import {
   CheckCircle2,
   Navigation,
   Store,
-  Home,
+  Crosshair,
   RotateCcw,
   Star,
   Wallet,
@@ -26,6 +26,21 @@ import {
 import type { DriverProfile, Order, OrderStatus, User } from '../types';
 import type { NavTab } from '../components/common/Header';
 import { MOCK_DRIVERS } from '../api/client';
+import { DeliveryMap } from '../components/common/DeliveryMap';
+import {
+  calculateBearingDeg,
+  calculateHaversineKm,
+  fetchRoadRoute,
+  publishLiveTracking,
+  readLiveTracking,
+  resolveCustomerCoords,
+  resolveDriverStartCoords,
+  resolveMerchantCoords,
+  subscribeLiveTracking,
+  syncGpsToBackend,
+  type LatLngPoint,
+  type LiveOrderTrackingPayload,
+} from '../utils/routing';
 
 type TrackingStatus =
   | 'ASSIGNED'
@@ -46,6 +61,11 @@ interface TrackingState {
   status: TrackingStatus;
   currentLat: number;
   currentLng: number;
+  heading: number;
+  storeLat: number;
+  storeLng: number;
+  customerLat: number;
+  customerLng: number;
   distanceKm: number;
   etaMinutes: number;
 }
@@ -79,6 +99,8 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
   onExploreFood,
   onLogout,
 }) => {
+  const isDriverPortal =
+    isDriverMode || String(activeTab).startsWith('driver-');
   const [driverOnline, setDriverOnline] = useState(currentDriver.status !== 'OFFLINE');
   const [withdrawnNotice, setWithdrawnNotice] = useState(false);
   const [profileSavedNotice, setProfileSavedNotice] = useState('');
@@ -113,21 +135,113 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
     setDrvEmergency(currentDriver.emergencyContact || '');
   }, [currentDriver]);
 
-  const [tracking, setTracking] = useState<TrackingState>({
-    orderNumber: activeOrder?.orderNumber || 'DG20261103-TRK88',
-    restaurantName: activeOrder?.merchant?.name || 'Cơm Tấm Sài Gòn 1985',
-    restaurantAddress: activeOrder?.merchant?.address || '123 Nguyễn Huệ, Quận 1, TP. HCM',
-    customerAddress: activeOrder?.deliveryAddress || '45 Lê Duẩn, Bến Nghé, Quận 1, TP. HCM',
-    driverName: currentDriver.fullName,
-    driverPhone: currentDriver.phoneNumber,
-    licensePlate: currentDriver.licensePlate,
-    driverRating: currentDriver.rating,
-    status: 'DELIVERING',
-    currentLat: 10.7769,
-    currentLng: 106.7009,
-    distanceKm: 1.4,
-    etaMinutes: 8,
+  const initialStore =
+    activeOrder?.merchant?.latitude != null && activeOrder?.merchant?.longitude != null
+      ? { lat: activeOrder.merchant.latitude, lng: activeOrder.merchant.longitude }
+      : resolveMerchantCoords(
+          activeOrder?.merchant?.id,
+          activeOrder?.merchant?.address,
+        );
+  const initialCustomerAddress =
+    activeOrder?.deliveryAddress || '45 Lê Duẩn, Bến Nghé, Quận 1, TP. HCM';
+  const initialCustomer =
+    activeOrder?.deliveryLatitude != null && activeOrder?.deliveryLongitude != null
+      ? { lat: activeOrder.deliveryLatitude, lng: activeOrder.deliveryLongitude }
+      : resolveCustomerCoords(initialCustomerAddress, initialStore);
+  const initialDriverStart = resolveDriverStartCoords(initialStore, currentDriver.id);
+
+  const [tracking, setTracking] = useState<TrackingState>(() => {
+    const orderNum = activeOrder?.orderNumber || 'DG20261103-TRK88';
+    const existingSync = readLiveTracking(orderNum);
+    if (existingSync) {
+      return {
+        orderNumber: existingSync.orderNumber,
+        restaurantName: existingSync.storeName,
+        restaurantAddress: existingSync.storeAddress,
+        customerAddress: existingSync.customerAddress,
+        driverName: existingSync.driverName,
+        driverPhone: existingSync.driverPhone,
+        licensePlate: existingSync.licensePlate,
+        driverRating: existingSync.driverRating,
+        status: existingSync.status === 'PICKED_UP' ? 'DELIVERING' : existingSync.status,
+        currentLat: existingSync.currentLat,
+        currentLng: existingSync.currentLng,
+        heading: existingSync.heading,
+        storeLat: existingSync.storeLat,
+        storeLng: existingSync.storeLng,
+        customerLat: existingSync.customerLat,
+        customerLng: existingSync.customerLng,
+        distanceKm: existingSync.distanceKm,
+        etaMinutes: existingSync.etaMinutes,
+      };
+    }
+
+    const isPendingPickup =
+      activeOrder?.status === 'PENDING' || activeOrder?.status === 'CONFIRMED';
+    const startShipperPt = isPendingPickup ? initialDriverStart : initialStore;
+    const startDist = calculateHaversineKm(startShipperPt, initialCustomer);
+    return {
+      orderNumber: orderNum,
+      restaurantName: activeOrder?.merchant?.name || 'Cơm Tấm Sài Gòn 1985',
+      restaurantAddress:
+        activeOrder?.merchant?.address || '123 Nguyễn Huệ, Quận 1, TP. HCM',
+      customerAddress: initialCustomerAddress,
+      driverName: currentDriver.fullName,
+      driverPhone: currentDriver.phoneNumber,
+      licensePlate: currentDriver.licensePlate,
+      driverRating: currentDriver.rating,
+      status: isPendingPickup ? 'ASSIGNED' : 'DELIVERING',
+      currentLat: startShipperPt.lat,
+      currentLng: startShipperPt.lng,
+      heading: calculateBearingDeg(startShipperPt, isPendingPickup ? initialStore : initialCustomer),
+      storeLat: initialStore.lat,
+      storeLng: initialStore.lng,
+      customerLat: initialCustomer.lat,
+      customerLng: initialCustomer.lng,
+      distanceKm: startDist,
+      etaMinutes: Math.max(4, Math.ceil(startDist * 3.5)),
+    };
   });
+
+  const [routePoints, setRoutePoints] = useState<[number, number][]>([
+    [initialStore.lat, initialStore.lng],
+    [initialCustomer.lat, initialCustomer.lng],
+  ]);
+  const [driverToStorePoints, setDriverToStorePoints] = useState<[number, number][]>([]);
+  const [routeSource, setRouteSource] = useState<'osrm' | 'fallback'>('osrm');
+  const [gpsStatusNotice, setGpsStatusNotice] = useState('');
+  const [isAutoMoving, setIsAutoMoving] = useState(false);
+
+  const routeCursorRef = useRef<number>(0);
+  const latestTrackingRef = useRef<TrackingState>(tracking);
+  latestTrackingRef.current = tracking;
+
+  const broadcastTrackingState = (nextState: TrackingState) => {
+    const payload: LiveOrderTrackingPayload = {
+      orderId: activeOrder?.id,
+      orderNumber: nextState.orderNumber,
+      status: nextState.status,
+      currentLat: nextState.currentLat,
+      currentLng: nextState.currentLng,
+      heading: nextState.heading,
+      distanceKm: nextState.distanceKm,
+      etaMinutes: nextState.etaMinutes,
+      storeLat: nextState.storeLat,
+      storeLng: nextState.storeLng,
+      storeName: nextState.restaurantName,
+      storeAddress: nextState.restaurantAddress,
+      customerLat: nextState.customerLat,
+      customerLng: nextState.customerLng,
+      customerAddress: nextState.customerAddress,
+      driverId: currentDriver.id,
+      driverName: nextState.driverName,
+      driverPhone: nextState.driverPhone,
+      licensePlate: nextState.licensePlate,
+      driverRating: nextState.driverRating,
+      updatedAt: new Date().toISOString(),
+    };
+    publishLiveTracking(payload);
+  };
 
   useEffect(() => {
     if (activeOrder) {
@@ -142,53 +256,301 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
         mappedStatus = 'DELIVERED';
       }
 
-      setTracking((prev) => ({
-        ...prev,
-        orderNumber: activeOrder.orderNumber,
-        restaurantName: activeOrder.merchant?.name || prev.restaurantName,
-        restaurantAddress: activeOrder.merchant?.address || prev.restaurantAddress,
-        customerAddress: activeOrder.deliveryAddress || prev.customerAddress,
-        driverName: currentDriver.fullName,
-        driverPhone: currentDriver.phoneNumber,
-        licensePlate: currentDriver.licensePlate,
-        driverRating: currentDriver.rating,
-        status: mappedStatus,
-      }));
-    }
-  }, [activeOrder, currentDriver]);
+      const nextStore =
+        activeOrder.merchant?.latitude != null && activeOrder.merchant?.longitude != null
+          ? { lat: activeOrder.merchant.latitude, lng: activeOrder.merchant.longitude }
+          : resolveMerchantCoords(
+              activeOrder.merchant?.id,
+              activeOrder.merchant?.address,
+            );
+      const nextCustomer =
+        activeOrder.deliveryLatitude != null && activeOrder.deliveryLongitude != null
+          ? { lat: activeOrder.deliveryLatitude, lng: activeOrder.deliveryLongitude }
+          : resolveCustomerCoords(
+              activeOrder.deliveryAddress,
+              nextStore,
+            );
+      const synced = readLiveTracking(activeOrder.orderNumber);
+      const fallbackShipper =
+        mappedStatus === 'ASSIGNED'
+          ? resolveDriverStartCoords(nextStore, currentDriver.id)
+          : mappedStatus === 'DELIVERED'
+          ? nextCustomer
+          : nextStore;
 
-  const [isAutoMoving, setIsAutoMoving] = useState(false);
-
-  useEffect(() => {
-    if (!isAutoMoving) return;
-    const timer = setInterval(() => {
       setTracking((prev) => {
-        if (prev.status === 'DELIVERED') {
-          setIsAutoMoving(false);
-          return prev;
-        }
-        const nextDist = Math.max(0, +(prev.distanceKm - 0.35).toFixed(2));
-        const nextEta = Math.max(0, Math.ceil(nextDist * 5));
-        let nextStatus = prev.status;
+        const useSyncedCoords =
+          synced && prev.orderNumber === synced.orderNumber
+            ? {
+                lat: synced.currentLat,
+                lng: synced.currentLng,
+                heading: synced.heading,
+                dist: synced.distanceKm,
+                eta: synced.etaMinutes,
+              }
+            : synced && !isDriverPortal
+            ? {
+                lat: synced.currentLat,
+                lng: synced.currentLng,
+                heading: synced.heading,
+                dist: synced.distanceKm,
+                eta: synced.etaMinutes,
+              }
+            : null;
 
-        if (nextDist <= 0.08 && prev.status === 'DELIVERING') {
-          nextStatus = 'ARRIVED_AT_DESTINATION';
-          setIsAutoMoving(false);
-        }
+        const baseDist =
+          mappedStatus === 'DELIVERED'
+            ? 0
+            : calculateHaversineKm(fallbackShipper, nextCustomer);
 
         return {
           ...prev,
-          currentLat: +(prev.currentLat + 0.0008).toFixed(4),
-          currentLng: +(prev.currentLng + 0.0006).toFixed(4),
-          distanceKm: nextDist,
-          etaMinutes: nextEta,
-          status: nextStatus,
+          orderNumber: activeOrder.orderNumber,
+          restaurantName: activeOrder.merchant?.name || prev.restaurantName,
+          restaurantAddress: activeOrder.merchant?.address || prev.restaurantAddress,
+          customerAddress: activeOrder.deliveryAddress || prev.customerAddress,
+          driverName: currentDriver.fullName,
+          driverPhone: currentDriver.phoneNumber,
+          licensePlate: currentDriver.licensePlate,
+          driverRating: currentDriver.rating,
+          status:
+            synced && !isDriverPortal
+              ? synced.status === 'PICKED_UP'
+                ? 'DELIVERING'
+                : synced.status
+              : mappedStatus,
+          storeLat: nextStore.lat,
+          storeLng: nextStore.lng,
+          customerLat: nextCustomer.lat,
+          customerLng: nextCustomer.lng,
+          currentLat: useSyncedCoords ? useSyncedCoords.lat : fallbackShipper.lat,
+          currentLng: useSyncedCoords ? useSyncedCoords.lng : fallbackShipper.lng,
+          heading: useSyncedCoords
+            ? useSyncedCoords.heading
+            : calculateBearingDeg(fallbackShipper, nextCustomer),
+          distanceKm: useSyncedCoords ? useSyncedCoords.dist : baseDist,
+          etaMinutes: useSyncedCoords
+            ? useSyncedCoords.eta
+            : mappedStatus === 'DELIVERED'
+            ? 0
+            : Math.max(3, Math.ceil(baseDist * 3.5)),
         };
       });
-    }, 1500);
+      routeCursorRef.current = 0;
+    }
+  }, [activeOrder, currentDriver, isDriverPortal]);
+
+  // Fetch real OpenStreetMap / OSRM road route whenever Store or Customer changes
+  useEffect(() => {
+    let cancelled = false;
+    const storePt: LatLngPoint = { lat: tracking.storeLat, lng: tracking.storeLng };
+    const custPt: LatLngPoint = {
+      lat: tracking.customerLat,
+      lng: tracking.customerLng,
+    };
+
+    fetchRoadRoute([storePt, custPt]).then((res) => {
+      if (cancelled) return;
+      setRoutePoints(res.coordinates);
+      setRouteSource(res.source);
+
+      // Update planned distance if shipper is still at store before departure
+      const cur = latestTrackingRef.current;
+      const distFromStore = calculateHaversineKm(
+        { lat: cur.currentLat, lng: cur.currentLng },
+        storePt,
+      );
+      if (
+        (cur.status === 'ARRIVED_AT_STORE' || cur.status === 'ASSIGNED') &&
+        distFromStore < 0.05
+      ) {
+        setTracking((prev) => ({
+          ...prev,
+          distanceKm: res.distanceKm,
+          etaMinutes: res.durationMin,
+        }));
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tracking.storeLat, tracking.storeLng, tracking.customerLat, tracking.customerLng]);
+
+  // Fetch approach route (Driver -> Store) when status is ASSIGNED
+  useEffect(() => {
+    let cancelled = false;
+    if (tracking.status !== 'ASSIGNED') {
+      setDriverToStorePoints([]);
+      return;
+    }
+    const startPt: LatLngPoint = {
+      lat: tracking.currentLat,
+      lng: tracking.currentLng,
+    };
+    const storePt: LatLngPoint = {
+      lat: tracking.storeLat,
+      lng: tracking.storeLng,
+    };
+    fetchRoadRoute([startPt, storePt]).then((res) => {
+      if (!cancelled) {
+        setDriverToStorePoints(res.coordinates);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+    // Only re-fetch driver->store route when order changes or status enters ASSIGNED
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tracking.status, tracking.storeLat, tracking.storeLng, tracking.orderNumber]);
+
+  // Subscribe to live BroadcastChannel updates from Driver tab when viewing as Customer
+  useEffect(() => {
+    if (isDriverPortal) return;
+    return subscribeLiveTracking(tracking.orderNumber, (payload) => {
+      setTracking((prev) => ({
+        ...prev,
+        status: payload.status === 'PICKED_UP' ? 'DELIVERING' : payload.status,
+        currentLat: payload.currentLat,
+        currentLng: payload.currentLng,
+        heading: payload.heading,
+        distanceKm: payload.distanceKm,
+        etaMinutes: payload.etaMinutes,
+        driverName: payload.driverName,
+        driverPhone: payload.driverPhone,
+        licensePlate: payload.licensePlate,
+      }));
+    });
+  }, [isDriverPortal, tracking.orderNumber]);
+
+  // Smooth step-by-step GPS simulation following actual OSRM street coordinates
+  useEffect(() => {
+    if (!isAutoMoving) return;
+
+    const timer = setInterval(() => {
+      const cur = latestTrackingRef.current;
+      if (cur.status === 'DELIVERED') {
+        setIsAutoMoving(false);
+        return;
+      }
+
+      // Advance from ARRIVED_AT_STORE into DELIVERING automatically when starting GPS simulation
+      let workingStatus: TrackingStatus = cur.status;
+      if (workingStatus === 'ARRIVED_AT_STORE') {
+        workingStatus = 'DELIVERING';
+        routeCursorRef.current = 0;
+        syncWithGlobalOrder('DELIVERING');
+      }
+
+      const activePoly =
+        workingStatus === 'ASSIGNED' && driverToStorePoints.length >= 2
+          ? driverToStorePoints
+          : routePoints;
+
+      if (activePoly.length < 2) return;
+
+      const stride = Math.max(1, Math.floor(activePoly.length / 26));
+      const nextIdx = Math.min(activePoly.length - 1, routeCursorRef.current + stride);
+      routeCursorRef.current = nextIdx;
+
+      const [nextLat, nextLng] = activePoly[nextIdx];
+      const nextPt: LatLngPoint = { lat: nextLat, lng: nextLng };
+      const prevPt: LatLngPoint = { lat: cur.currentLat, lng: cur.currentLng };
+      const heading = calculateBearingDeg(prevPt, nextPt);
+
+      const targetPt: LatLngPoint =
+        workingStatus === 'ASSIGNED'
+          ? { lat: cur.storeLat, lng: cur.storeLng }
+          : { lat: cur.customerLat, lng: cur.customerLng };
+
+      const distToTarget = calculateHaversineKm(nextPt, targetPt);
+      const isLastPoint = nextIdx >= activePoly.length - 1;
+
+      if (workingStatus === 'ASSIGNED' && (distToTarget <= 0.1 || isLastPoint)) {
+        const arrivedStoreState: TrackingState = {
+          ...cur,
+          status: 'ARRIVED_AT_STORE',
+          currentLat: cur.storeLat,
+          currentLng: cur.storeLng,
+          heading,
+          distanceKm: calculateHaversineKm(
+            { lat: cur.storeLat, lng: cur.storeLng },
+            { lat: cur.customerLat, lng: cur.customerLng },
+          ),
+          etaMinutes: Math.max(
+            3,
+            Math.ceil(
+              calculateHaversineKm(
+                { lat: cur.storeLat, lng: cur.storeLng },
+                { lat: cur.customerLat, lng: cur.customerLng },
+              ) * 3.5,
+            ),
+          ),
+        };
+        routeCursorRef.current = 0;
+        setTracking(arrivedStoreState);
+        broadcastTrackingState(arrivedStoreState);
+        syncGpsToBackend(activeOrder?.id, cur.storeLat, cur.storeLng, heading);
+        syncWithGlobalOrder('ARRIVED_AT_STORE');
+        setGpsStatusNotice(
+          'Geofence <100m tại nhà hàng đã kích hoạt! Bấm "Mô phỏng di chuyển GPS" hoặc "Bắt đầu giao hàng" để đi tiếp.',
+        );
+        setIsAutoMoving(false);
+        return;
+      }
+
+      if (workingStatus === 'DELIVERING' && (distToTarget <= 0.1 || isLastPoint)) {
+        const distFinal = Math.min(0.05, distToTarget);
+        const arrivedCustState: TrackingState = {
+          ...cur,
+          status: 'ARRIVED_AT_DESTINATION',
+          currentLat: nextLat,
+          currentLng: nextLng,
+          heading,
+          distanceKm: distFinal,
+          etaMinutes: 1,
+        };
+        setTracking(arrivedCustState);
+        broadcastTrackingState(arrivedCustState);
+        syncGpsToBackend(activeOrder?.id, nextLat, nextLng, heading);
+        syncWithGlobalOrder('ARRIVED_AT_DESTINATION');
+        setGpsStatusNotice(
+          'Đã vào bán kính 100m quanh khách hàng — Sẵn sàng xác nhận giao hàng!',
+        );
+        setIsAutoMoving(false);
+        return;
+      }
+
+      const remainingKm =
+        workingStatus === 'ASSIGNED'
+          ? Math.round(
+              (distToTarget +
+                calculateHaversineKm(
+                  { lat: cur.storeLat, lng: cur.storeLng },
+                  { lat: cur.customerLat, lng: cur.customerLng },
+                )) *
+                100,
+            ) / 100
+          : Math.round(distToTarget * 100) / 100;
+
+      const updated: TrackingState = {
+        ...cur,
+        status: workingStatus,
+        currentLat: nextLat,
+        currentLng: nextLng,
+        heading,
+        distanceKm: remainingKm,
+        etaMinutes: Math.max(1, Math.ceil(remainingKm * 3.5)),
+      };
+
+      setTracking(updated);
+      broadcastTrackingState(updated);
+      syncGpsToBackend(activeOrder?.id, nextLat, nextLng, heading);
+    }, 750);
 
     return () => clearInterval(timer);
-  }, [isAutoMoving]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAutoMoving, routePoints, driverToStorePoints, activeOrder?.id]);
 
   const syncWithGlobalOrder = (newTrackingStatus: TrackingStatus) => {
     if (!activeOrder || !onUpdateOrderStatus) return;
@@ -201,23 +563,165 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
     }
   };
 
+  const handleUseDeviceGps = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setGpsStatusNotice('Trình duyệt không hỗ trợ Geolocation GPS.');
+      return;
+    }
+    setIsAutoMoving(false);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = +pos.coords.latitude.toFixed(6);
+        const lng = +pos.coords.longitude.toFixed(6);
+        const cur = latestTrackingRef.current;
+        const heading =
+          pos.coords.heading ??
+          calculateBearingDeg({ lat: cur.currentLat, lng: cur.currentLng }, { lat, lng });
+        const distToCustomer = calculateHaversineKm(
+          { lat, lng },
+          { lat: cur.customerLat, lng: cur.customerLng },
+        );
+        const nextStatus: TrackingStatus =
+          distToCustomer <= 0.1 ? 'ARRIVED_AT_DESTINATION' : cur.status;
+        const updated: TrackingState = {
+          ...cur,
+          currentLat: lat,
+          currentLng: lng,
+          heading,
+          status: nextStatus,
+          distanceKm: Math.round(distToCustomer * 100) / 100,
+          etaMinutes: Math.max(1, Math.ceil(distToCustomer * 3.5)),
+        };
+        setTracking(updated);
+        broadcastTrackingState(updated);
+        syncGpsToBackend(activeOrder?.id, lat, lng, heading);
+        setGpsStatusNotice(`Đã lấy tọa độ GPS thực tế từ thiết bị (${lat}, ${lng}).`);
+      },
+      (err) => {
+        setGpsStatusNotice(`Không thể truy cập GPS thiết bị: ${err.message}`);
+      },
+      { enableHighAccuracy: true, timeout: 6000 },
+    );
+  };
+
+  const handleMapClickPoint = (point: LatLngPoint) => {
+    setIsAutoMoving(false);
+    const cur = latestTrackingRef.current;
+    const heading = calculateBearingDeg(
+      { lat: cur.currentLat, lng: cur.currentLng },
+      point,
+    );
+    const distStore = calculateHaversineKm(point, {
+      lat: cur.storeLat,
+      lng: cur.storeLng,
+    });
+    const distCust = calculateHaversineKm(point, {
+      lat: cur.customerLat,
+      lng: cur.customerLng,
+    });
+
+    let nextStatus = cur.status;
+    if (cur.status === 'ASSIGNED' && distStore <= 0.1) {
+      nextStatus = 'ARRIVED_AT_STORE';
+      syncWithGlobalOrder('ARRIVED_AT_STORE');
+      setGpsStatusNotice('Geofence <100m quanh nhà hàng được kích hoạt.');
+    } else if (cur.status === 'DELIVERING' && distCust <= 0.1) {
+      nextStatus = 'ARRIVED_AT_DESTINATION';
+      syncWithGlobalOrder('ARRIVED_AT_DESTINATION');
+      setGpsStatusNotice('Geofence <100m quanh khách hàng được kích hoạt.');
+    } else {
+      setGpsStatusNotice(`Đã đặt vị trí GPS tới (${point.lat.toFixed(4)}, ${point.lng.toFixed(4)}).`);
+    }
+
+    const updated: TrackingState = {
+      ...cur,
+      currentLat: point.lat,
+      currentLng: point.lng,
+      heading,
+      status: nextStatus,
+      distanceKm: Math.round(distCust * 100) / 100,
+      etaMinutes: distCust <= 0.1 ? 1 : Math.max(1, Math.ceil(distCust * 3.5)),
+    };
+    setTracking(updated);
+    broadcastTrackingState(updated);
+    syncGpsToBackend(activeOrder?.id, point.lat, point.lng, heading);
+  };
+
   const handleStepAction = (nextStatus: TrackingStatus) => {
+    const cur = latestTrackingRef.current;
+    setGpsStatusNotice('');
+
     if (nextStatus === 'ARRIVED_AT_STORE') {
-      setTracking((p) => ({ ...p, status: 'ARRIVED_AT_STORE', distanceKm: 2.1, etaMinutes: 12 }));
+      const dist = calculateHaversineKm(
+        { lat: cur.storeLat, lng: cur.storeLng },
+        { lat: cur.customerLat, lng: cur.customerLng },
+      );
+      const updated: TrackingState = {
+        ...cur,
+        status: 'ARRIVED_AT_STORE',
+        currentLat: cur.storeLat,
+        currentLng: cur.storeLng,
+        distanceKm: Math.round(dist * 100) / 100,
+        etaMinutes: Math.max(3, Math.ceil(dist * 3.5)),
+      };
+      routeCursorRef.current = 0;
+      setTracking(updated);
+      broadcastTrackingState(updated);
       syncWithGlobalOrder('ARRIVED_AT_STORE');
     } else if (nextStatus === 'DELIVERING') {
-      setTracking((p) => ({ ...p, status: 'DELIVERING', distanceKm: 1.4, etaMinutes: 8 }));
+      const dist = calculateHaversineKm(
+        { lat: cur.storeLat, lng: cur.storeLng },
+        { lat: cur.customerLat, lng: cur.customerLng },
+      );
+      const updated: TrackingState = {
+        ...cur,
+        status: 'DELIVERING',
+        currentLat: cur.storeLat,
+        currentLng: cur.storeLng,
+        heading: calculateBearingDeg(
+          { lat: cur.storeLat, lng: cur.storeLng },
+          { lat: cur.customerLat, lng: cur.customerLng },
+        ),
+        distanceKm: Math.round(dist * 100) / 100,
+        etaMinutes: Math.max(3, Math.ceil(dist * 3.5)),
+      };
+      routeCursorRef.current = 0;
+      setTracking(updated);
+      broadcastTrackingState(updated);
       syncWithGlobalOrder('DELIVERING');
     } else if (nextStatus === 'ARRIVED_AT_DESTINATION') {
-      setTracking((p) => ({ ...p, status: 'ARRIVED_AT_DESTINATION', distanceKm: 0.05, etaMinutes: 1 }));
+      const nearLat = +(cur.customerLat - 0.0002).toFixed(6);
+      const nearLng = +(cur.customerLng - 0.0002).toFixed(6);
+      const updated: TrackingState = {
+        ...cur,
+        status: 'ARRIVED_AT_DESTINATION',
+        currentLat: nearLat,
+        currentLng: nearLng,
+        distanceKm: 0.03,
+        etaMinutes: 1,
+      };
+      routeCursorRef.current = Math.max(0, routePoints.length - 1);
+      setIsAutoMoving(false);
+      setTracking(updated);
+      broadcastTrackingState(updated);
+      syncGpsToBackend(activeOrder?.id, nearLat, nearLng, cur.heading);
       syncWithGlobalOrder('ARRIVED_AT_DESTINATION');
     } else if (nextStatus === 'DELIVERED') {
-      if (tracking.distanceKm > 0.1) {
+      if (cur.distanceKm > 0.1) {
         alert('Chưa thể hoàn tất: Bạn cần di chuyển vào phạm vi 100m quanh địa chỉ khách hàng để xác nhận giao thành công.');
         return;
       }
-      setTracking((p) => ({ ...p, status: 'DELIVERED', distanceKm: 0, etaMinutes: 0 }));
+      const updated: TrackingState = {
+        ...cur,
+        status: 'DELIVERED',
+        currentLat: cur.customerLat,
+        currentLng: cur.customerLng,
+        distanceKm: 0,
+        etaMinutes: 0,
+      };
       setIsAutoMoving(false);
+      setTracking(updated);
+      broadcastTrackingState(updated);
       syncWithGlobalOrder('DELIVERED');
     }
   };
@@ -261,17 +765,6 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
     setProfileSavedNotice('Đã lưu thông tin hồ sơ tài xế và phương tiện thành công.');
     setTimeout(() => setProfileSavedNotice(''), 3000);
   };
-
-  const progressPercentage =
-    tracking.status === 'ASSIGNED'
-      ? 15
-      : tracking.status === 'ARRIVED_AT_STORE'
-      ? 35
-      : tracking.status === 'DELIVERING'
-      ? Math.min(85, Math.max(40, Math.round((1 - tracking.distanceKm / 2.1) * 85)))
-      : tracking.status === 'ARRIVED_AT_DESTINATION'
-      ? 92
-      : 100;
 
   const isDriverSubTab =
     activeTab === 'driver-orders' ||
@@ -863,7 +1356,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                     </p>
                   </div>
 
-                  <div style={{ display: 'flex', gap: 10 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                     <button
                       onClick={() => setIsAutoMoving(!isAutoMoving)}
                       style={{
@@ -873,9 +1366,29 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                         color: '#FFFFFF',
                         fontWeight: 700,
                         fontSize: '0.82rem',
+                        cursor: 'pointer',
                       }}
                     >
                       {isAutoMoving ? 'Tạm dừng di chuyển' : 'Mô phỏng di chuyển GPS'}
+                    </button>
+                    <button
+                      onClick={handleUseDeviceGps}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '8px 14px',
+                        borderRadius: 8,
+                        background: '#ECFEFF',
+                        color: '#0369A1',
+                        border: '1px solid #BAE6FD',
+                        fontWeight: 700,
+                        fontSize: '0.82rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Crosshair size={14} />
+                      Dùng GPS thật
                     </button>
                     <button
                       onClick={() => handleStepAction('ARRIVED_AT_DESTINATION')}
@@ -887,6 +1400,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                         border: '1px solid #CBD5E1',
                         fontWeight: 700,
                         fontSize: '0.82rem',
+                        cursor: 'pointer',
                       }}
                     >
                       Vào vùng Geofence (&lt;100m)
@@ -894,150 +1408,85 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                   </div>
                 </div>
 
-                {/* Clean Vector Route Canvas */}
+                {gpsStatusNotice && (
+                  <div
+                    style={{
+                      marginBottom: 12,
+                      padding: '10px 14px',
+                      borderRadius: 8,
+                      background: '#F0F9FF',
+                      border: '1px solid #BAE6FD',
+                      color: '#0369A1',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {gpsStatusNotice}
+                  </div>
+                )}
+
+                {/* Real OpenStreetMap + OSRM Interactive Map */}
+                <DeliveryMap
+                  store={{
+                    lat: tracking.storeLat,
+                    lng: tracking.storeLng,
+                    name: tracking.restaurantName,
+                    address: tracking.restaurantAddress,
+                  }}
+                  customer={{
+                    lat: tracking.customerLat,
+                    lng: tracking.customerLng,
+                    label: 'Điểm giao khách',
+                    address: tracking.customerAddress,
+                  }}
+                  shipper={{
+                    lat: tracking.currentLat,
+                    lng: tracking.currentLng,
+                    name: tracking.driverName,
+                    plate: tracking.licensePlate,
+                    heading: tracking.heading,
+                  }}
+                  routePoints={routePoints}
+                  driverToStorePoints={
+                    tracking.status === 'ASSIGNED' ? driverToStorePoints : undefined
+                  }
+                  status={tracking.status}
+                  distanceKm={tracking.distanceKm}
+                  etaMinutes={tracking.etaMinutes}
+                  routeSource={routeSource}
+                  height={400}
+                  showGeofenceCircles={true}
+                  onMapClickPoint={handleMapClickPoint}
+                  accentColor="#0284C7"
+                />
+
                 <div
                   style={{
-                    height: 360,
-                    borderRadius: 12,
-                    background: '#0F172A',
-                    position: 'relative',
-                    overflow: 'hidden',
-                    border: '1px solid #1E293B',
+                    marginTop: 12,
+                    padding: '10px 14px',
+                    borderRadius: 8,
+                    background: '#F8FAFC',
+                    border: '1px solid #E2E8F0',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    color: '#475569',
+                    fontSize: '0.8rem',
+                    fontVariantNumeric: 'tabular-nums',
                   }}
                 >
-                  <div
-                    style={{
-                      position: 'absolute',
-                      inset: 0,
-                      backgroundImage:
-                        'linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px)',
-                      backgroundSize: '36px 36px',
-                    }}
-                  />
-
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '52%',
-                      left: '14%',
-                      right: '14%',
-                      height: 6,
-                      background: '#334155',
-                      borderRadius: 999,
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: `${progressPercentage}%`,
-                        height: '100%',
-                        background: '#0284C7',
-                        borderRadius: 999,
-                        transition: 'width 0.4s ease',
-                      }}
-                    />
-                  </div>
-
-                  <div style={{ position: 'absolute', top: '42%', left: '12%', textAlign: 'center', color: '#F8FAFC' }}>
-                    <div
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 10,
-                        background: '#F59E0B',
-                        color: '#fff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        margin: '0 auto 6px',
-                      }}
-                    >
-                      <Store size={20} />
-                    </div>
-                    <div style={{ fontSize: '0.78rem', fontWeight: 700 }}>{tracking.restaurantName}</div>
-                  </div>
-
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '39%',
-                      left: `calc(12% + ${progressPercentage * 0.74}%)`,
-                      transition: 'left 0.4s ease',
-                      textAlign: 'center',
-                      zIndex: 5,
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: '50%',
-                        background: '#0284C7',
-                        border: '3px solid #FFFFFF',
-                        color: '#FFFFFF',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        margin: '0 auto 4px',
-                        boxShadow: '0 6px 16px rgba(2, 132, 199, 0.5)',
-                      }}
-                    >
-                      <Bike size={20} />
-                    </div>
-                    <span
-                      style={{
-                        background: '#FFFFFF',
-                        color: '#0F172A',
-                        padding: '2px 8px',
-                        borderRadius: 4,
-                        fontSize: '0.72rem',
-                        fontWeight: 800,
-                        fontVariantNumeric: 'tabular-nums',
-                      }}
-                    >
-                      {tracking.distanceKm} km
-                    </span>
-                  </div>
-
-                  <div style={{ position: 'absolute', top: '42%', right: '12%', textAlign: 'center', color: '#F8FAFC' }}>
-                    <div
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 10,
-                        background: '#10B981',
-                        color: '#fff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        margin: '0 auto 6px',
-                      }}
-                    >
-                      <Home size={20} />
-                    </div>
-                    <div style={{ fontSize: '0.78rem', fontWeight: 700 }}>Điểm giao khách</div>
-                  </div>
-
-                  <div
-                    style={{
-                      position: 'absolute',
-                      bottom: 14,
-                      left: 16,
-                      right: 16,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      color: '#94A3B8',
-                      fontSize: '0.78rem',
-                      fontVariantNumeric: 'tabular-nums',
-                    }}
-                  >
-                    <span>Tọa độ GPS: {tracking.currentLat}°N, {tracking.currentLng}°E</span>
-                    <span>
-                      Geofence 100m:{' '}
-                      <strong style={{ color: tracking.distanceKm <= 0.1 ? '#34D399' : '#FBBF24' }}>
-                        {tracking.distanceKm <= 0.1 ? 'Đạt chuẩn mở khóa giao hàng' : 'Đang ngoài bán kính 100m'}
-                      </strong>
-                    </span>
-                  </div>
+                  <span>
+                    Tọa độ GPS: <strong>{tracking.currentLat.toFixed(5)}°N, {tracking.currentLng.toFixed(5)}°E</strong>
+                  </span>
+                  <span>
+                    Geofence 100m:{' '}
+                    <strong style={{ color: tracking.distanceKm <= 0.1 ? '#16A34A' : '#D97706' }}>
+                      {tracking.distanceKm <= 0.1
+                        ? 'Đạt chuẩn mở khóa giao hàng'
+                        : 'Đang ngoài bán kính 100m'}
+                    </strong>
+                  </span>
                 </div>
               </div>
             )}
@@ -1329,6 +1778,52 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
   // ============================================================================
   // 2. CUSTOMER ORDER TRACKING VIEW (RENDERED INSIDE CUSTOMER STOREFRONT)
   // ============================================================================
+  if (!activeOrder) {
+    return (
+      <div className="container" style={{ padding: '64px 20px', maxWidth: 680, textAlign: 'center' }}>
+        <div
+          style={{
+            background: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            borderRadius: 16,
+            padding: '44px 28px',
+          }}
+        >
+          <div
+            style={{
+              width: 64,
+              height: 64,
+              borderRadius: '50%',
+              background: '#F0FDF4',
+              color: '#00B14F',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+            }}
+          >
+            <Bike size={30} />
+          </div>
+          <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', marginBottom: 8 }}>
+            Chưa có đơn hàng nào đang giao
+          </h2>
+          <p style={{ color: '#64748B', fontSize: '0.92rem', marginBottom: 24, lineHeight: 1.6 }}>
+            Khi bạn đặt đơn hàng bằng tài khoản của mình, hành trình tài xế và bản đồ giao hàng trực tiếp sẽ hiển thị tại đây.
+          </p>
+          {onExploreFood && (
+            <button
+              onClick={onExploreFood}
+              className="btn btn-primary"
+              style={{ padding: '11px 24px', borderRadius: 10, fontWeight: 700, fontSize: '0.92rem' }}
+            >
+              Khám phá nhà hàng & Đặt món ngay
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container" style={{ padding: '28px 20px 60px', maxWidth: 1120 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
@@ -1433,129 +1928,47 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
             overflow: 'hidden',
           }}
         >
-          <div
-            style={{
-              height: 360,
-              background: '#0F172A',
-              position: 'relative',
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                backgroundImage:
-                  'linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px)',
-                backgroundSize: '36px 36px',
+          <div style={{ padding: 12, paddingBottom: 0 }}>
+            <DeliveryMap
+              store={{
+                lat: tracking.storeLat,
+                lng: tracking.storeLng,
+                name: tracking.restaurantName,
+                address: tracking.restaurantAddress,
               }}
+              customer={{
+                lat: tracking.customerLat,
+                lng: tracking.customerLng,
+                label: 'Điểm nhận hàng của bạn',
+                address: tracking.customerAddress,
+              }}
+              shipper={{
+                lat: tracking.currentLat,
+                lng: tracking.currentLng,
+                name: tracking.driverName,
+                plate: tracking.licensePlate,
+                heading: tracking.heading,
+              }}
+              routePoints={routePoints}
+              driverToStorePoints={
+                tracking.status === 'ASSIGNED' ? driverToStorePoints : undefined
+              }
+              status={tracking.status}
+              distanceKm={tracking.distanceKm}
+              etaMinutes={tracking.etaMinutes}
+              routeSource={routeSource}
+              height={380}
+              showGeofenceCircles={true}
+              accentColor="#00B14F"
             />
-
-            <div
-              style={{
-                position: 'absolute',
-                top: '52%',
-                left: '14%',
-                right: '14%',
-                height: 6,
-                background: '#334155',
-                borderRadius: 999,
-              }}
-            >
-              <div
-                style={{
-                  width: `${progressPercentage}%`,
-                  height: '100%',
-                  background: '#00B14F',
-                  borderRadius: 999,
-                  transition: 'width 0.4s ease',
-                }}
-              />
-            </div>
-
-            <div style={{ position: 'absolute', top: '42%', left: '12%', textAlign: 'center', color: '#F8FAFC' }}>
-              <div
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 8,
-                  background: '#F59E0B',
-                  color: '#fff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 6px',
-                }}
-              >
-                <Store size={18} />
-              </div>
-              <div style={{ fontSize: '0.75rem', fontWeight: 700 }}>{tracking.restaurantName}</div>
-            </div>
-
-            <div
-              style={{
-                position: 'absolute',
-                top: '39%',
-                left: `calc(12% + ${progressPercentage * 0.74}%)`,
-                transition: 'left 0.4s ease',
-                textAlign: 'center',
-                zIndex: 5,
-              }}
-            >
-              <div
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: '50%',
-                  background: '#00B14F',
-                  border: '3px solid #FFFFFF',
-                  color: '#FFFFFF',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 4px',
-                }}
-              >
-                <Bike size={18} />
-              </div>
-              <span
-                style={{
-                  background: '#FFFFFF',
-                  color: '#0F172A',
-                  padding: '2px 8px',
-                  borderRadius: 4,
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                }}
-              >
-                Còn {tracking.distanceKm} km
-              </span>
-            </div>
-
-            <div style={{ position: 'absolute', top: '42%', right: '12%', textAlign: 'center', color: '#F8FAFC' }}>
-              <div
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 8,
-                  background: '#10B981',
-                  color: '#fff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 6px',
-                }}
-              >
-                <Home size={18} />
-              </div>
-              <div style={{ fontSize: '0.75rem', fontWeight: 700 }}>Điểm nhận hàng</div>
-            </div>
           </div>
 
           <div
             style={{
               padding: '14px 20px',
               display: 'flex',
+              flexWrap: 'wrap',
+              gap: 12,
               justifyContent: 'space-between',
               alignItems: 'center',
               fontSize: '0.84rem',
@@ -1563,7 +1976,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
               fontVariantNumeric: 'tabular-nums',
             }}
           >
-            <span>Khoảng cách còn lại: <strong>{tracking.distanceKm} km</strong></span>
+            <span>Khoảng cách còn lại: <strong>{tracking.distanceKm.toFixed(2)} km</strong></span>
             <span>Thời gian dự kiến: <strong style={{ color: '#00B14F' }}>{tracking.etaMinutes} phút</strong></span>
           </div>
         </div>

@@ -336,9 +336,12 @@ model Order {
   discountAmount  Decimal   @default(0.00) @map("discount_amount") @db.Decimal(12, 2)
   deliveryFee     Decimal   @default(0.00) @map("delivery_fee") @db.Decimal(12, 2)
   finalTotal      Decimal   @map("final_total") @db.Decimal(12, 2)
-  deliveryAddress String    @map("delivery_address") @db.NVarChar(500)
-  recipientName   String    @map("recipient_name") @db.NVarChar(200)
-  recipientPhone  String    @map("recipient_phone") @db.NVarChar(20)
+  deliveryAddress   String         @map("delivery_address") @db.NVarChar(500)
+  deliveryLatitude  Float?         @map("delivery_latitude")
+  deliveryLongitude Float?         @map("delivery_longitude")
+  recipientName     String         @map("recipient_name") @db.NVarChar(200)
+  recipientPhone    String         @map("recipient_phone") @db.NVarChar(20)
+  orderTracking     OrderTracking?
   customerNote    String?   @map("customer_note") @db.NVarChar(500)
   cancelReason    String?   @map("cancel_reason") @db.NVarChar(500)
   cancelledBy     String?   @map("cancelled_by") @db.NVarChar(50)
@@ -429,6 +432,40 @@ model Payment {
   @@index([transactionRef])
   @@index([paymentStatus])
   @@map("payments")
+}
+
+// ------------------------------------------------------------------------------
+// MODULE 7: LIVE DELIVERY TRACKING (Driver & Customer Real-Time Map)
+// ------------------------------------------------------------------------------
+
+model OrderTracking {
+  id                String    @id @default(uuid())
+  orderId           String    @unique @map("order_id")
+  driverId          String?   @map("driver_id")
+  driverName        String?   @map("driver_name") @db.NVarChar(200)
+  driverPhone       String?   @map("driver_phone") @db.NVarChar(20)
+  vehiclePlate      String?   @map("vehicle_plate") @db.NVarChar(50)
+  driverRating      Float?    @default(4.9) @map("driver_rating")
+  deliveryStatus    String    @default("WAITING_DRIVER") @map("delivery_status") @db.NVarChar(50)
+  storeLatitude     Float     @map("store_latitude")
+  storeLongitude    Float     @map("store_longitude")
+  customerLatitude  Float     @map("customer_latitude")
+  customerLongitude Float     @map("customer_longitude")
+  shipperLatitude   Float?    @map("shipper_latitude")
+  shipperLongitude  Float?    @map("shipper_longitude")
+  heading           Float?
+  distanceKm        Float     @default(0) @map("distance_km")
+  etaMinutes        Int       @default(0) @map("eta_minutes")
+  lastLocationAt    DateTime? @map("last_location_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  // Use NoAction to prevent multiple cascade paths in SQL Server
+  order Order @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([driverId])
+  @@index([deliveryStatus])
+  @@map("order_trackings")
 }
 
 

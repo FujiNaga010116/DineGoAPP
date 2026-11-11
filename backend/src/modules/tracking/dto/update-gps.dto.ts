@@ -25,6 +25,13 @@ export class UpdateGpsLocationDto {
   heading?: number;
 }
 
+export class AssignShipperDto {
+  @ApiProperty({ example: '59-X3 892.14', description: 'Biển số xe của tài xế', required: false })
+  @IsOptional()
+  @IsString()
+  vehiclePlate?: string;
+}
+
 export class UpdateDeliveryStatusDto {
   @ApiProperty({
     example: 'PICKED_UP',

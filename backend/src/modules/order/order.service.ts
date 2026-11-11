@@ -442,6 +442,8 @@ export class OrderService {
           deliveryFee: 0,
           finalTotal,
           deliveryAddress: dto.deliveryAddress,
+          deliveryLatitude: dto.deliveryLatitude ?? null,
+          deliveryLongitude: dto.deliveryLongitude ?? null,
           recipientName: dto.recipientName,
           recipientPhone: dto.recipientPhone,
           customerNote: dto.customerNote ?? null,
