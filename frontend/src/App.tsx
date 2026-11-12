@@ -238,6 +238,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
   const [reviewModalOrder, setReviewModalOrder] = useState<Order | null>(null);
   const [isAddressSetupModalOpen, setIsAddressSetupModalOpen] = useState(false);
   const [pendingAfterAddressSetup, setPendingAfterAddressSetup] = useState<(() => void) | null>(null);
+  const [selectedTrackingOrderId, setSelectedTrackingOrderId] = useState<string | null>(null);
   const [deliveryDisputes, setDeliveryDisputes] = useState<DeliveryDisputeReport[]>(() => {
     const saved = localStorage.getItem('dinego_delivery_disputes');
     if (saved) {
@@ -957,6 +958,15 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
             orders={customerOrders}
             onUpdateOrderStatus={handleUpdateOrderStatus}
             onConfirmCustomerReceipt={handleConfirmCustomerReceipt}
+            onAcceptDriverOrder={handleAcceptDriverOrder}
+            onMarkDriverArrivedAtStore={handleMarkDriverArrivedAtStore}
+            onConfirmMerchantPickup={handleConfirmMerchantPickup}
+            onTrackOrder={(orderId) => {
+              setSelectedTrackingOrderId(orderId);
+              setCurrentTab('tracking');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            drivers={drivers}
             onPayMoMo={handlePayMoMo}
             onExplore={() => setCurrentTab('home')}
             onOpenReviewModal={(order) => setReviewModalOrder(order)}
@@ -985,7 +995,13 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
         {isDriverOrTrackingTab && (
           <TrackingPage
             key={isDriverPortalMode ? currentDriverProfile.id : currentUser?.id || 'guest'}
-            activeOrder={isDriverPortalMode ? driverActiveOrder : customerOrders[0] || null}
+            activeOrder={
+              isDriverPortalMode
+                ? driverActiveOrder
+                : (selectedTrackingOrderId
+                    ? orders.find((o) => o.id === selectedTrackingOrderId)
+                    : null) || customerOrders[0] || null
+            }
             allOrders={isDriverPortalMode ? orders : customerOrders}
             activeTab={currentTab}
             onNavigate={(tab) => {

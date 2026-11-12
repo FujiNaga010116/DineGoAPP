@@ -3754,7 +3754,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
                         {/* Action Bar */}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                          {(order.status === 'PENDING' || order.status === 'CONFIRMED') && (
+                          {order.status === 'PENDING' && (
                             <>
                               <button
                                 onClick={() => onUpdateOrderStatus?.(order.id, 'CANCELLED')}
@@ -3771,6 +3771,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                 Từ chối đơn
                               </button>
                               <button
+                                onClick={() => onUpdateOrderStatus?.(order.id, 'CONFIRMED')}
+                                style={{
+                                  padding: '8px 16px',
+                                  borderRadius: 6,
+                                  border: '1px solid #0284C7',
+                                  background: '#E0F2FE',
+                                  color: '#0369A1',
+                                  fontSize: '0.84rem',
+                                  fontWeight: 700,
+                                }}
+                              >
+                                Xác nhận nhận đơn
+                              </button>
+                              <button
                                 onClick={() => onUpdateOrderStatus?.(order.id, 'PREPARING')}
                                 style={{
                                   padding: '8px 18px',
@@ -3781,9 +3795,25 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                   fontWeight: 700,
                                 }}
                               >
-                                Nhận đơn &amp; Chuyển vào bếp
+                                Nhận &amp; Chuyển vào bếp
                               </button>
                             </>
+                          )}
+
+                          {order.status === 'CONFIRMED' && (
+                            <button
+                              onClick={() => onUpdateOrderStatus?.(order.id, 'PREPARING')}
+                              style={{
+                                padding: '8px 18px',
+                                borderRadius: 6,
+                                background: '#00B14F',
+                                color: '#FFFFFF',
+                                fontSize: '0.84rem',
+                                fontWeight: 700,
+                              }}
+                            >
+                              Bắt đầu làm món (Chuyển vào bếp)
+                            </button>
                           )}
 
                           {order.status === 'PREPARING' && (
