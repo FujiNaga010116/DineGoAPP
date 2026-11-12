@@ -114,6 +114,7 @@ export interface Merchant {
   deliveryTimeMax?: number;
   isActive: boolean;
   isOpen: boolean;
+  isCateringOnly?: boolean;
   categories?: string[];
 }
 
@@ -264,9 +265,31 @@ export interface DeliveryDisputeReport {
   createdAt: string;
 }
 
+export interface CateringOrderDetails {
+  bookingCode: string;
+  partyTypeTitle: string;
+  packageName: string;
+  tableCount: number;
+  guestCountPerTable: number;
+  eventDate: string;
+  eventTime: string;
+  dishes: string[];
+  depositPercent: 30 | 50;
+  depositAmount: number;
+  remainingAmount: number;
+  voucherCode?: string;
+  customNote?: string;
+  merchantApproved?: boolean;
+  finalBillIssued?: boolean;
+  finalBillCode?: string;
+  completedAt?: string;
+}
+
 export interface Order {
   id: string;
   orderNumber: string;
+  orderType?: 'FOOD_DELIVERY' | 'CATERING';
+  cateringDetails?: CateringOrderDetails;
   customerId?: string;
   customerEmail?: string;
   status: OrderStatus;
