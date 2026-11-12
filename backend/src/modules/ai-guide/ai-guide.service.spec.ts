@@ -11,6 +11,8 @@ describe('AiGuideService (Sprint 4 — U034 đến U038)', () => {
   const mockUser: AuthenticatedUser = {
     id: 'user-ai-1',
     email: 'test@dinego.vn',
+    fullName: 'Khách thử nghiệm AI',
+    isActive: true,
     roles: [Role.CUSTOMER],
   };
 
