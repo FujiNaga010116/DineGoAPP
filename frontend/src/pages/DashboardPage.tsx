@@ -260,39 +260,54 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     setIsDishModalOpen(false);
   };
 
-  // Merchant Catering Bookings & Calendar State
-  const [feastBookings, setFeastBookings] = useState([
-    {
-      id: 'fb-01',
-      bookingCode: 'DG-FEAST-8821',
-      customerName: 'Nguyễn Minh Quân (Công ty TNHH VinaTech)',
-      customerPhone: '0908112233',
-      packageName: 'Mâm Tiệc Tân Niên Đoàn Viên (10 người/bàn)',
-      tableCount: 5,
-      eventDate: '2026-11-15',
-      eventTime: '18:30',
-      address: 'Tầng 8, Tòa nhà Saigon Centre, 65 Lê Lợi, Quận 1, TP. HCM',
-      totalAmount: 17500000,
-      depositAmount: 5250000,
-      status: 'PENDING_APPROVAL' as 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED',
-      depositPaid: true,
-    },
-    {
-      id: 'fb-02',
-      bookingCode: 'DG-FEAST-8819',
-      customerName: 'Trần Ngọc Lan',
-      customerPhone: '0912334455',
-      packageName: 'Buffet Finger Food & BBQ Sân Vườn (30 khách)',
-      tableCount: 3,
-      eventDate: '2026-11-20',
-      eventTime: '11:30',
-      address: 'Biệt thự B12 Thảo Điền, TP. Thủ Đức, TP. HCM',
-      totalAmount: 13500000,
-      depositAmount: 4050000,
-      status: 'APPROVED' as 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED',
-      depositPaid: true,
-    },
-  ]);
+  // Merchant Catering Bookings & Calendar State (Persisted in localStorage & synced with Customer CateringPage)
+  const [feastBookings, setFeastBookings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dinego_feast_bookings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [
+      {
+        id: 'fb-01',
+        bookingCode: 'DG-FEAST-8821',
+        customerName: 'Nguyễn Minh Quân (Công ty TNHH VinaTech)',
+        customerPhone: '0908112233',
+        packageName: 'Mâm Tiệc Tân Niên Đoàn Viên (10 người/bàn)',
+        tableCount: 5,
+        eventDate: '2026-11-15',
+        eventTime: '18:30',
+        address: 'Tầng 8, Tòa nhà Saigon Centre, 65 Lê Lợi, Quận 1, TP. HCM',
+        totalAmount: 17500000,
+        depositAmount: 5250000,
+        status: 'PENDING_APPROVAL' as 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED',
+        depositPaid: true,
+      },
+      {
+        id: 'fb-02',
+        bookingCode: 'DG-FEAST-8819',
+        customerName: 'Trần Ngọc Lan',
+        customerPhone: '0912334455',
+        packageName: 'Buffet Finger Food & BBQ Sân Vườn (30 khách)',
+        tableCount: 3,
+        eventDate: '2026-11-20',
+        eventTime: '11:30',
+        address: 'Biệt thự B12 Thảo Điền, TP. Thủ Đức, TP. HCM',
+        totalAmount: 13500000,
+        depositAmount: 4050000,
+        status: 'APPROVED' as 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED',
+        depositPaid: true,
+      },
+    ];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_feast_bookings', JSON.stringify(feastBookings));
+    } catch {}
+  }, [feastBookings]);
 
   const [blockedDates, setBlockedDates] = useState<string[]>(['2026-11-22', '2026-11-29']);
 
@@ -861,27 +876,42 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     setVouchers((prev) => prev.map((v) => (v.id === vId ? { ...v, isActive: !v.isActive } : v)));
   };
 
-  // Merchant Reviews & Replies State
-  const [reviews, setReviews] = useState([
-    {
-      id: 'rev-01',
-      customerName: 'Trần Thị Bình',
-      orderRef: 'DG20261102-8812',
-      rating: 5,
-      comment: 'Cơm sườn ngon, miếng sườn dày ướp vừa miệng. Đóng gói hộp giấy sạch sẽ.',
-      reply: 'Cơm Tấm Sài Gòn 1985 cảm ơn quý khách đã ủng hộ. Hẹn gặp lại bạn ở những đơn tiếp theo!',
-      date: '03/11/2026',
-    },
-    {
-      id: 'rev-02',
-      customerName: 'Phạm Minh Tuấn',
-      orderRef: 'DG20261101-4409',
-      rating: 4,
-      comment: 'Đồ ăn nóng hổi nhưng lần sau quán nhớ cho thêm 1 gói nước mắm ớt riêng nhé.',
-      reply: null as string | null,
-      date: '02/11/2026',
-    },
-  ]);
+  // Merchant Reviews & Replies State (Persisted in localStorage & synced with Customer ReviewModal)
+  const [reviews, setReviews] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dinego_merchant_reviews');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [
+      {
+        id: 'rev-01',
+        customerName: 'Trần Thị Bình',
+        orderRef: 'DG20261102-8812',
+        rating: 5,
+        comment: 'Cơm sườn ngon, miếng sườn dày ướp vừa miệng. Đóng gói hộp giấy sạch sẽ.',
+        reply: 'Cơm Tấm Sài Gòn 1985 cảm ơn quý khách đã ủng hộ. Hẹn gặp lại bạn ở những đơn tiếp theo!',
+        date: '03/11/2026',
+      },
+      {
+        id: 'rev-02',
+        customerName: 'Phạm Minh Tuấn',
+        orderRef: 'DG20261101-4409',
+        rating: 4,
+        comment: 'Đồ ăn nóng hổi nhưng lần sau quán nhớ cho thêm 1 gói nước mắm ớt riêng nhé.',
+        reply: null as string | null,
+        date: '02/11/2026',
+      },
+    ];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_merchant_reviews', JSON.stringify(reviews));
+    } catch {}
+  }, [reviews]);
 
   const [replyInput, setReplyInput] = useState<{ [key: string]: string }>({});
 

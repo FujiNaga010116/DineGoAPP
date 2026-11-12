@@ -779,7 +779,58 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
         onClose={() => setReviewModalOrder(null)}
         order={reviewModalOrder}
         onSubmitted={(data) => {
-          console.log('[Review / Complaint Submitted]', data);
+          if (!reviewModalOrder) return;
+          const nowStr = new Date().toLocaleString('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+
+          if (data.type === 'COMPLAINT') {
+            try {
+              const saved = localStorage.getItem('dinego_admin_complaints');
+              const currentList = saved ? JSON.parse(saved) : [];
+              const newComplaint = {
+                id: `cmp-${Date.now()}`,
+                code: `CMP-${String(Date.now()).slice(-6)}`,
+                orderNumber: reviewModalOrder.orderNumber,
+                customerName: currentUser?.fullName || reviewModalOrder.recipientName || 'Khách hàng',
+                merchantName: reviewModalOrder.merchant?.name || 'Nhà hàng DineGo',
+                issueType: data.description || 'Khiếu nại chất lượng đơn hàng',
+                evidenceImage:
+                  reviewModalOrder.items?.[0]?.itemImage ||
+                  'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=240&auto=format&fit=crop&q=80',
+                compensationAmount: Math.min(reviewModalOrder.finalTotal || 35000, 100000),
+                resolutionNotes: '',
+                status: 'OPEN',
+                createdAt: nowStr,
+              };
+              localStorage.setItem(
+                'dinego_admin_complaints',
+                JSON.stringify([newComplaint, ...(Array.isArray(currentList) ? currentList : [])]),
+              );
+            } catch {}
+          } else if (data.type === 'REVIEW') {
+            try {
+              const saved = localStorage.getItem('dinego_merchant_reviews');
+              const currentList = saved ? JSON.parse(saved) : [];
+              const newReview = {
+                id: `rev-${Date.now()}`,
+                customerName: currentUser?.fullName || reviewModalOrder.recipientName || 'Khách hàng',
+                orderRef: reviewModalOrder.orderNumber,
+                rating: Number(data.rating) || 5,
+                comment: data.comment || '',
+                reply: null,
+                date: new Date().toLocaleDateString('vi-VN'),
+              };
+              localStorage.setItem(
+                'dinego_merchant_reviews',
+                JSON.stringify([newReview, ...(Array.isArray(currentList) ? currentList : [])]),
+              );
+            } catch {}
+          }
         }}
       />
 

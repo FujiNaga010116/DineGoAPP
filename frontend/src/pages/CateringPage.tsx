@@ -199,6 +199,29 @@ export const CateringPage: React.FC<CateringPageProps> = ({ currentUser }) => {
     };
 
     setBookings([newBooking, ...bookings]);
+    try {
+      const existingFeastsRaw = localStorage.getItem('dinego_feast_bookings');
+      const existingFeasts = existingFeastsRaw ? JSON.parse(existingFeastsRaw) : [];
+      const syncedFeast = {
+        id: newBooking.id,
+        bookingCode: newBooking.bookingCode,
+        customerName: currentUser?.fullName || 'Khách hàng DineGo',
+        customerPhone: currentUser?.phoneNumber || '0901000004',
+        packageName: `${newBooking.packageName} (${selectedPackage.guestCountPerTable} người/bàn)`,
+        tableCount: newBooking.tableCount,
+        eventDate: newBooking.eventDate,
+        eventTime: '18:00',
+        address: newBooking.eventAddress || currentUser?.address || 'TP. Hồ Chí Minh',
+        totalAmount: newBooking.totalAmount,
+        depositAmount: newBooking.depositAmount,
+        status: 'PENDING_APPROVAL',
+        depositPaid: false,
+      };
+      localStorage.setItem(
+        'dinego_feast_bookings',
+        JSON.stringify([syncedFeast, ...(Array.isArray(existingFeasts) ? existingFeasts : [])]),
+      );
+    } catch {}
     setActiveMomoModal(newBooking);
   };
 
@@ -206,6 +229,22 @@ export const CateringPage: React.FC<CateringPageProps> = ({ currentUser }) => {
     setBookings(
       bookings.map((b) => (b.id === bookingId ? { ...b, status: 'DEPOSIT_PAID' } : b)),
     );
+    try {
+      const existingFeastsRaw = localStorage.getItem('dinego_feast_bookings');
+      if (existingFeastsRaw) {
+        const parsed = JSON.parse(existingFeastsRaw);
+        if (Array.isArray(parsed)) {
+          localStorage.setItem(
+            'dinego_feast_bookings',
+            JSON.stringify(
+              parsed.map((fb: any) =>
+                fb.id === bookingId ? { ...fb, depositPaid: true } : fb,
+              ),
+            ),
+          );
+        }
+      }
+    } catch {}
     setActiveMomoModal(null);
   };
 
