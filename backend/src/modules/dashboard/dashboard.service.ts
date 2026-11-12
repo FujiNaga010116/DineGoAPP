@@ -18,6 +18,7 @@ import {
   UpdateUserStatusDto,
 } from './dto/dashboard-query.dto.js';
 import type {
+  AdminAuditLogEntry,
   AdminSystemOverview,
   MerchantReconciliation,
   RevenueSummary,
@@ -26,6 +27,29 @@ import type {
 @Injectable()
 export class DashboardService {
   private readonly logger = new Logger(DashboardService.name);
+  private readonly paidReconciliations = new Set<string>();
+  private readonly auditLogs: AdminAuditLogEntry[] = [
+    {
+      id: 'aud-seed-01',
+      action: 'APPROVED_MERCHANT_KYC',
+      targetType: 'MERCHANT',
+      targetId: 'merchant-com-tam',
+      targetName: 'Cơm Tấm Sài Gòn 1985',
+      reason: 'Giấy phép VSATTP & GPKD hợp lệ',
+      performedBy: 'admin@dinego.vn',
+      createdAt: new Date('2026-11-01T09:00:00Z'),
+    },
+    {
+      id: 'aud-seed-02',
+      action: 'PAYOUT_CONFIRMED',
+      targetType: 'RECONCILIATION',
+      targetId: 'REC-2026-10-COMTAM',
+      targetName: 'Cơm Tấm Sài Gòn 1985 (Kỳ 10/2026)',
+      reason: 'Đã ủy nhiệm chi Vietcombank 85% doanh thu ròng',
+      performedBy: 'admin@dinego.vn',
+      createdAt: new Date('2026-11-02T15:30:00Z'),
+    },
+  ];
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -132,7 +156,7 @@ export class DashboardService {
   // ----------------------------------------------------------------------------
 
   async getAdminSystemOverview(): Promise<AdminSystemOverview> {
-    const [totalOrders, completedOrders, totalUsers, totalMerchants] = await Promise.all([
+    const [totalOrders, completedOrders, totalUsers, totalMerchants, activeDriversCount] = await Promise.all([
       this.prisma.order.count(),
       this.prisma.order.findMany({
         where: { status: OrderStatus.COMPLETED },
@@ -140,15 +164,14 @@ export class DashboardService {
       }),
       this.prisma.user.count(),
       this.prisma.merchant.count(),
+      this.prisma.userRole ? this.prisma.userRole.count({ where: { role: Role.DRIVER } }) : Promise.resolve(0),
     ]);
 
     const foodDeliveryGmv = completedOrders.reduce((sum, o) => sum + Number(o.finalTotal), 0);
-    // Ước tính phần doanh thu mâm cỗ sự kiện (Sprint 3)
-    const cateringFeastGmv = Math.round(foodDeliveryGmv * 0.4);
+    const cateringFeastGmv = 0;
     const totalGmv = foodDeliveryGmv + cateringFeastGmv;
 
     const merchants = await this.prisma.merchant.findMany({
-      take: 5,
       include: {
         orders: {
           where: { status: OrderStatus.COMPLETED },
@@ -157,16 +180,19 @@ export class DashboardService {
       },
     });
 
-    const topPerformingMerchants = merchants.map((m) => {
-      const gmv = m.orders.reduce((sum, o) => sum + Number(o.finalTotal), 0);
-      return {
-        merchantId: m.id,
-        merchantName: m.name,
-        totalOrders: m.orders.length,
-        gmv,
-        rating: Number(m.rating),
-      };
-    }).sort((a, b) => b.gmv - a.gmv);
+    const topPerformingMerchants = merchants
+      .map((m) => {
+        const gmv = m.orders.reduce((sum, o) => sum + Number(o.finalTotal), 0);
+        return {
+          merchantId: m.id,
+          merchantName: m.name,
+          totalOrders: m.orders.length,
+          gmv,
+          rating: Number(m.rating),
+        };
+      })
+      .sort((a, b) => b.gmv - a.gmv)
+      .slice(0, 5);
 
     return {
       totalGmv,
@@ -175,8 +201,8 @@ export class DashboardService {
       totalOrdersCount: totalOrders,
       totalUsersCount: totalUsers,
       totalMerchantsCount: totalMerchants,
-      activeDriversCount: Math.max(1, Math.round(totalUsers * 0.1)),
-      monthlyGrowthRate: 18.5, // 18.5% tăng trưởng tháng
+      activeDriversCount,
+      monthlyGrowthRate: 0,
       topPerformingMerchants,
     };
   }
@@ -196,6 +222,17 @@ export class DashboardService {
       data: { status: dto.status },
     });
 
+    this.auditLogs.unshift({
+      id: `aud-${Date.now()}`,
+      action: `MERCHANT_${dto.status}`,
+      targetType: 'MERCHANT',
+      targetId: merchantId,
+      targetName: updated.name,
+      reason: dto.reason || 'Kiểm duyệt bởi Quản trị viên',
+      performedBy: 'admin@dinego.vn',
+      createdAt: new Date(),
+    });
+
     this.logger.log(`[Admin Audit] Nhà hàng "${updated.name}" (${merchantId}) chuyển trạng thái sang: ${dto.status}. Lý do: ${dto.reason || 'N/A'}`);
     return updated;
   }
@@ -211,6 +248,17 @@ export class DashboardService {
       data: { isActive: dto.isActive },
     });
 
+    this.auditLogs.unshift({
+      id: `aud-${Date.now()}`,
+      action: dto.isActive ? 'USER_UNLOCKED' : 'USER_LOCKED',
+      targetType: 'USER',
+      targetId: userId,
+      targetName: updated.email,
+      reason: dto.reason || (dto.isActive ? 'Mở khóa tài khoản' : 'Vi phạm điều khoản nền tảng'),
+      performedBy: 'admin@dinego.vn',
+      createdAt: new Date(),
+    });
+
     // Nếu khóa tài khoản, thu hồi lập tức tất cả các phiên đăng nhập đang hoạt động
     if (!dto.isActive) {
       await this.prisma.userSession.updateMany({
@@ -221,6 +269,31 @@ export class DashboardService {
     }
 
     return updated;
+  }
+
+  async getAllUsers() {
+    const users = await this.prisma.user.findMany({
+      include: {
+        roles: true,
+        merchants: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      fullName: u.fullName,
+      phoneNumber: u.phoneNumber,
+      isActive: u.isActive,
+      roles: u.roles.map((r) => r.role),
+      merchants: u.merchants,
+      createdAt: u.createdAt,
+    }));
+  }
+
+  getAdminAuditLogs(): AdminAuditLogEntry[] {
+    return this.auditLogs;
   }
 
   // ----------------------------------------------------------------------------
@@ -249,9 +322,10 @@ export class DashboardService {
       const platformFee = Math.round((totalGmv * commissionRate) / 100);
       const refundsDeducted = 0;
       const netPayoutToMerchant = totalGmv - platformFee - refundsDeducted;
+      const reconciliationId = `REC-${period}-${m.slug.toUpperCase().slice(0, 8)}`;
 
       return {
-        reconciliationId: `REC-${period}-${m.slug.toUpperCase().slice(0, 8)}`,
+        reconciliationId,
         merchantId: m.id,
         merchantName: m.name,
         period,
@@ -261,10 +335,29 @@ export class DashboardService {
         totalShippingCollected,
         refundsDeducted,
         netPayoutToMerchant,
-        status: 'PENDING_CONFIRMATION',
+        status: this.paidReconciliations.has(reconciliationId) ? 'PAID' : 'PENDING_CONFIRMATION',
         createdAt: new Date(),
       };
     });
+  }
+
+  confirmReconciliationPayout(reconciliationId: string): { reconciliationId: string; status: 'PAID'; paidAt: Date } {
+    this.paidReconciliations.add(reconciliationId);
+    this.auditLogs.unshift({
+      id: `aud-${Date.now()}`,
+      action: 'PAYOUT_CONFIRMED',
+      targetType: 'RECONCILIATION',
+      targetId: reconciliationId,
+      targetName: reconciliationId,
+      reason: 'Admin xác nhận giải ngân công nợ cuối kỳ (85% Net Payout)',
+      performedBy: 'admin@dinego.vn',
+      createdAt: new Date(),
+    });
+    return {
+      reconciliationId,
+      status: 'PAID',
+      paidAt: new Date(),
+    };
   }
 }
 

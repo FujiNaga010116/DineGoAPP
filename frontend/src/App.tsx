@@ -486,6 +486,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     currentTab === 'admin-users' ||
     currentTab === 'admin-complaints' ||
     currentTab === 'admin-reconciliation' ||
+    currentTab === 'admin-knowledge' ||
     currentTab === 'admin-settings';
 
   const isDriverPortalMode =
