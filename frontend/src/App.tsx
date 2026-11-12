@@ -138,7 +138,10 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((u) => hydrateSeedCustomerCoords(u));
+          return mergeUsersDirectory(
+            MOCK_USERS,
+            parsed.map((u) => hydrateSeedCustomerCoords(u)),
+          );
         }
       } catch {}
     }
@@ -179,11 +182,23 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((m: Merchant) => ({
-            ...m,
-            coverUrl: fixLegacyTeaImage(m.coverUrl) || m.coverUrl,
-            logoUrl: fixLegacyTeaImage(m.logoUrl) || m.logoUrl,
-          }));
+          const normalized = parsed.map((m: Merchant) => {
+            const seedMatch = MOCK_MERCHANTS.find((sm) => sm.id === m.id);
+            return {
+              ...(seedMatch || {}),
+              ...m,
+              name: seedMatch?.isCateringOnly ? seedMatch.name : m.name,
+              address: seedMatch?.isCateringOnly ? seedMatch.address : m.address,
+              latitude: m.latitude ?? seedMatch?.latitude,
+              longitude: m.longitude ?? seedMatch?.longitude,
+              isCateringOnly: m.isCateringOnly ?? seedMatch?.isCateringOnly,
+              coverUrl: fixLegacyTeaImage(m.coverUrl) || m.coverUrl,
+              logoUrl: fixLegacyTeaImage(m.logoUrl) || m.logoUrl,
+            };
+          });
+          const existingIds = new Set(normalized.map((m: Merchant) => m.id));
+          const missingSeeds = MOCK_MERCHANTS.filter((sm) => !existingIds.has(sm.id));
+          return [...normalized, ...missingSeeds];
         }
       } catch {}
     }
@@ -756,11 +771,11 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
   };
 
   const handleOrderPlaced = (newOrder: Order) => {
-    if (!currentUser) return;
+    if (!currentUser && newOrder.orderType !== 'CATERING') return;
     const ownedOrder: Order = {
       ...newOrder,
-      customerId: newOrder.customerId || currentUser.id,
-      customerEmail: newOrder.customerEmail || currentUser.email,
+      customerId: newOrder.customerId || currentUser?.id || 'guest',
+      customerEmail: newOrder.customerEmail || currentUser?.email,
     };
     setOrders([ownedOrder, ...orders]);
     setCurrentTab('orders');
@@ -785,6 +800,80 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
       if (assignedDrv) {
         recordOrderCompletedInShift(completedOrder, assignedDrv);
       }
+    }
+  };
+
+  const handleSyncCateringOrderFromMerchant = (
+    bookingId: string,
+    bookingCode: string,
+    action: 'APPROVED' | 'REJECTED' | 'COMPLETED',
+    meta?: { finalBillCode?: string; completedAt?: string },
+  ) => {
+    setOrders((prev) =>
+      prev.map((o) => {
+        const matches =
+          o.orderNumber === bookingCode || o.id === `ord-catering-${bookingId}`;
+        if (!matches) return o;
+        if (action === 'APPROVED') {
+          return {
+            ...o,
+            status: 'CONFIRMED',
+            cateringDetails: o.cateringDetails
+              ? { ...o.cateringDetails, merchantApproved: true }
+              : o.cateringDetails,
+          };
+        }
+        if (action === 'REJECTED') {
+          return {
+            ...o,
+            status: 'CANCELLED',
+            cancelReason: 'Nhà hàng từ chối tiếp nhận hợp đồng đặt tiệc',
+          };
+        }
+        return {
+          ...o,
+          status: 'COMPLETED',
+          cateringDetails: o.cateringDetails
+            ? {
+                ...o.cateringDetails,
+                merchantApproved: true,
+                finalBillIssued: true,
+                finalBillCode: meta?.finalBillCode,
+                completedAt: meta?.completedAt,
+              }
+            : o.cateringDetails,
+        };
+      }),
+    );
+
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key || !key.startsWith('dinego_catering_')) continue;
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) continue;
+        const nextStatus =
+          action === 'COMPLETED'
+            ? 'COMPLETED'
+            : action === 'REJECTED'
+            ? 'CANCELLED'
+            : null;
+        if (!nextStatus) continue;
+        localStorage.setItem(
+          key,
+          JSON.stringify(
+            parsed.map((rec: Record<string, unknown>) =>
+              rec.id === bookingId || rec.bookingCode === bookingCode
+                ? { ...rec, status: nextStatus }
+                : rec,
+            ),
+          ),
+        );
+      }
+    } catch {
+      // Ignore storage sync failure
     }
   };
 
@@ -998,7 +1087,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
             !!o.customerEmail &&
             o.customerEmail.toLowerCase() === currentUser.email.toLowerCase()),
       )
-    : [];
+    : orders.filter((o) => o.customerId === 'guest');
 
   const driverActiveOrder =
     orders.find(
@@ -1088,7 +1177,11 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
         )}
 
         {currentTab === 'catering' && (
-          <CateringPage key={currentUser?.id || 'guest'} currentUser={currentUser} />
+          <CateringPage
+            key={currentUser?.id || 'guest'}
+            currentUser={currentUser}
+            onOrderPlaced={handleOrderPlaced}
+          />
         )}
 
         {currentTab === 'group-order' && (
@@ -1211,6 +1304,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
             onAdminUpdateMerchantStatus={handleAdminUpdateMerchantStatus}
             onAdminUpdateDriverStatus={handleAdminUpdateDriverStatus}
             onOpenMerchantRegisterModal={() => setIsMerchantRegisterModalOpen(true)}
+            onSyncCateringOrderFromMerchant={handleSyncCateringOrderFromMerchant}
           />
         )}
       </main>
@@ -1254,7 +1348,10 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
           if (user.roles.includes('ADMIN')) {
             setCurrentTab('admin-overview');
           } else if (user.roles.includes('MERCHANT')) {
-            setCurrentTab('merchant-orders');
+            const linkedMerchant = merchants.find(
+              (m) => m.id === user.merchantId || m.ownerUserId === user.id,
+            );
+            setCurrentTab(linkedMerchant?.isCateringOnly ? 'merchant-catering' : 'merchant-orders');
           } else if (user.roles.includes('DRIVER')) {
             const matchedDriver = drivers.find(
               (d) => d.id === user.driverId || d.userId === user.id,

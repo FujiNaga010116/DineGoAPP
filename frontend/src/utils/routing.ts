@@ -218,6 +218,12 @@ const KNOWN_MERCHANT_COORDS: Record<string, LatLngPoint> = {
   'merchant-pho-thin': { lat: 10.7715, lng: 106.6974 }, // Phạm Hồng Thái / Q1
   'merchant-gongcha': { lat: 10.7704, lng: 106.6889 }, // 175 Nguyễn Thị Minh Khai, Q1
   'merchant-pizza': { lat: 10.7745, lng: 106.7033 }, // 88 Nguyễn Huệ, Q1
+  'merchant-catering-hoang-gia': { lat: 10.7854, lng: 106.6962 }, // 210 Hai Bà Trưng, Q1
+  'merchant-catering-phuong-nam': { lat: 10.7327, lng: 106.7196 }, // 45 Nguyễn Văn Linh, Q7
+  'merchant-catering-ha-thanh': { lat: 10.7785, lng: 106.6869 }, // 112 Cách Mạng Tháng 8, Q3
+  'merchant-catering-bistro': { lat: 10.8495, lng: 106.7574 }, // 88 Võ Văn Ngân, TP. Thủ Đức
+  'merchant-catering-saigon-pro': { lat: 10.8012, lng: 106.7114 }, // 99 Điện Biên Phủ, Bình Thạnh
+  'merchant-catering-an-vien': { lat: 10.7723, lng: 106.6691 }, // 320 Sư Vạn Hạnh, Q10
 };
 
 const KNOWN_AREA_ANCHORS: Array<{ keywords: string[]; coords: LatLngPoint }> = [
@@ -886,6 +892,43 @@ function findMentionedProvinceKey(cleanText: string): string | null {
 }
 
 /**
+ * Validates that a typed address contains only valid Vietnamese address characters
+ * and is not gibberish, symbol-only, or digit-only input.
+ */
+export function validateAddressInputChars(raw: string): {
+  valid: boolean;
+  reason?: string;
+} {
+  const trimmed = (raw || '').trim();
+  if (trimmed.length < 4) {
+    return {
+      valid: false,
+      reason: 'Địa chỉ quá ngắn (tối thiểu 4 ký tự). Vui lòng nhập địa chỉ hợp lệ.',
+    };
+  }
+  const invalidMatch = trimmed.match(/[^0-9A-Za-zÀ-ỹ\s,./()-]/);
+  if (invalidMatch) {
+    return {
+      valid: false,
+      reason: `Địa chỉ chứa ký tự không hợp lệ ("${invalidMatch[0]}"). Chỉ dùng chữ cái, số và dấu , . / - ( ).`,
+    };
+  }
+  if (!/[A-Za-zÀ-ỹ]{2,}/.test(trimmed)) {
+    return {
+      valid: false,
+      reason: 'Địa chỉ phải có tên đường hoặc khu vực hợp lệ, không thể chỉ nhập số hoặc ký hiệu.',
+    };
+  }
+  if (/(.)\1{4,}/i.test(trimmed)) {
+    return {
+      valid: false,
+      reason: 'Địa chỉ có chuỗi ký tự lặp bất thường. Vui lòng nhập đúng địa chỉ có trên bản đồ.',
+    };
+  }
+  return { valid: true };
+}
+
+/**
  * Verifies that typed address text genuinely agrees with the pinned map reference across
  * ALL regions of Vietnam (including newly merged 2025 wards where OSM still indexes the parent city/province).
  */
@@ -896,6 +939,7 @@ export function isAddressConsistentWithMap(
   districtName?: string,
   cityName?: string,
 ): boolean {
+  if (!validateAddressInputChars(typedAddress).valid) return false;
   const cleanTyped = normalizeViText(typedAddress);
   const cleanRef = normalizeViText(mapReferenceName || '');
   if (cleanTyped.length < 6 || !cleanRef) return false;

@@ -19,6 +19,7 @@ import {
   isAddressConsistentWithMap,
   reverseGeocodeNominatim,
   searchAddressNominatim,
+  validateAddressInputChars,
   VN_REGION_ANCHORS,
   type GeocodedAddressResult,
 } from '../../utils/routing';
@@ -104,8 +105,13 @@ export const AddressMapPicker: React.FC<AddressMapPickerProps> = ({
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
+  const charValidation = addressText.trim()
+    ? validateAddressInputChars(addressText)
+    : { valid: true };
+
   const isSynced = Boolean(
-    coords &&
+    charValidation.valid &&
+      coords &&
       mapMeta &&
       isAddressConsistentWithMap(
         addressText,
@@ -286,8 +292,10 @@ export const AddressMapPicker: React.FC<AddressMapPickerProps> = ({
 
   const handleSearchOnMap = async () => {
     const q = addressText.trim();
-    if (q.length < 2) {
-      setStatusNote('Vui lòng nhập ít nhất 2 ký tự để tìm địa chỉ trên bản đồ.');
+    const check = validateAddressInputChars(q);
+    if (!check.valid) {
+      setSearchResults([]);
+      setStatusNote(check.reason || 'Địa chỉ không hợp lệ.');
       return;
     }
     setIsSearching(true);
@@ -295,7 +303,7 @@ export const AddressMapPicker: React.FC<AddressMapPickerProps> = ({
     const results = await searchAddressNominatim(q);
     setIsSearching(false);
 
-    if (results.length === 1) {
+    if (results.length === 1 && !results[0].isApproximateArea) {
       handleSelectSuggestion(results[0]);
       return;
     }
@@ -308,9 +316,14 @@ export const AddressMapPicker: React.FC<AddressMapPickerProps> = ({
         top.isApproximateArea ? 13 : 15,
         { animate: true, duration: 0.6 },
       );
+      if (results.every((r) => r.isApproximateArea)) {
+        setStatusNote(
+          `Không tìm thấy chính xác số nhà/tên đường "${q}" trên bản đồ. Vui lòng kiểm tra lại ký tự/tên đường hoặc nhấp chọn đúng vị trí trên bản đồ.`,
+        );
+      }
     } else {
       setStatusNote(
-        'Không tìm thấy địa danh khớp. Hãy chọn Tỉnh/Thành ở mục phía trên rồi nhấp trực tiếp vị trí nhận hàng trên bản đồ.',
+        `Không tìm thấy địa điểm "${q}" trên bản đồ. Hãy kiểm tra lại chính tả hoặc chọn Tỉnh/Thành rồi nhấp trực tiếp lên bản đồ.`,
       );
     }
   };
@@ -392,7 +405,10 @@ export const AddressMapPicker: React.FC<AddressMapPickerProps> = ({
               type="text"
               placeholder="VD: 100 Lý Thường Kiệt, P. Nam Đông Hà, Quảng Trị hoặc 33 Lê Duẩn, Q.1"
               value={addressText}
-              onChange={(e) => setAddressText(e.target.value)}
+              onChange={(e) => {
+                setAddressText(e.target.value);
+                if (statusNote) setStatusNote('');
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
@@ -404,7 +420,13 @@ export const AddressMapPicker: React.FC<AddressMapPickerProps> = ({
                 padding: '9px 12px',
                 borderRadius: 8,
                 border: `1.5px solid ${
-                  isSynced ? '#16A34A' : addressText.trim() ? '#F59E0B' : '#CBD5E1'
+                  !charValidation.valid
+                    ? '#EF4444'
+                    : isSynced
+                    ? '#16A34A'
+                    : addressText.trim()
+                    ? '#F59E0B'
+                    : '#CBD5E1'
                 }`,
                 fontSize: '0.85rem',
                 background: '#FFFFFF',
@@ -566,7 +588,25 @@ export const AddressMapPicker: React.FC<AddressMapPickerProps> = ({
       </div>
 
       {/* Consistency Validation Banner */}
-      {isSynced && coords ? (
+      {!charValidation.valid ? (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 8,
+            padding: '8px 12px',
+            borderRadius: 8,
+            background: '#FEF2F2',
+            border: '1px solid #FECACA',
+            color: '#DC2626',
+            fontSize: '0.78rem',
+            fontWeight: 700,
+          }}
+        >
+          <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>{charValidation.reason}</span>
+        </div>
+      ) : isSynced && coords ? (
         <div
           style={{
             display: 'flex',

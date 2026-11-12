@@ -88,7 +88,11 @@ export const HomePage: React.FC<HomePageProps> = ({
   const allMerchantsList = merchants || MOCK_MERCHANTS;
 
   const filteredMerchants = allMerchantsList.filter((m) => {
-    const isApprovedAndActive = m.isActive !== false && m.kycStatus !== 'REJECTED' && m.kycStatus !== 'PENDING_APPROVAL';
+    const isApprovedAndActive =
+      m.isActive !== false &&
+      m.kycStatus !== 'REJECTED' &&
+      m.kycStatus !== 'PENDING_APPROVAL' &&
+      !m.isCateringOnly;
     if (!isApprovedAndActive) return false;
 
     const matchSearch =

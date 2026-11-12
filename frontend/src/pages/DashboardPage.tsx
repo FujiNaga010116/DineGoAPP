@@ -52,6 +52,10 @@ import {
   type ManagedVoucher,
   type VoucherEventTheme,
 } from '../utils/vouchers';
+import {
+  CateringFinalBillModal,
+  type CateringBillData,
+} from '../components/common/CateringFinalBillModal';
 
 interface DashboardPageProps {
   currentUser: User | null;
@@ -90,6 +94,12 @@ interface DashboardPageProps {
     adminNote?: string,
   ) => void;
   onConfirmMerchantPickup?: (orderId: string) => void;
+  onSyncCateringOrderFromMerchant?: (
+    bookingId: string,
+    bookingCode: string,
+    action: 'APPROVED' | 'REJECTED' | 'COMPLETED',
+    meta?: { finalBillCode?: string; completedAt?: string },
+  ) => void;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
@@ -117,6 +127,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   deliveryDisputes = [],
   onResolveDeliveryDispute,
   onConfirmMerchantPickup,
+  onSyncCateringOrderFromMerchant,
 }) => {
   const isAdminRole = Boolean(currentUser?.roles?.includes('ADMIN'));
 
@@ -284,20 +295,99 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   const isSeedDemoMerchant = currentMerchant?.id === 'merchant-com-tam';
 
-  // Merchant Catering Bookings & Calendar State (Persisted in localStorage & synced with Customer CateringPage; blank for non-seed new accounts)
-  const [feastBookings, setFeastBookings] = useState(() => {
+  const isCateringSeedMerchant =
+    isSeedDemoMerchant || Boolean(currentMerchant?.isCateringOnly);
+
+  // Merchant Catering Bookings & Calendar State (Persisted in localStorage & synced with Customer CateringPage)
+  const [feastBookings, setFeastBookings] = useState<any[]>(() => {
+    const seedCateringContracts = [
+      {
+        id: 'fb-hg-01',
+        bookingCode: 'DG-FEAST-710201',
+        merchantId: 'merchant-catering-hoang-gia',
+        merchantName: 'Bếp Cỗ Hoàng Gia — Quận 1',
+        partyTypeTitle: 'Đám cưới & Đính hôn',
+        customerName: 'Lê Minh Tuấn',
+        customerPhone: '0908334455',
+        packageName: 'Mâm Tiệc Cưới Hỏi Song Hỷ (10 người/bàn)',
+        tableCount: 10,
+        guestCountPerTable: 10,
+        eventDate: '2026-11-22',
+        eventTime: '18:00',
+        address: 'Trung tâm Tiệc cưới Sân vườn, 180 Pasteur, Quận 3, TP. HCM',
+        note: 'Chuẩn bị bàn gia tiên riêng, ưu tiên lên món nóng đúng 18:15',
+        totalAmount: 34200000,
+        depositAmount: 10260000,
+        depositPercent: 30,
+        status: 'PENDING_APPROVAL',
+        depositPaid: true,
+      },
+      {
+        id: 'fb-ht-01',
+        bookingCode: 'DG-FEAST-710202',
+        merchantId: 'merchant-catering-ha-thanh',
+        merchantName: 'Bếp Cỗ Gia Truyền — Quận 3',
+        partyTypeTitle: 'Đám giỗ & Cúng gia tiên',
+        customerName: 'Nguyễn Thị Hương',
+        customerPhone: '0919556677',
+        packageName: 'Mâm Cỗ Gia Tiên Truyền Thống (6 người/bàn)',
+        tableCount: 5,
+        guestCountPerTable: 6,
+        eventDate: '2026-11-18',
+        eventTime: '10:30',
+        address: '42 Nguyễn Đình Chiểu, Quận 1, TP. HCM',
+        note: 'Giao trước 10:15 để kịp giờ làm lễ, ít cay',
+        totalAmount: 9262500,
+        depositAmount: 2778750,
+        depositPercent: 30,
+        status: 'PENDING_APPROVAL',
+        depositPaid: true,
+      },
+      {
+        id: 'fb-sg-01',
+        bookingCode: 'DG-FEAST-710203',
+        merchantId: 'merchant-catering-saigon-pro',
+        merchantName: 'Saigon Event Catering — Bình Thạnh',
+        partyTypeTitle: 'Liên hoan công ty & Gala',
+        customerName: 'Công ty Cổ phần TechNova',
+        customerPhone: '0903889900',
+        packageName: 'Mâm Tiệc Liên Hoan Doanh Nghiệp VIP (10 người/bàn)',
+        tableCount: 8,
+        guestCountPerTable: 10,
+        eventDate: '2026-11-25',
+        eventTime: '18:30',
+        address: 'Tầng 14, Bitexco Financial Tower, Quận 1, TP. HCM',
+        note: 'Xuất hóa đơn VAT công ty và chuẩn bị thêm nước suối',
+        totalAmount: 21280000,
+        depositAmount: 10640000,
+        depositPercent: 50,
+        status: 'PENDING_APPROVAL',
+        depositPaid: true,
+      },
+    ];
+
     try {
       const saved = localStorage.getItem('dinego_feast_bookings');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          if (!localStorage.getItem('dinego_catering_merchant_seeds_v1')) {
+            localStorage.setItem('dinego_catering_merchant_seeds_v1', '1');
+            const existingIds = new Set(parsed.map((p: any) => p.id));
+            const extra = seedCateringContracts.filter((s) => !existingIds.has(s.id));
+            return [...parsed, ...extra];
+          }
+          return parsed;
+        }
       }
     } catch {}
-    return isSeedDemoMerchant
+    return isCateringSeedMerchant
       ? [
           {
             id: 'fb-01',
             bookingCode: 'DG-FEAST-8821',
+            merchantId: 'merchant-com-tam',
+            merchantName: 'Cơm Tấm Sài Gòn 1985',
             customerName: 'Nguyễn Minh Quân (Công ty TNHH VinaTech)',
             customerPhone: '0908112233',
             packageName: 'Mâm Tiệc Tân Niên Đoàn Viên (10 người/bàn)',
@@ -307,12 +397,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             address: 'Tầng 8, Tòa nhà Saigon Centre, 65 Lê Lợi, Quận 1, TP. HCM',
             totalAmount: 17500000,
             depositAmount: 5250000,
-            status: 'PENDING_APPROVAL' as 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED',
+            status: 'PENDING_APPROVAL',
             depositPaid: true,
           },
           {
             id: 'fb-02',
             bookingCode: 'DG-FEAST-8819',
+            merchantId: 'merchant-com-tam',
+            merchantName: 'Cơm Tấm Sài Gòn 1985',
             customerName: 'Trần Ngọc Lan',
             customerPhone: '0912334455',
             packageName: 'Buffet Finger Food & BBQ Sân Vườn (30 khách)',
@@ -322,18 +414,104 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             address: 'Biệt thự B12 Thảo Điền, TP. Thủ Đức, TP. HCM',
             totalAmount: 13500000,
             depositAmount: 4050000,
-            status: 'APPROVED' as 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED',
+            status: 'APPROVED',
             depositPaid: true,
           },
+          ...seedCateringContracts,
         ]
       : [];
   });
+  const [showAllPlatformFeasts, setShowAllPlatformFeasts] = useState<boolean>(false);
+  const [activeFeastBillModal, setActiveFeastBillModal] = useState<CateringBillData | null>(null);
 
   useEffect(() => {
     try {
       localStorage.setItem('dinego_feast_bookings', JSON.stringify(feastBookings));
     } catch {}
   }, [feastBookings]);
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'dinego_feast_bookings' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setFeastBookings(parsed);
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    const feastCh = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('dinego_feasts_sync') : null;
+    if (feastCh) {
+      feastCh.onmessage = (ev) => {
+        if (typeof ev.data === 'string') {
+          try {
+            const parsed = JSON.parse(ev.data);
+            if (Array.isArray(parsed)) setFeastBookings(parsed);
+          } catch {}
+        }
+      };
+    }
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      feastCh?.close();
+    };
+  }, []);
+
+  const buildFeastBillData = (
+    fb: any,
+    finalBillCode: string,
+    completedAt: string,
+  ): CateringBillData => {
+    const depositPct: 30 | 50 =
+      fb.depositPercent ||
+      (fb.totalAmount > 0 && Math.round((fb.depositAmount / fb.totalAmount) * 100) >= 45
+        ? 50
+        : 30);
+    const subtotal = Number(fb.subtotal ?? fb.totalAmount);
+    const discountAmount = Number(fb.discountAmount ?? Math.max(0, subtotal - fb.totalAmount));
+    return {
+      billCode: finalBillCode,
+      bookingCode: fb.bookingCode,
+      merchantName: fb.merchantName || currentMerchant?.name || 'Nhà hàng DineGo Catering',
+      customerName: fb.customerName || 'Khách hàng DineGo',
+      customerPhone: fb.customerPhone || '',
+      eventAddress: fb.address || '',
+      partyTypeTitle: fb.partyTypeTitle || 'Đặt tiệc lưu động',
+      packageName: fb.packageName,
+      tableCount: Number(fb.tableCount || 1),
+      guestCountPerTable: Number(fb.guestCountPerTable || 6),
+      eventDate: fb.eventDate,
+      eventTime: fb.eventTime || '18:00',
+      dishes: Array.isArray(fb.dishes) ? fb.dishes : [],
+      customNote: fb.note,
+      subtotal,
+      discountAmount,
+      totalAmount: Number(fb.totalAmount || 0),
+      depositPercent: depositPct,
+      depositAmount: Number(fb.depositAmount || 0),
+      remainingAmount: Math.max(0, Number(fb.totalAmount || 0) - Number(fb.depositAmount || 0)),
+      completedAt,
+      issuedFor: 'MERCHANT',
+    };
+  };
+
+  const handleCompleteFeastBooking = (fb: any) => {
+    const finalBillCode = fb.finalBillCode || `BILL-${String(fb.bookingCode || Date.now()).slice(-6)}`;
+    const completedAt = fb.completedAt || new Date().toISOString();
+
+    setFeastBookings((prev) =>
+      prev.map((item) =>
+        item.id === fb.id
+          ? { ...item, status: 'COMPLETED', finalBillCode, completedAt, depositPaid: true }
+          : item,
+      ),
+    );
+    onSyncCateringOrderFromMerchant?.(fb.id, fb.bookingCode, 'COMPLETED', {
+      finalBillCode,
+      completedAt,
+    });
+    setActiveFeastBillModal(buildFeastBillData(fb, finalBillCode, completedAt));
+  };
 
   const [blockedDates, setBlockedDates] = useState<string[]>(() =>
     isSeedDemoMerchant ? ['2026-11-22', '2026-11-29'] : [],
@@ -406,7 +584,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   // Admin System Real Overview Calculated from actual orders & feastBookings
   const foodDeliveryGmv = validOrders.reduce((sum, o) => sum + o.finalTotal, 0);
   const foodSubtotalSum = validOrders.reduce((sum, o) => sum + o.subtotal, 0);
-  const approvedFeasts = feastBookings.filter((fb) => fb.status === 'APPROVED');
+  const approvedFeasts = feastBookings.filter((fb) =>
+    ['APPROVED', 'COMPLETED'].includes(fb.status),
+  );
   const cateringFeastGmv = approvedFeasts.reduce((sum, fb) => sum + fb.totalAmount, 0);
   const totalGmvReal = foodDeliveryGmv + cateringFeastGmv;
   const platformRevenueReal = Math.round((foodSubtotalSum + cateringFeastGmv) * commissionRateDecimal);
@@ -4229,16 +4409,42 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           )}
 
           {/* MERCHANT TAB 3: CATERING & FEAST BOOKINGS */}
-          {currentMerchantTab === 'merchant-catering' && (
+          {currentMerchantTab === 'merchant-catering' && (() => {
+            const visibleFeastBookings =
+              isAdminRole || showAllPlatformFeasts
+                ? feastBookings
+                : feastBookings.filter(
+                    (fb) => !fb.merchantId || fb.merchantId === currentMerchant?.id,
+                  );
+            return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
               <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
-                <div style={{ padding: '18px 22px', borderBottom: '1px solid #E2E8F0' }}>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                    Danh sách Hợp đồng Đặt tiệc lưu động
-                  </h3>
-                  <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '2px 0 0 0' }}>
-                    Kiểm tra biên lai đặt cọc 30% và xác nhận lịch điều phối nhân sự phục vụ tiệc
-                  </p>
+                <div style={{ padding: '18px 22px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                  <div>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      Danh sách Hợp đồng Đặt tiệc lưu động ({visibleFeastBookings.length})
+                    </h3>
+                    <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '2px 0 0 0' }}>
+                      Kiểm tra biên lai đặt cọc MoMo, nhận hợp đồng và xác nhận hoàn thành bữa tiệc để xuất Bill tổng
+                    </p>
+                  </div>
+                  {!isAdminRole && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllPlatformFeasts((prev) => !prev)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #CBD5E1',
+                        background: showAllPlatformFeasts ? '#EFF6FF' : '#F8FAFC',
+                        color: showAllPlatformFeasts ? '#1D4ED8' : '#475569',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {showAllPlatformFeasts ? 'Chỉ xem đơn của quán này' : 'Xem tất cả đơn tiệc trên sàn'}
+                    </button>
+                  )}
                 </div>
 
                 <div style={{ overflowX: 'auto' }}>
@@ -4254,19 +4460,24 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       </tr>
                     </thead>
                     <tbody>
-                      {feastBookings.length === 0 ? (
+                      {visibleFeastBookings.length === 0 ? (
                         <tr>
                           <td colSpan={6} style={{ padding: '32px 18px', textAlign: 'center', color: '#64748B' }}>
                             Chưa có hợp đồng đặt tiệc nào cho gian hàng này.
                           </td>
                         </tr>
                       ) : (
-                      feastBookings.map((fb) => (
+                      visibleFeastBookings.map((fb) => (
                         <tr key={fb.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
                           <td style={{ padding: '14px 18px', fontWeight: 700, color: '#0F172A' }}>#{fb.bookingCode}</td>
                           <td style={{ padding: '14px 18px' }}>
                             <div style={{ fontWeight: 700, color: '#0F172A' }}>{fb.packageName}</div>
                             <div style={{ fontSize: '0.76rem', color: '#64748B' }}>Quy mô: {fb.tableCount} bàn</div>
+                            {fb.note && (
+                              <div style={{ fontSize: '0.74rem', color: '#047857', marginTop: 3 }}>
+                                Ghi chú: {fb.note}
+                              </div>
+                            )}
                           </td>
                           <td style={{ padding: '14px 18px' }}>
                             <div style={{ fontWeight: 600, color: '#334155' }}>{fb.customerName} ({fb.customerPhone})</div>
@@ -4285,11 +4496,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                             {fb.status === 'PENDING_APPROVAL' ? (
                               <div style={{ display: 'inline-flex', gap: 6 }}>
                                 <button
-                                  onClick={() =>
+                                  onClick={() => {
                                     setFeastBookings((prev) =>
                                       prev.map((item) => (item.id === fb.id ? { ...item, status: 'APPROVED' } : item)),
-                                    )
-                                  }
+                                    );
+                                    onSyncCateringOrderFromMerchant?.(fb.id, fb.bookingCode, 'APPROVED');
+                                  }}
                                   style={{
                                     padding: '6px 12px',
                                     borderRadius: 6,
@@ -4302,11 +4514,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                   Nhận hợp đồng
                                 </button>
                                 <button
-                                  onClick={() =>
+                                  onClick={() => {
                                     setFeastBookings((prev) =>
                                       prev.map((item) => (item.id === fb.id ? { ...item, status: 'REJECTED' } : item)),
-                                    )
-                                  }
+                                    );
+                                    onSyncCateringOrderFromMerchant?.(fb.id, fb.bookingCode, 'REJECTED');
+                                  }}
                                   style={{
                                     padding: '6px 12px',
                                     borderRadius: 6,
@@ -4320,6 +4533,81 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                   Từ chối
                                 </button>
                               </div>
+                            ) : fb.status === 'APPROVED' ? (
+                              <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                                <span
+                                  style={{
+                                    padding: '3px 10px',
+                                    borderRadius: 6,
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    background: '#DCFCE7',
+                                    color: '#15803D',
+                                  }}
+                                >
+                                  Đã xác nhận lịch
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCompleteFeastBooking(fb)}
+                                  style={{
+                                    padding: '7px 12px',
+                                    borderRadius: 6,
+                                    background: '#00B14F',
+                                    color: '#FFFFFF',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 800,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                  }}
+                                >
+                                  <Printer size={13} />
+                                  <span>Xác nhận hoàn thành tiệc &amp; Xuất Bill</span>
+                                </button>
+                              </div>
+                            ) : fb.status === 'COMPLETED' ? (
+                              <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                                <span
+                                  style={{
+                                    padding: '3px 10px',
+                                    borderRadius: 6,
+                                    fontSize: '0.72rem',
+                                    fontWeight: 800,
+                                    background: '#D1FAE5',
+                                    color: '#065F46',
+                                  }}
+                                >
+                                  ✓ Đã hoàn thành tiệc
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setActiveFeastBillModal(
+                                      buildFeastBillData(
+                                        fb,
+                                        fb.finalBillCode || `BILL-${String(fb.bookingCode).slice(-6)}`,
+                                        fb.completedAt || new Date().toISOString(),
+                                      ),
+                                    )
+                                  }
+                                  style={{
+                                    padding: '6px 12px',
+                                    borderRadius: 6,
+                                    background: '#EFF6FF',
+                                    color: '#1D4ED8',
+                                    border: '1px solid #BFDBFE',
+                                    fontSize: '0.76rem',
+                                    fontWeight: 700,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 5,
+                                  }}
+                                >
+                                  <Printer size={13} />
+                                  <span>Xem / In Bill tổng</span>
+                                </button>
+                              </div>
                             ) : (
                               <span
                                 style={{
@@ -4327,11 +4615,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                   borderRadius: 6,
                                   fontSize: '0.74rem',
                                   fontWeight: 700,
-                                  background: fb.status === 'APPROVED' ? '#DCFCE7' : '#FEE2E2',
-                                  color: fb.status === 'APPROVED' ? '#15803D' : '#DC2626',
+                                  background: '#FEE2E2',
+                                  color: '#DC2626',
                                 }}
                               >
-                                {fb.status === 'APPROVED' ? 'Đã xác nhận lịch' : 'Đã từ chối'}
+                                Đã từ chối
                               </span>
                             )}
                           </td>
@@ -4378,7 +4666,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* MERCHANT TAB 4: REVENUE ANALYTICS & REVIEWS */}
           {currentMerchantTab === 'merchant-analytics' && (
@@ -4768,6 +5057,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         </div>
       )}
+
+      <CateringFinalBillModal
+        bill={activeFeastBillModal}
+        onClose={() => setActiveFeastBillModal(null)}
+      />
     </div>
   );
 };
