@@ -94,6 +94,28 @@ export class DashboardController {
     return this.dashboardService.updateUserStatus(id, dto);
   }
 
+  @Get('admin/users')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'U045: Admin lấy danh sách toàn bộ người dùng và vai trò trên hệ thống',
+  })
+  getAllUsers() {
+    return this.dashboardService.getAllUsers();
+  }
+
+  @Get('admin/audit-logs')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'U045: Nhật ký kiểm toán các thao tác quản trị của Admin (Audit Logs)',
+  })
+  getAdminAuditLogs() {
+    return this.dashboardService.getAdminAuditLogs();
+  }
+
   @Get('admin/reconciliation/monthly')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -107,6 +129,18 @@ export class DashboardController {
     @Query('month') month?: string,
   ) {
     return this.dashboardService.getMonthlyReconciliation(merchantId, month);
+  }
+
+  @Patch('admin/reconciliation/:id/payout')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'U046: Admin xác nhận giải ngân công nợ cuối kỳ cho nhà hàng',
+  })
+  @ApiParam({ name: 'id', description: 'Mã kỳ đối soát (reconciliationId)' })
+  confirmReconciliationPayout(@Param('id') id: string) {
+    return this.dashboardService.confirmReconciliationPayout(id);
   }
 }
 

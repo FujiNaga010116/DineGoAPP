@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, Length } from 'class-validator';
+import { IsArray, IsEnum, IsNotEmpty, IsOptional, IsString, Length } from 'class-validator';
 
 export class SendChatMessageDto {
   @ApiProperty({
@@ -30,4 +30,41 @@ export class NaturalLanguageSearchDto {
   @IsNotEmpty()
   query!: string;
 }
+
+export class UpsertKnowledgeDto {
+  @ApiProperty({ example: 'Bánh Xèo Miền Tây', description: 'Tên món đặc sản địa phương' })
+  @IsString()
+  @IsNotEmpty()
+  dishName!: string;
+
+  @ApiProperty({ example: 'SOUTH', enum: ['NORTH', 'CENTRAL', 'SOUTH'] })
+  @IsEnum(['NORTH', 'CENTRAL', 'SOUTH'])
+  region!: 'NORTH' | 'CENTRAL' | 'SOUTH';
+
+  @ApiProperty({ example: 'Cần Thơ & Đồng bằng Sông Cửu Long' })
+  @IsString()
+  @IsNotEmpty()
+  origin!: string;
+
+  @ApiProperty({
+    example: 'Vỏ bánh vàng ươm từ bột gạo pha nước cốt dừa và nghệ tươi, nhân tôm thịt giá đỗ giòn rụm.',
+  })
+  @IsString()
+  @IsNotEmpty()
+  story!: string;
+
+  @ApiProperty({ example: ['Bột gạo cốt dừa', 'Tôm đất', 'Thịt ba chỉ', 'Rau rừng miền Tây'] })
+  @IsArray()
+  keyIngredients!: string[];
+
+  @ApiProperty({ example: 'Vỏ giòn rụm, béo ngậy nước cốt dừa, chấm nước mắm chua ngọt' })
+  @IsString()
+  @IsNotEmpty()
+  flavorProfile!: string;
+
+  @ApiProperty({ example: ['Bữa xế chiều', 'Họp mặt gia đình', 'Ngày mưa'] })
+  @IsArray()
+  suitableOccasions!: string[];
+}
+
 

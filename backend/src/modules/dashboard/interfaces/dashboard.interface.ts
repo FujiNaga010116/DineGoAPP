@@ -41,3 +41,15 @@ export interface MerchantReconciliation {
   createdAt: Date;
 }
 
+export interface AdminAuditLogEntry {
+  id: string;
+  action: string;
+  targetType: 'MERCHANT' | 'USER' | 'RECONCILIATION' | 'COMPLAINT' | 'VOUCHER' | 'SYSTEM';
+  targetId: string;
+  targetName: string;
+  reason?: string;
+  performedBy: string;
+  createdAt: Date;
+}
+
+
