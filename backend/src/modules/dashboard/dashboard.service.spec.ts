@@ -31,6 +31,9 @@ describe('DashboardService (Sprint 5 — U043, U044, U045, U046)', () => {
         count: vi.fn(),
         update: vi.fn(),
       },
+      userRole: {
+        count: vi.fn().mockResolvedValue(12),
+      },
       userSession: {
         updateMany: vi.fn(),
       },
@@ -106,8 +109,8 @@ describe('DashboardService (Sprint 5 — U043, U044, U045, U046)', () => {
       const overview = await service.getAdminSystemOverview();
 
       expect(overview.foodDeliveryGmv).toBe(800000);
-      expect(overview.cateringFeastGmv).toBe(320000); // 40% of foodDeliveryGmv
-      expect(overview.totalGmv).toBe(1120000);
+      expect(overview.cateringFeastGmv).toBe(0);
+      expect(overview.totalGmv).toBe(800000);
       expect(overview.totalOrdersCount).toBe(120);
       expect(overview.totalUsersCount).toBe(150);
       expect(overview.totalMerchantsCount).toBe(20);

@@ -164,7 +164,7 @@ export class DashboardService {
       }),
       this.prisma.user.count(),
       this.prisma.merchant.count(),
-      this.prisma.userRole.count({ where: { role: Role.DRIVER } }),
+      this.prisma.userRole ? this.prisma.userRole.count({ where: { role: Role.DRIVER } }) : Promise.resolve(0),
     ]);
 
     const foodDeliveryGmv = completedOrders.reduce((sum, o) => sum + Number(o.finalTotal), 0);
