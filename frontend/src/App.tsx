@@ -16,6 +16,7 @@ import { CheckoutPage } from './pages/CheckoutPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { CateringPage } from './pages/CateringPage';
 import { GroupOrderPage } from './pages/GroupOrderPage';
+import { VoucherHuntPage } from './pages/VoucherHuntPage';
 import { AiGuidePage } from './pages/AiGuidePage';
 import { TrackingPage } from './pages/TrackingPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -25,7 +26,7 @@ import { ReviewModal } from './components/common/ReviewModal';
 import { MerchantRegistrationModal } from './components/common/MerchantRegistrationModal';
 import { AddressSetupModal } from './components/common/AddressSetupModal';
 import { CartProvider } from './context/CartContext';
-import { MOCK_MERCHANTS, MOCK_MENU_ITEMS, MOCK_DRIVERS, MOCK_USERS, isDriverProfileVerified, adminApi } from './api/client';
+import { API_BASE_URL, MOCK_MERCHANTS, MOCK_MENU_ITEMS, MOCK_DRIVERS, MOCK_USERS, isDriverProfileVerified, adminApi } from './api/client';
 import type {
   DeliveryDisputeReport,
   DriverProfile,
@@ -98,6 +99,37 @@ function hydrateSeedCustomerCoords(user: User): User {
   return user;
 }
 
+const mergeUsersDirectory = (base: User[], incoming: Partial<User>[]): User[] => {
+  const byEmail = new Map<string, User>();
+  for (const u of base) {
+    if (u?.email) byEmail.set(u.email.trim().toLowerCase(), u);
+  }
+  for (const inc of incoming) {
+    if (!inc?.email) continue;
+    const key = inc.email.trim().toLowerCase();
+    const existing = byEmail.get(key);
+    if (!existing) {
+      byEmail.set(key, {
+        id: inc.id || `u-sync-${Date.now()}`,
+        email: inc.email.trim(),
+        fullName: inc.fullName || inc.email.trim(),
+        phoneNumber: inc.phoneNumber,
+        avatarUrl: inc.avatarUrl,
+        roles: Array.isArray(inc.roles) && inc.roles.length > 0 ? inc.roles : ['CUSTOMER'],
+        isActive: inc.isActive !== false,
+      });
+    } else {
+      byEmail.set(key, {
+        ...existing,
+        fullName: existing.fullName || inc.fullName || existing.email,
+        phoneNumber: existing.phoneNumber || inc.phoneNumber,
+        avatarUrl: existing.avatarUrl || inc.avatarUrl,
+      });
+    }
+  }
+  return Array.from(byEmail.values());
+};
+
 export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentUser }) => {
   // 1. Users state
   const [users, setUsers] = useState<User[]>(() => {
@@ -138,12 +170,21 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
   });
 
   // 2. Merchants state (Each restaurant is 1-to-1 bound to its own account)
+  const fixLegacyTeaImage = (url?: string) =>
+    url && url.includes('photo-1558857563-b37cfb8cb36b') ? '/images/tra-sua-ca-phe.jpg' : url;
+
   const [merchants, setMerchants] = useState<Merchant[]>(() => {
     const saved = localStorage.getItem('dinego_merchants');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((m: Merchant) => ({
+            ...m,
+            coverUrl: fixLegacyTeaImage(m.coverUrl) || m.coverUrl,
+            logoUrl: fixLegacyTeaImage(m.logoUrl) || m.logoUrl,
+          }));
+        }
       } catch {}
     }
     return MOCK_MERCHANTS;
@@ -167,7 +208,19 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object') return parsed;
+        if (parsed && typeof parsed === 'object') {
+          return Object.fromEntries(
+            Object.entries(parsed).map(([merchantId, items]) => [
+              merchantId,
+              Array.isArray(items)
+                ? items.map((item: MenuItem) => ({
+                    ...item,
+                    imageUrl: fixLegacyTeaImage(item.imageUrl) || item.imageUrl,
+                  }))
+                : [],
+            ]),
+          );
+        }
       } catch {}
     }
     return MOCK_MENU_ITEMS;
@@ -176,8 +229,69 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
   const [isMerchantRegisterModalOpen, setIsMerchantRegisterModalOpen] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem('dinego_users_list', JSON.stringify(users));
-  }, [users]);
+    try {
+      const latestRaw = localStorage.getItem('dinego_users_list');
+      const latestStored: User[] = latestRaw ? JSON.parse(latestRaw) : [];
+      const merged = mergeUsersDirectory(
+        Array.isArray(latestStored) ? latestStored : [],
+        currentUser ? [...users, currentUser] : users,
+      );
+      localStorage.setItem('dinego_users_list', JSON.stringify(merged));
+    } catch {
+      localStorage.setItem('dinego_users_list', JSON.stringify(users));
+    }
+  }, [users, currentUser]);
+
+  // Cross-tab localStorage & backend live account directory sync (for real-time invitations across tabs/browsers)
+  useEffect(() => {
+    const handleStorageSync = (e: StorageEvent) => {
+      if (e.key === 'dinego_users_list' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            setUsers((prev) => mergeUsersDirectory(prev, parsed));
+          }
+        } catch {
+          // Ignore malformed JSON
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageSync);
+
+    const syncWithBackend = async () => {
+      try {
+        const publicList = (currentUser ? [...users, currentUser] : users).map((u) => ({
+          id: u.id,
+          email: u.email,
+          fullName: u.fullName,
+          phoneNumber: u.phoneNumber,
+          avatarUrl: u.avatarUrl,
+          roles: u.roles,
+          isActive: u.isActive,
+        }));
+        const res = await fetch(`${API_BASE_URL}/group-orders/live/accounts/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accounts: publicList }),
+        });
+        if (res.ok) {
+          const synced = (await res.json()) as Partial<User>[];
+          if (Array.isArray(synced)) {
+            setUsers((prev) => {
+              const next = mergeUsersDirectory(prev, synced);
+              return next.length === prev.length ? prev : next;
+            });
+          }
+        }
+      } catch {
+        // Offline / decoupled fallback silently ignored
+      }
+    };
+    void syncWithBackend();
+
+    return () => window.removeEventListener('storage', handleStorageSync);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, users.length]);
 
   useEffect(() => {
     localStorage.setItem('dinego_merchants', JSON.stringify(merchants));
@@ -977,7 +1091,36 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
           <CateringPage key={currentUser?.id || 'guest'} currentUser={currentUser} />
         )}
 
-        {currentTab === 'group-order' && <GroupOrderPage />}
+        {currentTab === 'group-order' && (
+          <GroupOrderPage
+            key={currentUser?.id || 'guest'}
+            merchants={merchants}
+            menuItemsMap={allMenuItems}
+            currentUser={currentUser}
+            allUsers={users}
+            onOrderPlaced={handleOrderPlaced}
+            onOpenAuthModal={(mode) => handleOpenAuthModal(mode, 'CUSTOMER')}
+            onOpenAddressSetup={() => handleRequireAddressSetup()}
+            onNavigate={(tab) => {
+              setCurrentTab(tab);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
+        )}
+
+        {currentTab === 'vouchers' && (
+          <VoucherHuntPage
+            key={currentUser?.id || 'guest'}
+            merchants={merchants}
+            currentUser={currentUser}
+            onSelectMerchant={handleSelectMerchant}
+            onOpenAuthModal={(mode) => handleOpenAuthModal(mode, 'CUSTOMER')}
+            onNavigate={(tab) => {
+              setCurrentTab(tab);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
+        )}
 
         {currentTab === 'ai-guide' && (
           <AiGuidePage onSelectMerchantByName={handleSelectMerchantByName} />

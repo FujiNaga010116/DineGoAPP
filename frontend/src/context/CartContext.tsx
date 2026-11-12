@@ -4,6 +4,7 @@
 
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { VALID_VOUCHERS } from '../api/client';
+import { loadAdminVouchers } from '../utils/vouchers';
 import type { Cart, CartItem, CartItemTopping, MenuItem } from '../types';
 
 interface CartContextType {
@@ -132,58 +133,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
     title: string;
     discountType: 'FIXED_AMOUNT' | 'PERCENTAGE';
     discountValue: number;
+    maxDiscountAmount?: number;
     minOrder: number;
     isActive: boolean;
     usageCount: number;
     maxUsage: number;
+    merchantId?: string;
+    merchantName?: string;
   } | null => {
     const code = rawCode.trim().toUpperCase();
     if (!code) return null;
 
-    const defaultAdminVouchers = [
-      {
-        code: 'DINEGO30',
-        discountType: 'FIXED_AMOUNT' as const,
-        title: 'Giảm 30.000đ cho đơn từ 120.000đ',
-        discountValue: 30000,
-        minOrder: 120000,
-        usageCount: 342,
-        maxUsage: 500,
-        isActive: true,
-      },
-      {
-        code: 'FREESHIP15K',
-        discountType: 'FIXED_AMOUNT' as const,
-        title: 'Miễn phí vận chuyển 15.000đ cho đơn từ 50.000đ',
-        discountValue: 15000,
-        minOrder: 50000,
-        usageCount: 615,
-        maxUsage: 1000,
-        isActive: true,
-      },
-      {
-        code: 'TIECVIP15',
-        discountType: 'PERCENTAGE' as const,
-        title: 'Giảm 15% cho hợp đồng Đặt Tiệc từ 3.000.000đ',
-        discountValue: 15,
-        minOrder: 3000000,
-        usageCount: 18,
-        maxUsage: 100,
-        isActive: true,
-      },
-    ];
-
-    let adminVouchers = defaultAdminVouchers;
-    try {
-      const saved = localStorage.getItem('dinego_admin_vouchers');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          adminVouchers = parsed;
-        }
-      }
-    } catch {}
-
+    const adminVouchers = loadAdminVouchers();
     const foundAdmin = adminVouchers.find((v) => String(v.code).toUpperCase() === code);
     if (foundAdmin) {
       return {
@@ -191,10 +152,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
         title: foundAdmin.title || code,
         discountType: foundAdmin.discountType === 'PERCENTAGE' ? 'PERCENTAGE' : 'FIXED_AMOUNT',
         discountValue: Number(foundAdmin.discountValue) || 0,
+        maxDiscountAmount: foundAdmin.maxDiscountAmount ? Number(foundAdmin.maxDiscountAmount) : undefined,
         minOrder: Number(foundAdmin.minOrder) || 0,
         isActive: foundAdmin.isActive !== false,
         usageCount: Number(foundAdmin.usageCount) || 0,
         maxUsage: Number(foundAdmin.maxUsage) || 999999,
+        merchantId: foundAdmin.merchantId || 'ALL',
+        merchantName: foundAdmin.merchantName || 'Toàn sàn DineGo',
       };
     }
 
@@ -209,6 +173,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
         isActive: true,
         usageCount: 0,
         maxUsage: 999999,
+        merchantId: 'ALL',
+        merchantName: 'Toàn sàn DineGo',
       };
     }
 
@@ -238,11 +204,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
 
     if (voucherCode) {
       const v = resolveVoucherByCode(voucherCode);
-      if (v && v.isActive && v.usageCount < v.maxUsage && subtotal >= v.minOrder) {
-        const rawDiscount =
+      const merchantAllowed =
+        !v?.merchantId || v.merchantId === 'ALL' || !merchantId || v.merchantId === merchantId;
+      if (v && v.isActive && v.usageCount < v.maxUsage && subtotal >= v.minOrder && merchantAllowed) {
+        let rawDiscount =
           v.discountType === 'PERCENTAGE'
             ? Math.round((subtotal * v.discountValue) / 100)
             : v.discountValue;
+        if (v.discountType === 'PERCENTAGE' && v.maxDiscountAmount) {
+          rawDiscount = Math.min(rawDiscount, v.maxDiscountAmount);
+        }
         discountAmount = Math.min(rawDiscount, subtotal + deliveryFee);
       }
     }
@@ -340,6 +311,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
       return {
         success: false,
         message: `Mã "${normalized}" hiện đang tạm dừng hoặc đã hết lượt sử dụng.`,
+      };
+    }
+
+    if (v.merchantId && v.merchantId !== 'ALL' && cart.merchantId && v.merchantId !== cart.merchantId) {
+      return {
+        success: false,
+        message: `Mã "${normalized}" chỉ áp dụng cho cửa hàng ${v.merchantName || v.merchantId}.`,
       };
     }
 

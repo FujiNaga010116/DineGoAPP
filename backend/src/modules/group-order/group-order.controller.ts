@@ -30,11 +30,45 @@ import { CheckoutGroupOrderDto } from './dto/checkout-group-order.dto.js';
 import { CreateGroupOrderDto } from './dto/create-group-order.dto.js';
 import { JoinGroupOrderDto } from './dto/join-group-order.dto.js';
 import { GroupOrderService } from './group-order.service.js';
+import type { PublicAccountRecord } from './group-order.service.js';
 
 @ApiTags('Group Order Engine (Sprint 2 — U020 & U021)')
 @Controller('group-orders')
 export class GroupOrderController {
   constructor(private readonly groupOrderService: GroupOrderService) {}
+
+  @Get('live/accounts')
+  @ApiOperation({ summary: 'Lấy danh sách tài khoản đồng bộ để mời vào đơn nhóm' })
+  listLiveAccounts() {
+    return this.groupOrderService.listPublicAccounts();
+  }
+
+  @Post('live/accounts/sync')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Đồng bộ danh mục tài khoản công khai cho đặt đơn nhóm' })
+  syncLiveAccounts(@Body() body: { accounts?: PublicAccountRecord[] }) {
+    return this.groupOrderService.syncPublicAccounts(body?.accounts || []);
+  }
+
+  @Get('live/rooms')
+  @ApiOperation({ summary: 'Lấy danh sách phòng đặt nhóm đang hoạt động' })
+  listLiveRooms() {
+    return this.groupOrderService.listLiveRooms();
+  }
+
+  @Post('live/rooms')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Lưu / cập nhật trạng thái phòng đặt nhóm' })
+  upsertLiveRoom(@Body() body: Record<string, unknown>) {
+    return this.groupOrderService.upsertLiveRoom(body);
+  }
+
+  @Delete('live/rooms/:roomCode')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Xóa phòng đặt nhóm khỏi bộ nhớ đồng bộ' })
+  deleteLiveRoom(@Param('roomCode') roomCode: string) {
+    return this.groupOrderService.deleteLiveRoom(roomCode);
+  }
 
   @Post()
   @UseGuards(JwtAuthGuard)

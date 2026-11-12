@@ -28,6 +28,11 @@ import {
   getDefaultVerifiedAddress,
   hasVerifiedCustomerAddress,
 } from '../utils/routing';
+import {
+  loadAdminVouchers,
+  loadUserClaimedCodes,
+  saveAdminVouchers,
+} from '../utils/vouchers';
 import type { Merchant, Order, PaymentMethod, SavedAddress, User } from '../types';
 
 interface CheckoutPageProps {
@@ -122,21 +127,14 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
     if (addr.phone) setRecipientPhone(addr.phone);
   };
 
-  const availableAdminVouchers = (() => {
-    try {
-      const saved = localStorage.getItem('dinego_admin_vouchers');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.filter((v: any) => v.isActive !== false && Number(v.usageCount || 0) < Number(v.maxUsage || 999999));
-        }
-      }
-    } catch {}
-    return [
-      { code: 'DINEGO30', discountType: 'FIXED_AMOUNT', discountValue: 30000, minOrder: 120000, isActive: true },
-      { code: 'FREESHIP15K', discountType: 'FIXED_AMOUNT', discountValue: 15000, minOrder: 50000, isActive: true },
-    ];
-  })();
+  const claimedVoucherCodes = loadUserClaimedCodes(currentUser?.id);
+
+  const availableAdminVouchers = loadAdminVouchers().filter(
+    (v) =>
+      v.isActive !== false &&
+      Number(v.usageCount || 0) < Number(v.maxUsage || 999999) &&
+      (!v.merchantId || v.merchantId === 'ALL' || !cart.merchantId || v.merchantId === cart.merchantId),
+  );
 
   const handleApplyVoucher = (codeToApply?: string) => {
     const code = (codeToApply || voucherInput).trim();
@@ -194,20 +192,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
     setIsSubmitting(true);
 
     if (cart.voucherCode) {
-      try {
-        const savedVouchers = localStorage.getItem('dinego_admin_vouchers');
-        if (savedVouchers) {
-          const parsed = JSON.parse(savedVouchers);
-          if (Array.isArray(parsed)) {
-            const updatedVouchers = parsed.map((v: any) =>
-              String(v.code).toUpperCase() === String(cart.voucherCode).toUpperCase()
-                ? { ...v, usageCount: Number(v.usageCount || 0) + 1 }
-                : v,
-            );
-            localStorage.setItem('dinego_admin_vouchers', JSON.stringify(updatedVouchers));
-          }
-        }
-      } catch {}
+      const updatedVouchers = loadAdminVouchers().map((v) =>
+        String(v.code).toUpperCase() === String(cart.voucherCode).toUpperCase()
+          ? { ...v, usageCount: Number(v.usageCount || 0) + 1 }
+          : v,
+      );
+      saveAdminVouchers(updatedVouchers);
     }
     const orderNumber = `DG20261103-${Math.random().toString(16).substring(2, 8).toUpperCase()}`;
     const newOrder: Order = {
@@ -942,30 +932,35 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                   </button>
                 </div>
 
-                {/* Quick Apply Voucher Tags (Synced with Admin Vouchers) */}
+                {/* Quick Apply Voucher Tags (Synced with Admin Event/Store Vouchers & Claimed Wallet) */}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-                  {availableAdminVouchers.map((v: any) => (
-                    <button
-                      key={v.code}
-                      onClick={() => handleApplyVoucher(v.code)}
-                      style={{
-                        background: 'rgba(79, 70, 229, 0.08)',
-                        border: '1px dashed #4F46E5',
-                        borderRadius: 8,
-                        padding: '4px 10px',
-                        fontSize: '0.78rem',
-                        fontWeight: 700,
-                        color: '#4F46E5',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      🎟️ {v.code} (
-                      {v.discountType === 'PERCENTAGE'
-                        ? `Giảm ${v.discountValue}%`
-                        : `Giảm ${(Number(v.discountValue) / 1000).toFixed(0)}k`}
-                      )
-                    </button>
-                  ))}
+                  {availableAdminVouchers.map((v) => {
+                    const isClaimedByMe = claimedVoucherCodes.includes(v.code.toUpperCase());
+                    return (
+                      <button
+                        key={v.code}
+                        onClick={() => handleApplyVoucher(v.code)}
+                        style={{
+                          background: isClaimedByMe ? 'rgba(0, 177, 79, 0.1)' : 'rgba(79, 70, 229, 0.08)',
+                          border: `1px dashed ${isClaimedByMe ? '#00B14F' : '#4F46E5'}`,
+                          borderRadius: 8,
+                          padding: '5px 10px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          color: isClaimedByMe ? '#047857' : '#4F46E5',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {isClaimedByMe ? '✅ Đã săn • ' : '🎟️ '}
+                        {v.code} (
+                        {v.discountType === 'PERCENTAGE'
+                          ? `Giảm ${v.discountValue}%`
+                          : `Giảm ${(Number(v.discountValue) / 1000).toFixed(0)}k`}
+                        )
+                        {v.merchantId && v.merchantId !== 'ALL' ? ` • ${v.merchantName}` : ''}
+                      </button>
+                    );
+                  })}
                   <button
                     onClick={() => handleApplyVoucher('DINEGO50')}
                     style={{

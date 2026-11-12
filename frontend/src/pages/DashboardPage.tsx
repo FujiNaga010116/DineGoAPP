@@ -43,6 +43,15 @@ import {
 import type { Role, User, Order, OrderStatus, MenuItem, Merchant, DriverProfile, DeliveryDisputeReport } from '../types';
 import type { NavTab } from '../components/common/Header';
 import { adminApi } from '../api/client';
+import {
+  EVENT_THEME_OPTIONS,
+  fetchRemoteAdminVouchers,
+  getEventThemeStyle,
+  loadAdminVouchers,
+  saveAdminVouchers,
+  type ManagedVoucher,
+  type VoucherEventTheme,
+} from '../utils/vouchers';
 
 interface DashboardPageProps {
   currentUser: User | null;
@@ -864,97 +873,106 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     document.body.removeChild(link);
   };
 
-  // Admin Platform Vouchers State (U052) — Persisted in localStorage
-  const [vouchers, setVouchers] = useState(() => {
-    try {
-      const saved = localStorage.getItem('dinego_admin_vouchers');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return [
-      {
-        id: 'v-01',
-        code: 'DINEGO30',
-        discountType: 'FIXED_AMOUNT' as 'FIXED_AMOUNT' | 'PERCENTAGE',
-        title: 'Giảm 30.000đ cho đơn từ 120.000đ',
-        discountValue: 30000,
-        minOrder: 120000,
-        usageCount: 342,
-        maxUsage: 500,
-        endDate: '2026-12-31',
-        isActive: true,
-      },
-      {
-        id: 'v-02',
-        code: 'FREESHIP15K',
-        discountType: 'FIXED_AMOUNT' as 'FIXED_AMOUNT' | 'PERCENTAGE',
-        title: 'Miễn phí vận chuyển 15.000đ cho đơn từ 50.000đ',
-        discountValue: 15000,
-        minOrder: 50000,
-        usageCount: 615,
-        maxUsage: 1000,
-        endDate: '2026-12-15',
-        isActive: true,
-      },
-      {
-        id: 'v-03',
-        code: 'TIECVIP15',
-        discountType: 'PERCENTAGE' as 'FIXED_AMOUNT' | 'PERCENTAGE',
-        title: 'Giảm 15% cho hợp đồng Đặt Tiệc từ 3.000.000đ',
-        discountValue: 15,
-        minOrder: 3000000,
-        usageCount: 18,
-        maxUsage: 100,
-        endDate: '2027-01-15',
-        isActive: true,
-      },
-    ];
-  });
+  // Admin Platform & Store Event/Holiday Vouchers State (U052) — Persisted in localStorage & Backend Live Sync
+  const [vouchers, setVouchers] = useState<ManagedVoucher[]>(() => loadAdminVouchers());
 
   useEffect(() => {
-    try {
-      localStorage.setItem('dinego_admin_vouchers', JSON.stringify(vouchers));
-    } catch {}
+    saveAdminVouchers(vouchers, true);
   }, [vouchers]);
+
+  useEffect(() => {
+    const syncRemoteClaims = async () => {
+      const remote = await fetchRemoteAdminVouchers();
+      if (remote && remote.length > 0) {
+        setVouchers(remote);
+      }
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'dinego_admin_vouchers') {
+        setVouchers(loadAdminVouchers());
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    void syncRemoteClaims();
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
 
   const [newVoucherCode, setNewVoucherCode] = useState('');
   const [newVoucherType, setNewVoucherType] = useState<'FIXED_AMOUNT' | 'PERCENTAGE'>('FIXED_AMOUNT');
   const [newVoucherDiscount, setNewVoucherDiscount] = useState(25000);
+  const [newVoucherMaxDiscount, setNewVoucherMaxDiscount] = useState(50000);
   const [newVoucherMinOrder, setNewVoucherMinOrder] = useState(100000);
-  const [newVoucherMaxUsage, setNewVoucherMaxUsage] = useState(500);
+  const [newVoucherMaxUsage, setNewVoucherMaxUsage] = useState(200);
   const [newVoucherEndDate, setNewVoucherEndDate] = useState('2026-12-31');
+  const [newVoucherEventTheme, setNewVoucherEventTheme] = useState<VoucherEventTheme>('FLASH_SALE');
+  const [newVoucherEventTag, setNewVoucherEventTag] = useState('Sự Kiện Flash Sale Giờ Vàng');
+  const [newVoucherMerchantId, setNewVoucherMerchantId] = useState<string>('ALL');
+  const [newVoucherFlashHunt, setNewVoucherFlashHunt] = useState(true);
 
   const handleAddVoucher = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newVoucherCode.trim()) return;
     const code = newVoucherCode.trim().toUpperCase();
+    const targetMerchant =
+      newVoucherMerchantId === 'ALL'
+        ? null
+        : allMerchants.find((m) => m.id === newVoucherMerchantId) || null;
+    const merchantName = targetMerchant ? targetMerchant.name : 'Toàn sàn DineGo';
+    const themeLabel =
+      newVoucherEventTag.trim() ||
+      EVENT_THEME_OPTIONS.find((t) => t.value === newVoucherEventTheme)?.label ||
+      'Ưu đãi sự kiện';
     const title =
       newVoucherType === 'PERCENTAGE'
-        ? `Giảm ${newVoucherDiscount}% cho đơn từ ${Number(newVoucherMinOrder).toLocaleString('vi-VN')}đ`
-        : `Giảm ${Number(newVoucherDiscount).toLocaleString('vi-VN')}đ cho đơn từ ${Number(newVoucherMinOrder).toLocaleString('vi-VN')}đ`;
-    setVouchers((prev) => [
-      {
-        id: `v-${Date.now()}`,
-        code,
-        discountType: newVoucherType,
-        title,
-        discountValue: Number(newVoucherDiscount),
-        minOrder: Number(newVoucherMinOrder),
-        usageCount: 0,
-        maxUsage: Number(newVoucherMaxUsage) || 500,
-        endDate: newVoucherEndDate || '2026-12-31',
-        isActive: true,
-      },
-      ...prev,
-    ]);
-    appendAuditLog('PHÁT HÀNH VOUCHER MỚI', code, `${title} (Tối đa ${newVoucherMaxUsage} lượt, HSD ${newVoucherEndDate})`);
+        ? `Giảm ${newVoucherDiscount}%${newVoucherMaxDiscount ? ` (tối đa ${(Number(newVoucherMaxDiscount) / 1000).toFixed(0)}k)` : ''} • ${merchantName} (đơn từ ${Number(newVoucherMinOrder).toLocaleString('vi-VN')}đ)`
+        : `Giảm ${Number(newVoucherDiscount).toLocaleString('vi-VN')}đ • ${merchantName} (đơn từ ${Number(newVoucherMinOrder).toLocaleString('vi-VN')}đ)`;
+
+    const created: ManagedVoucher = {
+      id: `v-${Date.now()}`,
+      code,
+      discountType: newVoucherType,
+      title,
+      discountValue: Number(newVoucherDiscount),
+      maxDiscountAmount:
+        newVoucherType === 'PERCENTAGE' && newVoucherMaxDiscount > 0
+          ? Number(newVoucherMaxDiscount)
+          : undefined,
+      minOrder: Number(newVoucherMinOrder),
+      usageCount: 0,
+      claimedCount: 0,
+      maxUsage: Number(newVoucherMaxUsage) || 200,
+      endDate: newVoucherEndDate || '2026-12-31',
+      isActive: true,
+      eventTheme: newVoucherEventTheme,
+      eventTag: themeLabel,
+      merchantId: targetMerchant ? targetMerchant.id : 'ALL',
+      merchantName,
+      isFlashHunt: newVoucherFlashHunt,
+    };
+
+    setVouchers((prev) => [created, ...prev]);
+    appendAuditLog(
+      'PHÁT HÀNH VOUCHER SỰ KIỆN',
+      code,
+      `${themeLabel} • ${merchantName} (${title}, Tối đa ${newVoucherMaxUsage} lượt, HSD ${newVoucherEndDate})`,
+    );
     setNewVoucherCode('');
   };
 
   const toggleVoucherStatus = (vId: string) => {
     setVouchers((prev) => prev.map((v) => (v.id === vId ? { ...v, isActive: !v.isActive } : v)));
+  };
+
+  const toggleVoucherFlashHunt = (vId: string) => {
+    setVouchers((prev) =>
+      prev.map((v) => (v.id === vId ? { ...v, isFlashHunt: v.isFlashHunt === false } : v)),
+    );
+  };
+
+  const handleDeleteVoucher = (vId: string, code: string) => {
+    if (!window.confirm(`Xóa mã khuyến mãi "${code}" khỏi hệ thống?`)) return;
+    setVouchers((prev) => prev.filter((v) => v.id !== vId));
+    appendAuditLog('XÓA VOUCHER SỰ KIỆN', code, 'Admin đã gỡ bỏ mã khỏi danh sách sự kiện');
   };
 
   // Merchant Reviews & Replies State (Persisted in localStorage & synced with Customer ReviewModal; blank for non-seed new accounts)
@@ -2495,17 +2513,24 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   </div>
                 </div>
 
-                {/* Platform Voucher Campaign Manager (U052) */}
+                {/* Platform & Store Event/Holiday Voucher Campaign Manager (U052) */}
                 <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
-                  <h3 style={{ fontSize: '1.02rem', fontWeight: 800, color: '#0F172A', margin: '0 0 16px 0' }}>
-                    Quản lý Chiến dịch Mã giảm giá & Khuyến mãi toàn sàn (U052 — UC-49)
-                  </h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+                    <div>
+                      <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: '0 0 4px 0' }}>
+                        Quản lý Phiếu Giảm Giá Cửa Hàng Theo Sự Kiện &amp; Ngày Lễ (U052)
+                      </h3>
+                      <p style={{ fontSize: '0.8rem', color: '#64748B', margin: 0 }}>
+                        Các mã được kích hoạt và bật hiển thị sẽ xuất hiện trực tiếp tại mục <strong>Săn Voucher</strong> của khách hàng.
+                      </p>
+                    </div>
+                  </div>
 
                   <form
                     onSubmit={handleAddVoucher}
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(175px, 1fr))',
                       gap: 12,
                       padding: 18,
                       background: '#F8FAFC',
@@ -2517,11 +2542,61 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   >
                     <div>
                       <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                        Sự kiện / Ngày lễ
+                      </label>
+                      <select
+                        value={newVoucherEventTheme}
+                        onChange={(e) => {
+                          const theme = e.target.value as VoucherEventTheme;
+                          setNewVoucherEventTheme(theme);
+                          const matched = EVENT_THEME_OPTIONS.find((t) => t.value === theme);
+                          if (matched) setNewVoucherEventTag(matched.label);
+                        }}
+                        style={{ width: '100%', padding: '9px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.84rem', background: '#FFFFFF' }}
+                      >
+                        {EVENT_THEME_OPTIONS.map((ev) => (
+                          <option key={ev.value} value={ev.value}>
+                            {ev.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                        Nhãn sự kiện hiển thị
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="VD: Đại Tiệc Giáng Sinh"
+                        value={newVoucherEventTag}
+                        onChange={(e) => setNewVoucherEventTag(e.target.value)}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.84rem' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                        Cửa hàng áp dụng
+                      </label>
+                      <select
+                        value={newVoucherMerchantId}
+                        onChange={(e) => setNewVoucherMerchantId(e.target.value)}
+                        style={{ width: '100%', padding: '9px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.84rem', background: '#FFFFFF' }}
+                      >
+                        <option value="ALL">Toàn sàn DineGo (Mọi quán)</option>
+                        {allMerchants.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
                         Mã khuyến mãi
                       </label>
                       <input
                         type="text"
-                        placeholder="VD: DINEGO50"
+                        placeholder="VD: NOEL50K"
                         value={newVoucherCode}
                         onChange={(e) => setNewVoucherCode(e.target.value)}
                         style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.84rem' }}
@@ -2536,7 +2611,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                         onChange={(e) => {
                           const t = e.target.value as 'FIXED_AMOUNT' | 'PERCENTAGE';
                           setNewVoucherType(t);
-                          setNewVoucherDiscount(t === 'PERCENTAGE' ? 15 : 25000);
+                          setNewVoucherDiscount(t === 'PERCENTAGE' ? 20 : 30000);
                         }}
                         style={{ width: '100%', padding: '9px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.84rem', background: '#FFFFFF' }}
                       >
@@ -2556,6 +2631,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                         style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.84rem' }}
                       />
                     </div>
+                    {newVoucherType === 'PERCENTAGE' && (
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                          Giảm tối đa (VNĐ)
+                        </label>
+                        <input
+                          type="number"
+                          step="5000"
+                          value={newVoucherMaxDiscount}
+                          onChange={(e) => setNewVoucherMaxDiscount(Number(e.target.value))}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.84rem' }}
+                        />
+                      </div>
+                    )}
                     <div>
                       <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
                         Đơn tối thiểu (VNĐ)
@@ -2570,7 +2659,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     </div>
                     <div>
                       <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                        Giới hạn lượt dùng
+                        Tổng lượt săn / dùng
                       </label>
                       <input
                         type="number"
@@ -2591,6 +2680,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                         style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.84rem' }}
                       />
                     </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', fontWeight: 700, color: '#334155', cursor: 'pointer', paddingBottom: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={newVoucherFlashHunt}
+                        onChange={(e) => setNewVoucherFlashHunt(e.target.checked)}
+                      />
+                      Đưa lên mục Săn Voucher
+                    </label>
                     <button
                       type="submit"
                       style={{
@@ -2604,73 +2701,136 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                         cursor: 'pointer',
                       }}
                     >
-                      + Phát hành mã
+                      + Phát hành Voucher
                     </button>
                   </form>
 
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem', fontVariantNumeric: 'tabular-nums' }}>
-                    <thead>
-                      <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                        <th style={{ padding: '12px 16px' }}>Mã Voucher</th>
-                        <th style={{ padding: '12px 16px' }}>Loại</th>
-                        <th style={{ padding: '12px 16px' }}>Điều kiện áp dụng</th>
-                        <th style={{ padding: '12px 16px' }}>Mức giảm</th>
-                        <th style={{ padding: '12px 16px' }}>Lượt dùng</th>
-                        <th style={{ padding: '12px 16px' }}>Hạn dùng</th>
-                        <th style={{ padding: '12px 16px' }}>Trạng thái</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'right' }}>Thao tác</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {vouchers.map((v) => (
-                        <tr key={v.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                          <td style={{ padding: '14px 16px', fontWeight: 800, color: '#4F46E5' }}>{v.code}</td>
-                          <td style={{ padding: '14px 16px', fontSize: '0.76rem', fontWeight: 700, color: '#475569' }}>
-                            {v.discountType === 'PERCENTAGE' ? 'Giảm %' : 'Cố định'}
-                          </td>
-                          <td style={{ padding: '14px 16px', color: '#334155' }}>{v.title}</td>
-                          <td style={{ padding: '14px 16px', fontWeight: 700 }}>
-                            {v.discountType === 'PERCENTAGE'
-                              ? `${v.discountValue}%`
-                              : `${v.discountValue.toLocaleString('vi-VN')}đ`}
-                          </td>
-                          <td style={{ padding: '14px 16px' }}>{v.usageCount} / {v.maxUsage}</td>
-                          <td style={{ padding: '14px 16px', color: '#64748B', fontSize: '0.8rem' }}>{v.endDate}</td>
-                          <td style={{ padding: '14px 16px' }}>
-                            <span
-                              style={{
-                                padding: '3px 10px',
-                                borderRadius: 6,
-                                fontSize: '0.74rem',
-                                fontWeight: 700,
-                                background: v.isActive ? '#DCFCE7' : '#F1F5F9',
-                                color: v.isActive ? '#15803D' : '#64748B',
-                              }}
-                            >
-                              {v.isActive ? 'Đang kích hoạt' : 'Tạm dừng'}
-                            </span>
-                          </td>
-                          <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                            <button
-                              onClick={() => toggleVoucherStatus(v.id)}
-                              style={{
-                                padding: '5px 12px',
-                                borderRadius: 6,
-                                border: '1px solid #CBD5E1',
-                                background: '#FFFFFF',
-                                color: '#334155',
-                                fontSize: '0.78rem',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              {v.isActive ? 'Tạm dừng' : 'Kích hoạt'}
-                            </button>
-                          </td>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem', fontVariantNumeric: 'tabular-nums' }}>
+                      <thead>
+                        <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                          <th style={{ padding: '12px 14px' }}>Mã Voucher</th>
+                          <th style={{ padding: '12px 14px' }}>Sự kiện / Lễ</th>
+                          <th style={{ padding: '12px 14px' }}>Cửa hàng áp dụng</th>
+                          <th style={{ padding: '12px 14px' }}>Mức giảm &amp; Điều kiện</th>
+                          <th style={{ padding: '12px 14px' }}>Đã săn / Dùng / Tổng</th>
+                          <th style={{ padding: '12px 14px' }}>Hạn dùng</th>
+                          <th style={{ padding: '12px 14px' }}>Trạng thái</th>
+                          <th style={{ padding: '12px 14px', textAlign: 'right' }}>Thao tác</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {vouchers.map((v) => {
+                          const evStyle = getEventThemeStyle(v.eventTheme);
+                          return (
+                            <tr key={v.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                              <td style={{ padding: '13px 14px', fontWeight: 800, color: '#4F46E5' }}>{v.code}</td>
+                              <td style={{ padding: '13px 14px' }}>
+                                <span
+                                  style={{
+                                    padding: '3px 9px',
+                                    borderRadius: 999,
+                                    fontSize: '0.72rem',
+                                    fontWeight: 800,
+                                    background: evStyle.badgeBg,
+                                    color: evStyle.badgeColor,
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  {v.eventTag || evStyle.label}
+                                </span>
+                              </td>
+                              <td style={{ padding: '13px 14px', fontWeight: 700, color: '#0F172A' }}>
+                                {v.merchantName || 'Toàn sàn DineGo'}
+                              </td>
+                              <td style={{ padding: '13px 14px', color: '#334155' }}>
+                                <div style={{ fontWeight: 800, color: '#00B14F' }}>
+                                  {v.discountType === 'PERCENTAGE'
+                                    ? `Giảm ${v.discountValue}%${v.maxDiscountAmount ? ` (Tối đa ${(v.maxDiscountAmount / 1000).toFixed(0)}k)` : ''}`
+                                    : `Giảm ${v.discountValue.toLocaleString('vi-VN')}đ`}
+                                </div>
+                                <div style={{ fontSize: '0.74rem', color: '#64748B' }}>{v.title}</div>
+                              </td>
+                              <td style={{ padding: '13px 14px', fontWeight: 600 }}>
+                                <div>Săn: {v.claimedCount ?? 0} / {v.maxUsage}</div>
+                                <div style={{ fontSize: '0.74rem', color: '#64748B' }}>Đã dùng: {v.usageCount}</div>
+                              </td>
+                              <td style={{ padding: '13px 14px', color: '#64748B', fontSize: '0.8rem' }}>{v.endDate}</td>
+                              <td style={{ padding: '13px 14px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                                  <span
+                                    style={{
+                                      padding: '3px 9px',
+                                      borderRadius: 6,
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      background: v.isActive ? '#DCFCE7' : '#F1F5F9',
+                                      color: v.isActive ? '#15803D' : '#64748B',
+                                    }}
+                                  >
+                                    {v.isActive ? 'Đang kích hoạt' : 'Tạm dừng'}
+                                  </span>
+                                  <span style={{ fontSize: '0.7rem', color: v.isFlashHunt !== false ? '#C2410C' : '#94A3B8', fontWeight: 700 }}>
+                                    {v.isFlashHunt !== false ? '🔥 Hiện trên Săn Voucher' : 'Ẩn khỏi Săn Voucher'}
+                                  </span>
+                                </div>
+                              </td>
+                              <td style={{ padding: '13px 14px', textAlign: 'right' }}>
+                                <div style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                  <button
+                                    onClick={() => toggleVoucherFlashHunt(v.id)}
+                                    style={{
+                                      padding: '5px 10px',
+                                      borderRadius: 6,
+                                      border: '1px solid #FED7AA',
+                                      background: '#FFF7ED',
+                                      color: '#C2410C',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    {v.isFlashHunt !== false ? 'Ẩn Săn' : 'Mở Săn'}
+                                  </button>
+                                  <button
+                                    onClick={() => toggleVoucherStatus(v.id)}
+                                    style={{
+                                      padding: '5px 10px',
+                                      borderRadius: 6,
+                                      border: '1px solid #CBD5E1',
+                                      background: '#FFFFFF',
+                                      color: '#334155',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    {v.isActive ? 'Tạm dừng' : 'Kích hoạt'}
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteVoucher(v.id, v.code)}
+                                    style={{
+                                      padding: '5px 8px',
+                                      borderRadius: 6,
+                                      border: '1px solid #FECACA',
+                                      background: '#FEF2F2',
+                                      color: '#DC2626',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                    title="Xóa mã"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             )}

@@ -32,6 +32,8 @@ import type {
 @Injectable()
 export class PromotionService {
   private readonly logger = new Logger(PromotionService.name);
+  private liveVouchers: Record<string, unknown>[] | null = null;
+  private readonly liveClaims = new Map<string, Set<string>>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -468,5 +470,56 @@ export class PromotionService {
     isActive: boolean,
   ): Promise<PromotionResponse> {
     return this.updatePromotion(user, id, { isActive });
+  }
+
+  getLiveVouchers(): { vouchers: Record<string, unknown>[] | null } {
+    return { vouchers: this.liveVouchers };
+  }
+
+  syncLiveVouchers(vouchers: Record<string, unknown>[]): {
+    vouchers: Record<string, unknown>[];
+  } {
+    if (Array.isArray(vouchers)) {
+      this.liveVouchers = vouchers;
+    }
+    return { vouchers: this.liveVouchers || [] };
+  }
+
+  claimLiveVoucher(payload: {
+    userId: string;
+    code: string;
+  }): {
+    claimed: boolean;
+    vouchers: Record<string, unknown>[] | null;
+    claimedCodes: string[];
+  } {
+    const userId = String(payload?.userId || '').trim();
+    const code = String(payload?.code || '').trim().toUpperCase();
+    if (!userId || !code) {
+      throw new BadRequestException('Thiếu userId hoặc mã voucher');
+    }
+    const userSet = this.liveClaims.get(userId) || new Set<string>();
+    const alreadyClaimed = userSet.has(code);
+    if (!alreadyClaimed) {
+      userSet.add(code);
+      this.liveClaims.set(userId, userSet);
+      if (this.liveVouchers) {
+        this.liveVouchers = this.liveVouchers.map((v) =>
+          String(v.code || '').toUpperCase() === code
+            ? { ...v, claimedCount: Number(v.claimedCount || 0) + 1 }
+            : v,
+        );
+      }
+    }
+    return {
+      claimed: !alreadyClaimed,
+      vouchers: this.liveVouchers,
+      claimedCodes: Array.from(userSet),
+    };
+  }
+
+  getLiveUserClaims(userId: string): { claimedCodes: string[] } {
+    const set = this.liveClaims.get(String(userId || '').trim());
+    return { claimedCodes: set ? Array.from(set) : [] };
   }
 }
