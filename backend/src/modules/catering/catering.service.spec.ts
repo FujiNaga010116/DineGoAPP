@@ -11,12 +11,16 @@ describe('CateringService (Sprint 3 — U023 đến U033)', () => {
   const mockCustomerUser: AuthenticatedUser = {
     id: 'user-cust-1',
     email: 'customer@dinego.vn',
+    fullName: 'Khách đặt tiệc',
+    isActive: true,
     roles: [Role.CUSTOMER],
   };
 
   const mockMerchantUser: AuthenticatedUser = {
     id: 'user-merch-1',
     email: 'merchant@dinego.vn',
+    fullName: 'Nhà hàng tiệc',
+    isActive: true,
     roles: [Role.MERCHANT],
   };
 

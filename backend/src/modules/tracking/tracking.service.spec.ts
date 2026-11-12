@@ -15,12 +15,16 @@ describe('TrackingService (Sprint 4 — U039 đến U042)', () => {
   const mockShipperUser: AuthenticatedUser = {
     id: 'user-shipper-1',
     email: 'shipper@dinego.vn',
+    fullName: 'Tài xế 1',
+    isActive: true,
     roles: [Role.DRIVER],
   };
 
   const mockOtherShipper: AuthenticatedUser = {
     id: 'user-other-shipper',
     email: 'other@dinego.vn',
+    fullName: 'Tài xế 2',
+    isActive: true,
     roles: [Role.DRIVER],
   };
 

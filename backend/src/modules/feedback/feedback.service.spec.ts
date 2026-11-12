@@ -11,18 +11,24 @@ describe('FeedbackService (Sprint 5 — U047, U048, U051)', () => {
   const mockCustomer: AuthenticatedUser = {
     id: 'cust-1',
     email: 'khachhang@gmail.com',
+    fullName: 'Khách hàng 1',
+    isActive: true,
     roles: [Role.CUSTOMER],
   };
 
   const mockMerchantOwner: AuthenticatedUser = {
     id: 'owner-1',
     email: 'owner@comtam.vn',
+    fullName: 'Chủ quán 1',
+    isActive: true,
     roles: [Role.MERCHANT],
   };
 
   const mockAdmin: AuthenticatedUser = {
     id: 'admin-1',
     email: 'admin@dinego.vn',
+    fullName: 'Admin 1',
+    isActive: true,
     roles: [Role.ADMIN],
   };
 
@@ -142,12 +148,12 @@ describe('FeedbackService (Sprint 5 — U047, U048, U051)', () => {
       expect(complaint.status).toBe('OPEN');
 
       const resolved = await service.resolveComplaint(complaint.id, mockAdmin, {
-        decision: 'REFUNDED',
+        decision: 'RESOLVED_REFUND',
         resolutionNotes: 'Đã hoàn tiền 35,000 VND vào ví MoMo cho khách hàng',
         compensationAmount: 35000,
       });
 
-      expect(resolved.status).toBe('REFUNDED');
+      expect(resolved.status).toBe('RESOLVED_REFUND');
       expect(resolved.compensationAmount).toBe(35000);
       expect(resolved.adminResolutionNotes).toContain('Đã hoàn tiền 35,000 VND');
     });

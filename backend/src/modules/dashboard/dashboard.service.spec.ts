@@ -11,6 +11,8 @@ describe('DashboardService (Sprint 5 — U043, U044, U045, U046)', () => {
   const mockMerchantUser: AuthenticatedUser = {
     id: 'merchant-user-1',
     email: 'owner@comtam.vn',
+    fullName: 'Chủ Quán Cơm Tấm',
+    isActive: true,
     roles: [Role.MERCHANT],
   };
 
@@ -120,7 +122,7 @@ describe('DashboardService (Sprint 5 — U043, U044, U045, U046)', () => {
   });
 
   describe('U045: Admin moderation (merchant status & user status)', () => {
-    it('should update merchant status to ACTIVE', async () => {
+    it('should update merchant status to APPROVED', async () => {
       mockPrisma.merchant.findUnique.mockResolvedValue({
         id: 'm-1',
         name: 'Quán Ăn Ngon',
@@ -128,17 +130,17 @@ describe('DashboardService (Sprint 5 — U043, U044, U045, U046)', () => {
       mockPrisma.merchant.update.mockResolvedValue({
         id: 'm-1',
         name: 'Quán Ăn Ngon',
-        status: MerchantStatus.ACTIVE,
+        status: MerchantStatus.APPROVED,
       });
 
       const res = await service.updateMerchantStatus('m-1', {
-        status: MerchantStatus.ACTIVE,
+        status: MerchantStatus.APPROVED,
         reason: 'Hồ sơ đạt tiêu chuẩn an toàn thực phẩm',
       });
-      expect(res.status).toBe(MerchantStatus.ACTIVE);
+      expect(res.status).toBe(MerchantStatus.APPROVED);
       expect(mockPrisma.merchant.update).toHaveBeenCalledWith({
         where: { id: 'm-1' },
-        data: { status: MerchantStatus.ACTIVE },
+        data: { status: MerchantStatus.APPROVED },
       });
     });
 
