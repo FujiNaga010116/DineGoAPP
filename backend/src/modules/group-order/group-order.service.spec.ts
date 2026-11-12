@@ -34,12 +34,16 @@ describe('GroupOrderService (Sprint 2 — U020 & U021)', () => {
   const mockHostUser: AuthenticatedUser = {
     id: 'user-host-1',
     email: 'host@dinego.vn',
+    fullName: 'Host Nhóm',
+    isActive: true,
     roles: [Role.CUSTOMER],
   };
 
   const mockMemberUser: AuthenticatedUser = {
     id: 'user-member-2',
     email: 'member@dinego.vn',
+    fullName: 'Thành Viên Nhóm',
+    isActive: true,
     roles: [Role.CUSTOMER],
   };
 

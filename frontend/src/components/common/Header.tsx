@@ -46,6 +46,7 @@ export type NavTab =
   | 'admin-users'
   | 'admin-complaints'
   | 'admin-reconciliation'
+  | 'admin-knowledge'
   | 'admin-settings';
 
 interface HeaderProps {

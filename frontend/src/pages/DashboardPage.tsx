@@ -3,7 +3,7 @@
 // Completely separated layouts from the Customer Storefront (No shared Header/Footer)
 // ==============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Store,
   ShieldCheck,
@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import type { Role, User, Order, OrderStatus, MenuItem, Merchant, DriverProfile, DeliveryDisputeReport } from '../types';
 import type { NavTab } from '../components/common/Header';
+import { adminApi } from '../api/client';
 
 interface DashboardPageProps {
   currentUser: User | null;
@@ -61,6 +62,16 @@ interface DashboardPageProps {
   allDriversList?: DriverProfile[];
   allUsersList?: User[];
   onToggleUserStatus?: (userId: string) => void;
+  onAdminUpdateMerchantStatus?: (
+    merchantId: string,
+    nextStatus: 'APPROVED' | 'REJECTED' | 'SUSPENDED',
+    reason?: string,
+  ) => void;
+  onAdminUpdateDriverStatus?: (
+    driverId: string,
+    nextStatus: 'ACTIVE' | 'SUSPENDED',
+    reason?: string,
+  ) => void;
   onSelectMerchantForManage?: (merchant: Merchant) => void;
   onOpenMerchantRegisterModal?: () => void;
   deliveryDisputes?: DeliveryDisputeReport[];
@@ -90,24 +101,65 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   allDriversList = [],
   allUsersList = [],
   onToggleUserStatus,
+  onAdminUpdateMerchantStatus,
+  onAdminUpdateDriverStatus,
   onSelectMerchantForManage,
   onOpenMerchantRegisterModal,
   deliveryDisputes = [],
   onResolveDeliveryDispute,
   onConfirmMerchantPickup,
 }) => {
-  const isAdminRole = currentUser?.roles?.includes('ADMIN') || activeTab.startsWith('admin-');
+  const isAdminRole = Boolean(currentUser?.roles?.includes('ADMIN'));
 
-  // Admin Deep System Controls
-  const [platformCommissionRate, setPlatformCommissionRate] = useState(15);
-  const [peakHourSurgeFee, setPeakHourSurgeFee] = useState(5000);
-  const [minOrderForFreeShipping, setMinOrderForFreeShipping] = useState(100000);
-  const [autoDispatchRangeKm, setAutoDispatchRangeKm] = useState(3.5);
-  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  // Admin Deep System Controls (persisted to localStorage & synced with Backend API)
+  const initialAdminSettings = (() => {
+    try {
+      const saved = localStorage.getItem('dinego_admin_settings');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return null;
+  })();
+
+  const [platformCommissionRate, setPlatformCommissionRate] = useState<number>(
+    initialAdminSettings?.platformCommissionRate ?? 15,
+  );
+  const [peakHourSurgeFee, setPeakHourSurgeFee] = useState<number>(
+    initialAdminSettings?.peakHourSurgeFee ?? 5000,
+  );
+  const [minOrderForFreeShipping, setMinOrderForFreeShipping] = useState<number>(
+    initialAdminSettings?.minOrderForFreeShipping ?? 100000,
+  );
+  const [autoDispatchRangeKm, setAutoDispatchRangeKm] = useState<number>(
+    initialAdminSettings?.autoDispatchRangeKm ?? 3.5,
+  );
+  const [maintenanceMode, setMaintenanceMode] = useState<boolean>(
+    initialAdminSettings?.maintenanceMode ?? false,
+  );
   const [userRoleFilter, setUserRoleFilter] = useState<'ALL' | 'CUSTOMER' | 'MERCHANT' | 'DRIVER' | 'ADMIN'>('ALL');
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [configSavedBanner, setConfigSavedBanner] = useState('');
   const [previewDisputeImg, setPreviewDisputeImg] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'dinego_admin_settings',
+        JSON.stringify({
+          platformCommissionRate,
+          peakHourSurgeFee,
+          minOrderForFreeShipping,
+          autoDispatchRangeKm,
+          maintenanceMode,
+        }),
+      );
+    } catch {}
+  }, [
+    platformCommissionRate,
+    peakHourSurgeFee,
+    minOrderForFreeShipping,
+    autoDispatchRangeKm,
+    maintenanceMode,
+  ]);
 
   // Merchant Active Section
   const currentMerchantTab:
@@ -131,12 +183,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     | 'admin-users'
     | 'admin-complaints'
     | 'admin-reconciliation'
+    | 'admin-knowledge'
     | 'admin-settings' =
     activeTab === 'admin-merchants' ||
     activeTab === 'admin-drivers' ||
     activeTab === 'admin-users' ||
     activeTab === 'admin-complaints' ||
     activeTab === 'admin-reconciliation' ||
+    activeTab === 'admin-knowledge' ||
     activeTab === 'admin-settings'
       ? activeTab
       : 'admin-overview';
@@ -221,9 +275,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   const isSeedDemoMerchant = currentMerchant?.id === 'merchant-com-tam';
 
-  // Merchant Catering Bookings & Calendar State (only seed merchant has sample history; new accounts start empty)
-  const [feastBookings, setFeastBookings] = useState(() =>
-    isSeedDemoMerchant
+  // Merchant Catering Bookings & Calendar State (Persisted in localStorage & synced with Customer CateringPage; blank for non-seed new accounts)
+  const [feastBookings, setFeastBookings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dinego_feast_bookings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return isSeedDemoMerchant
       ? [
           {
             id: 'fb-01',
@@ -256,8 +317,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             depositPaid: true,
           },
         ]
-      : [],
-  );
+      : [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_feast_bookings', JSON.stringify(feastBookings));
+    } catch {}
+  }, [feastBookings]);
 
   const [blockedDates, setBlockedDates] = useState<string[]>(() =>
     isSeedDemoMerchant ? ['2026-11-22', '2026-11-29'] : [],
@@ -269,287 +336,558 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     );
   };
 
-  // Merchant Revenue State computed from actual orders for new accounts (seed merchant retains showcase summary if no live orders)
-  const completedMerchantOrders = orders.filter((o) => o.status === 'COMPLETED');
-  const computedMerchantRevenue = completedMerchantOrders.reduce(
-    (sum, o) => sum + (o.subtotal || 0),
-    0,
-  );
-  const dishSalesMap: Record<
+  // Real Revenue & System Calculations from actual orders, merchants, complaints & feastBookings
+  const validOrders = orders.filter((o) => o.status !== 'CANCELLED');
+  const completedOrdersList = orders.filter((o) => o.status === 'COMPLETED');
+  const commissionRateDecimal = platformCommissionRate / 100;
+
+  // Merchant Revenue calculated from real orders (scoped to currentMerchant when in Merchant mode)
+  const merchantScopedOrders = currentMerchant
+    ? validOrders.filter((o) => o.merchant?.id === currentMerchant.id)
+    : validOrders;
+  const merchantGrossRevenue = merchantScopedOrders.reduce((sum, o) => sum + o.subtotal, 0);
+  const merchantPlatformCommission = Math.round(merchantGrossRevenue * commissionRateDecimal);
+  const merchantNetPayout = merchantGrossRevenue - merchantPlatformCommission;
+
+  const dishSalesMap = new Map<
     string,
     { sku: string; name: string; quantity: number; unitPrice: number; totalSales: number }
-  > = {};
-  completedMerchantOrders.forEach((o) => {
-    o.items.forEach((item, idx) => {
-      const key = item.itemName;
-      if (!dishSalesMap[key]) {
-        dishSalesMap[key] = {
-          sku: `MN-${String(idx + 1).padStart(3, '0')}`,
-          name: item.itemName,
-          quantity: 0,
-          unitPrice: item.basePrice,
-          totalSales: 0,
-        };
-      }
-      dishSalesMap[key].quantity += item.quantity;
-      dishSalesMap[key].totalSales += item.subtotal;
+  >();
+  merchantDishes.forEach((d, idx) => {
+    dishSalesMap.set(d.name, {
+      sku: `MN-${String(idx + 1).padStart(3, '0')}`,
+      name: d.name,
+      quantity: 0,
+      unitPrice: d.basePrice,
+      totalSales: 0,
     });
   });
-  const dynamicTopDishes = Object.values(dishSalesMap).sort((a, b) => b.totalSales - a.totalSales);
-
-  const merchantRevenue =
-    isSeedDemoMerchant && completedMerchantOrders.length === 0
-      ? {
-          merchantName: currentMerchant?.name || 'Cơm Tấm Sài Gòn 1985',
-          totalRevenue: 28500000,
-          platformCommission: 4275000,
-          netPayout: 24225000,
-          completedOrders: 184,
-          cancelledOrders: 6,
-          averageOrderValue: 154800,
-          topDishes: [
-            { sku: 'MN-001', name: 'Cơm Tấm Sườn Cọng Nướng Than', quantity: 94, unitPrice: 65000, totalSales: 6110000 },
-            { sku: 'MN-002', name: 'Cơm Tấm Ba Rọi Nướng Mật Ong', quantity: 52, unitPrice: 60000, totalSales: 3120000 },
-            { sku: 'MN-003', name: 'Chả Trứng Hấp Đặc Biệt', quantity: 48, unitPrice: 20000, totalSales: 960000 },
-            { sku: 'MN-004', name: 'Trứng Ốp La Lòng Đào', quantity: 110, unitPrice: 10000, totalSales: 1100000 },
-          ],
-        }
-      : {
-          merchantName: currentMerchant?.name || 'Gian hàng',
-          totalRevenue: computedMerchantRevenue,
-          platformCommission: Math.round(computedMerchantRevenue * 0.15),
-          netPayout: computedMerchantRevenue - Math.round(computedMerchantRevenue * 0.15),
-          completedOrders: completedMerchantOrders.length,
-          cancelledOrders: orders.filter((o) => o.status === 'CANCELLED').length,
-          averageOrderValue:
-            completedMerchantOrders.length > 0
-              ? Math.round(computedMerchantRevenue / completedMerchantOrders.length)
-              : 0,
-          topDishes: dynamicTopDishes,
-        };
-
-  // Admin System State
-  const [adminSystem] = useState({
-    totalGmv: 185600000,
-    platformRevenue: 27840000,
-    totalOrders: 1420,
-    totalMerchants: 24,
-    activeDrivers: 48,
-    totalUsers: 890,
+  merchantScopedOrders.forEach((o) => {
+    o.items.forEach((item) => {
+      const existing = dishSalesMap.get(item.itemName);
+      if (existing) {
+        existing.quantity += item.quantity;
+        existing.totalSales += item.subtotal;
+      } else {
+        dishSalesMap.set(item.itemName, {
+          sku: `MN-${String(dishSalesMap.size + 1).padStart(3, '0')}`,
+          name: item.itemName,
+          quantity: item.quantity,
+          unitPrice: item.basePrice,
+          totalSales: item.subtotal,
+        });
+      }
+    });
   });
 
-  // Admin Drivers Fleet State
-  const [driversList, setDriversList] = useState([
-    {
-      id: 'drv-01',
-      code: 'TX-SG-0019',
-      fullName: 'Nguyễn Quốc Tuấn',
-      phone: '0909888999',
-      licensePlate: '59-B1 888.26',
-      vehicle: 'Honda Wave Alpha',
-      area: 'Quận 1, Quận 3, Bình Thạnh',
-      completedTrips: 412,
-      rating: 4.9,
-      status: 'ACTIVE' as 'ACTIVE' | 'SUSPENDED',
-    },
-    {
-      id: 'drv-02',
-      code: 'TX-SG-0042',
-      fullName: 'Lê Minh Hải',
-      phone: '0903445566',
-      licensePlate: '59-X3 412.09',
-      vehicle: 'Honda AirBlade 125',
-      area: 'Quận 1, Quận 4, Quận 7',
-      completedTrips: 298,
-      rating: 4.8,
-      status: 'ACTIVE' as 'ACTIVE' | 'SUSPENDED',
-    },
-    {
-      id: 'drv-03',
-      code: 'TX-SG-0087',
-      fullName: 'Phạm Hồng Sơn',
-      phone: '0918776655',
-      licensePlate: '59-T2 198.54',
-      vehicle: 'Yamaha Sirius FI',
-      area: 'Phú Nhuận, Tân Bình',
-      completedTrips: 164,
-      rating: 4.7,
-      status: 'ACTIVE' as 'ACTIVE' | 'SUSPENDED',
-    },
-  ]);
+  const merchantRevenue = {
+    merchantName: currentMerchant?.name || 'Cơm Tấm Sài Gòn 1985',
+    totalRevenue: merchantGrossRevenue,
+    platformCommission: merchantPlatformCommission,
+    netPayout: merchantNetPayout,
+    completedOrders: merchantScopedOrders.filter((o) => o.status === 'COMPLETED').length,
+    cancelledOrders: orders.filter(
+      (o) => o.status === 'CANCELLED' && (!currentMerchant || o.merchant?.id === currentMerchant.id),
+    ).length,
+    averageOrderValue:
+      merchantScopedOrders.length > 0 ? Math.round(merchantGrossRevenue / merchantScopedOrders.length) : 0,
+    topDishes: Array.from(dishSalesMap.values()).sort((a, b) => b.totalSales - a.totalSales),
+  };
+
+  // Admin System Real Overview Calculated from actual orders & feastBookings
+  const foodDeliveryGmv = validOrders.reduce((sum, o) => sum + o.finalTotal, 0);
+  const foodSubtotalSum = validOrders.reduce((sum, o) => sum + o.subtotal, 0);
+  const approvedFeasts = feastBookings.filter((fb) => fb.status === 'APPROVED');
+  const cateringFeastGmv = approvedFeasts.reduce((sum, fb) => sum + fb.totalAmount, 0);
+  const totalGmvReal = foodDeliveryGmv + cateringFeastGmv;
+  const platformRevenueReal = Math.round((foodSubtotalSum + cateringFeastGmv) * commissionRateDecimal);
+
+  const adminSystem = {
+    totalGmv: totalGmvReal,
+    platformRevenue: platformRevenueReal,
+    totalOrders: orders.length,
+    completedOrders: completedOrdersList.length,
+    totalMerchants: allMerchants.length,
+    activeDrivers: allDriversList.length,
+    totalUsers: allUsersList.length,
+  };
+
+  // Real Top Merchants Ranking calculated from actual orders
+  const topMerchantsReal = allMerchants
+    .map((m) => {
+      const mOrders = validOrders.filter((o) => o.merchant?.id === m.id);
+      const gmv = mOrders.reduce((s, o) => s + o.finalTotal, 0);
+      const subtotal = mOrders.reduce((s, o) => s + o.subtotal, 0);
+      const platformFee = Math.round(subtotal * commissionRateDecimal);
+      return {
+        id: m.id,
+        name: m.name,
+        ordersCount: mOrders.length,
+        gmv,
+        platformFee,
+        rating: m.rating || 5.0,
+      };
+    })
+    .sort((a, b) => b.gmv - a.gmv);
+
+  // Real 7-Day GMV Chart calculated from actual order createdAt dates
+  const sevenDayGmvChart = (() => {
+    const dayLabels = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+    const buckets: { label: string; dateKey: string; gmv: number }[] = [];
+    const refDate =
+      validOrders.length > 0
+        ? new Date(Math.max(...validOrders.map((o) => new Date(o.createdAt).getTime())))
+        : new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(refDate);
+      d.setDate(refDate.getDate() - i);
+      const dateKey = d.toISOString().slice(0, 10);
+      const label = `${dayLabels[d.getDay()]} (${d.getDate()}/${d.getMonth() + 1})`;
+      const dayGmv = validOrders
+        .filter((o) => new Date(o.createdAt).toISOString().slice(0, 10) === dateKey)
+        .reduce((s, o) => s + o.finalTotal, 0);
+      buckets.push({ label, dateKey, gmv: dayGmv });
+    }
+    const maxGmv = Math.max(...buckets.map((b) => b.gmv), 1);
+    return buckets.map((b) => ({
+      ...b,
+      pct: b.gmv > 0 ? Math.max(Math.round((b.gmv / maxGmv) * 100), 12) : 6,
+    }));
+  })();
+
+  // Admin Audit Logs State (U045) — Persisted in localStorage & synced with Backend
+  const [adminAuditLogs, setAdminAuditLogs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dinego_admin_audit_logs');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [
+      {
+        id: 'aud-01',
+        action: 'DUYỆT HỒ SƠ KYC QUÁN',
+        targetName: 'Cơm Tấm Sài Gòn 1985',
+        reason: 'Giấy phép VSATTP & GPKD hợp lệ',
+        performedBy: 'admin@dinego.vn',
+        timestamp: '03/11/2026 09:15',
+      },
+      {
+        id: 'aud-02',
+        action: 'GIẢI NGÂN ĐỐI SOÁT KỲ 10/2026',
+        targetName: 'Phở Thìn Lò Đúc 1979',
+        reason: 'Ủy nhiệm chi 85% doanh thu ròng qua Techcombank',
+        performedBy: 'admin@dinego.vn',
+        timestamp: '01/11/2026 16:40',
+      },
+    ];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_admin_audit_logs', JSON.stringify(adminAuditLogs));
+    } catch {}
+  }, [adminAuditLogs]);
+
+  const appendAuditLog = (action: string, targetName: string, reason: string) => {
+    setAdminAuditLogs((prev) => [
+      {
+        id: `aud-${Date.now()}`,
+        action,
+        targetName,
+        reason,
+        performedBy: currentUser?.email || 'admin@dinego.vn',
+        timestamp: new Date().toLocaleString('vi-VN', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+      },
+      ...prev,
+    ]);
+  };
+
+  // Admin Drivers Fleet derived from real allDriversList & real orders
+  const [driverStatusOverrides, setDriverStatusOverrides] = useState<Record<string, 'ACTIVE' | 'SUSPENDED'>>(() => {
+    try {
+      const saved = localStorage.getItem('dinego_admin_driver_overrides');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {};
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_admin_driver_overrides', JSON.stringify(driverStatusOverrides));
+    } catch {}
+  }, [driverStatusOverrides]);
+
+  const driversList = allDriversList.map((drv, idx) => {
+    const realDriverTrips = completedOrdersList.filter(
+      (o) => o.assignedDriverId === drv.id || o.assignedDriverName === drv.fullName,
+    ).length;
+    const baseStatus: 'ACTIVE' | 'SUSPENDED' = drv.status === 'SUSPENDED' ? 'SUSPENDED' : 'ACTIVE';
+    const effectiveStatus = driverStatusOverrides[drv.id] || baseStatus;
+    return {
+      id: drv.id,
+      code: `TX-SG-${String(idx + 1).padStart(4, '0')}`,
+      fullName: drv.fullName,
+      phone: drv.phoneNumber,
+      licensePlate: drv.licensePlate,
+      vehicle: drv.vehicleType,
+      area: drv.operatingZone,
+      completedTrips: (drv.completedTrips || 0) + realDriverTrips,
+      rating: drv.rating || 5.0,
+      status: effectiveStatus,
+    };
+  });
 
   const toggleDriverStatus = (drvId: string) => {
-    setDriversList((prev) =>
-      prev.map((d) =>
-        d.id === drvId ? { ...d, status: d.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' } : d,
-      ),
+    const target = driversList.find((d) => d.id === drvId);
+    if (!target) return;
+    const nextStatus: 'ACTIVE' | 'SUSPENDED' = target.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    const reason =
+      nextStatus === 'SUSPENDED'
+        ? 'Tạm khóa nhận chuyến để rà soát vận hành'
+        : 'Khôi phục quyền nhận chuyến giao hàng';
+    setDriverStatusOverrides((prev) => ({ ...prev, [drvId]: nextStatus }));
+    onAdminUpdateDriverStatus?.(drvId, nextStatus, reason);
+    appendAuditLog(
+      nextStatus === 'SUSPENDED' ? 'ĐÌNH CHỈ TÀI XẾ NHẬN CHUYẾN' : 'MỞ KHÓA TÀI XẾ',
+      `${target.fullName} (${target.licensePlate})`,
+      reason,
     );
   };
 
-  // Admin Complaints State
-  const [complaints, setComplaints] = useState([
-    {
-      id: 'cmp-01',
-      code: 'CMP-298101',
-      orderNumber: 'DG20261103-TRK88',
-      customerName: 'Nguyễn Văn An',
-      merchantName: 'Cơm Tấm Sài Gòn 1985',
-      issueType: 'Giao thiếu 01 phần canh chua cá lóc trong đơn hàng',
-      compensationAmount: 35000,
-      status: 'OPEN',
-      createdAt: '03/11/2026 11:30',
-    },
-    {
-      id: 'cmp-02',
-      code: 'CMP-298099',
-      orderNumber: 'DG20261102-4D25CA',
-      customerName: 'Lê Hoàng Cường',
-      merchantName: 'Phở Thìn Lò Đúc',
-      issueType: 'Nước dùng bị đổ trong quá trình vận chuyển',
-      compensationAmount: 75000,
-      status: 'REFUNDED',
-      createdAt: '02/11/2026 19:15',
-    },
-    {
-      id: 'cmp-03',
-      code: 'CMP-298085',
-      orderNumber: 'DG20261101-9B11EF',
-      customerName: 'Trần Thị Bình',
-      merchantName: 'Bún Chả Hương Liên',
-      issueType: 'Giao nhầm phân loại món (Đặt phần đặc biệt giao phần thường)',
-      compensationAmount: 25000,
-      status: 'OPEN',
-      createdAt: '01/11/2026 12:40',
-    },
-  ]);
+  // Admin Complaints State (U051) — Persisted in localStorage & synced with Backend
+  const [complaints, setComplaints] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dinego_admin_complaints');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [
+      {
+        id: 'cmp-01',
+        code: 'CMP-298101',
+        orderNumber: 'DG20261103-TRK88',
+        customerName: 'Nguyễn Văn An',
+        merchantName: 'Cơm Tấm Sài Gòn 1985',
+        issueType: 'Giao thiếu 01 phần canh chua cá lóc trong đơn hàng',
+        evidenceImage: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=240&auto=format&fit=crop&q=80',
+        compensationAmount: 35000,
+        resolutionNotes: '',
+        status: 'OPEN',
+        createdAt: '03/11/2026 11:30',
+      },
+      {
+        id: 'cmp-02',
+        code: 'CMP-298099',
+        orderNumber: 'DG20261102-4D25CA',
+        customerName: 'Lê Hoàng Cường',
+        merchantName: 'Phở Thìn Lò Đúc',
+        issueType: 'Nước dùng bị đổ trong quá trình vận chuyển',
+        evidenceImage: 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=240&auto=format&fit=crop&q=80',
+        compensationAmount: 75000,
+        resolutionNotes: 'Đã xác minh ảnh chụp từ khách và hoàn ví MoMo 75.000đ.',
+        status: 'REFUNDED',
+        createdAt: '02/11/2026 19:15',
+      },
+      {
+        id: 'cmp-03',
+        code: 'CMP-298085',
+        orderNumber: 'DG20261101-9B11EF',
+        customerName: 'Trần Thị Bình',
+        merchantName: 'Bún Chả Hương Liên',
+        issueType: 'Giao nhầm phân loại món (Đặt phần đặc biệt giao phần thường)',
+        evidenceImage: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=240&auto=format&fit=crop&q=80',
+        compensationAmount: 25000,
+        resolutionNotes: '',
+        status: 'OPEN',
+        createdAt: '01/11/2026 12:40',
+      },
+    ];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_admin_complaints', JSON.stringify(complaints));
+    } catch {}
+  }, [complaints]);
+
+  const [complaintNoteInputs, setComplaintNoteInputs] = useState<Record<string, string>>({});
 
   const handleResolveComplaint = (id: string, action: 'REFUND' | 'REJECT') => {
+    const target = complaints.find((c) => c.id === id);
+    const note =
+      complaintNoteInputs[id]?.trim() ||
+      (action === 'REFUND'
+        ? 'Xác nhận khiếu nại hợp lệ, duyệt hoàn tiền cho khách hàng.'
+        : 'Bằng chứng chưa đủ cơ sở bồi hoàn theo quy định sàn.');
+    void adminApi.resolveComplaint(id, {
+      decision: action === 'REFUND' ? 'RESOLVED_REFUND' : 'REJECTED',
+      resolutionNotes: note,
+      compensationAmount: action === 'REFUND' ? target?.compensationAmount : 0,
+    });
     setComplaints(
       complaints.map((c) =>
-        c.id === id ? { ...c, status: action === 'REFUND' ? 'REFUNDED' : 'REJECTED' } : c,
+        c.id === id
+          ? {
+              ...c,
+              status: action === 'REFUND' ? 'REFUNDED' : 'REJECTED',
+              resolutionNotes: note,
+            }
+          : c,
       ),
     );
+    if (target) {
+      appendAuditLog(
+        action === 'REFUND' ? 'DUYỆT HOÀN TIỀN KHIẾU NẠI' : 'TỪ CHỐI KHIẾU NẠI',
+        `${target.code} (#${target.orderNumber})`,
+        note,
+      );
+    }
   };
 
-  // Merchant Moderation State for Admin
-  const [lockedMerchants, setLockedMerchants] = useState<Record<string, boolean>>({});
-  const toggleLockMerchant = (mId: string) => {
-    setLockedMerchants((prev) => ({ ...prev, [mId]: !prev[mId] }));
+  // Merchant Moderation State for Admin (U045: PENDING / APPROVED / REJECTED / SUSPENDED)
+  const [merchantKycStatuses, setMerchantKycStatuses] = useState<
+    Record<string, 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED'>
+  >(() => {
+    try {
+      const saved = localStorage.getItem('dinego_admin_kyc_statuses');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {};
+  });
+  const [merchantModerationReasons, setMerchantModerationReasons] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_admin_kyc_statuses', JSON.stringify(merchantKycStatuses));
+    } catch {}
+  }, [merchantKycStatuses]);
+
+  const getEffectiveMerchantKycStatus = (m: Merchant): 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' => {
+    if (merchantKycStatuses[m.id]) return merchantKycStatuses[m.id];
+    if (m.kycStatus === 'PENDING_APPROVAL') return 'PENDING';
+    if (m.kycStatus === 'REJECTED') return 'REJECTED';
+    if (m.isActive === false) return 'SUSPENDED';
+    return 'APPROVED';
   };
 
-  // Admin Monthly Reconciliation State
-  const [reconciliationList, setReconciliationList] = useState([
-    {
-      id: 'rec-01',
-      period: '11/2026',
-      merchantName: 'Cơm Tấm Sài Gòn 1985',
-      totalOrders: 184,
-      grossRevenue: 28500000,
-      commission15: 4275000,
-      netPayout85: 24225000,
-      bankAccount: 'Vietcombank • 0071001234567',
-      status: 'PAID' as 'PAID' | 'PENDING',
-    },
-    {
-      id: 'rec-02',
-      period: '11/2026',
-      merchantName: 'Phở Thìn Lò Đúc 1979',
-      totalOrders: 142,
-      grossRevenue: 21300000,
-      commission15: 3195000,
-      netPayout85: 18105000,
-      bankAccount: 'Techcombank • 1903456789012',
-      status: 'PENDING' as 'PAID' | 'PENDING',
-    },
-    {
-      id: 'rec-03',
-      period: '11/2026',
-      merchantName: 'Bún Chả Hương Liên',
-      totalOrders: 118,
-      grossRevenue: 16520000,
-      commission15: 2478000,
-      netPayout85: 14042000,
-      bankAccount: 'MBBank • 888999666888',
-      status: 'PENDING' as 'PAID' | 'PENDING',
-    },
-  ]);
+  const handleUpdateMerchantKyc = (
+    m: Merchant,
+    nextStatus: 'APPROVED' | 'REJECTED' | 'SUSPENDED',
+  ) => {
+    const reason =
+      merchantModerationReasons[m.id]?.trim() ||
+      (nextStatus === 'APPROVED'
+        ? 'Đạt thẩm định pháp lý & VSATTP'
+        : nextStatus === 'REJECTED'
+        ? 'Hồ sơ GPKD/VSATTP chưa hợp lệ'
+        : 'Tạm khóa do vi phạm vận hành');
+    setMerchantKycStatuses((prev) => ({ ...prev, [m.id]: nextStatus }));
+    onAdminUpdateMerchantStatus?.(m.id, nextStatus, reason);
+    appendAuditLog(`CẬP NHẬT TRẠNG THÁI QUÁN → ${nextStatus}`, m.name, reason);
+  };
+
+  // Admin Monthly Reconciliation Calculated Dynamically from Real Orders & Merchants (U046)
+  const [reconciliationPeriodFilter, setReconciliationPeriodFilter] = useState('ALL');
+  const [paidReconciliationMap, setPaidReconciliationMap] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('dinego_admin_paid_reconciliations');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {};
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_admin_paid_reconciliations', JSON.stringify(paidReconciliationMap));
+    } catch {}
+  }, [paidReconciliationMap]);
+
+  const formatOrderPeriod = (dateStr?: string) => {
+    const d = dateStr ? new Date(dateStr) : new Date();
+    if (Number.isNaN(d.getTime())) return '11/2026';
+    return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  };
+
+  const availablePeriods = Array.from(
+    new Set([
+      ...validOrders.map((o) => formatOrderPeriod(o.createdAt)),
+      formatOrderPeriod(new Date().toISOString()),
+    ]),
+  );
+
+  const reconciliationList = allMerchants.map((m, idx) => {
+    const mOrders = validOrders.filter((o) => {
+      const matchMerchant = o.merchant?.id === m.id;
+      const matchPeriod =
+        reconciliationPeriodFilter === 'ALL' || formatOrderPeriod(o.createdAt) === reconciliationPeriodFilter;
+      return matchMerchant && matchPeriod;
+    });
+    const periodLabel =
+      reconciliationPeriodFilter === 'ALL'
+        ? mOrders.length > 0
+          ? formatOrderPeriod(mOrders[0].createdAt)
+          : availablePeriods[0] || '11/2026'
+        : reconciliationPeriodFilter;
+    const grossRevenue = mOrders.reduce((s, o) => s + o.subtotal, 0);
+    const commission15 = Math.round(grossRevenue * commissionRateDecimal);
+    const shippingFee = mOrders.reduce((s, o) => s + o.deliveryFee, 0);
+    const refundDeducted = complaints
+      .filter(
+        (c) =>
+          c.status === 'REFUNDED' &&
+          (c.merchantName.toLowerCase().includes(m.name.toLowerCase()) ||
+            m.name.toLowerCase().includes(c.merchantName.toLowerCase())),
+      )
+      .reduce((s, c) => s + c.compensationAmount, 0);
+    const netPayout85 = Math.max(0, grossRevenue - commission15 - refundDeducted);
+    const recId = `rec-${m.id}-${periodLabel}`;
+    return {
+      id: recId,
+      period: periodLabel,
+      merchantName: m.name,
+      totalOrders: mOrders.length,
+      grossRevenue,
+      commission15,
+      shippingFee,
+      refundDeducted,
+      netPayout85,
+      bankAccount:
+        m.bankName && m.bankAccountNumber
+          ? `${m.bankName} • ${m.bankAccountNumber}`
+          : `Vietcombank • 007100${String(idx + 1).padStart(7, '0')}`,
+      status: (paidReconciliationMap[recId] ? 'PAID' : 'PENDING') as 'PAID' | 'PENDING',
+    };
+  });
+
+  const filteredReconciliations = reconciliationList;
 
   const handleConfirmPayout = (recId: string) => {
-    setReconciliationList((prev) =>
-      prev.map((r) => (r.id === recId ? { ...r, status: 'PAID' } : r)),
-    );
+    const target = reconciliationList.find((r) => r.id === recId);
+    void adminApi.confirmReconciliationPayout(recId);
+    setPaidReconciliationMap((prev) => ({ ...prev, [recId]: true }));
+    if (target) {
+      appendAuditLog(
+        'XÁC NHẬN GIẢI NGÂN ĐỐI SOÁT',
+        `${target.merchantName} (Kỳ ${target.period})`,
+        `Đã giải ngân ${target.netPayout85.toLocaleString('vi-VN')}đ về ${target.bankAccount}`,
+      );
+    }
   };
 
   const handleExportCsv = () => {
-    const headers = ['Ky Doi Soat,Nha Hang,So Don,Doanh Thu Gop,Phi Nen Tang 15%,Thuc Nhan 85%,Trang Thai'];
-    const rows = reconciliationList.map(
+    const headers = [
+      'Ky Doi Soat,Nha Hang,So Don,Doanh Thu Gop,Phi Nen Tang,Phi Ship Thu Ho,Khau Tru Hoan Tien,Thuc Nhan Rong,Trang Thai',
+    ];
+    const rows = filteredReconciliations.map(
       (r) =>
-        `${r.period},"${r.merchantName}",${r.totalOrders},${r.grossRevenue},${r.commission15},${r.netPayout85},${r.status}`,
+        `${r.period},"${r.merchantName}",${r.totalOrders},${r.grossRevenue},${r.commission15},${r.shippingFee},${r.refundDeducted},${r.netPayout85},${r.status}`,
     );
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rows].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `DineGo_DoiSoat_Ky_11_2026.csv`);
+    link.setAttribute('download', `DineGo_DoiSoat_Ky_${reconciliationPeriodFilter.replace('/', '_')}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // Admin Platform Vouchers State
-  const [vouchers, setVouchers] = useState([
-    {
-      id: 'v-01',
-      code: 'DINEGO30',
-      title: 'Giảm 30.000đ cho đơn từ 120.000đ',
-      discountValue: 30000,
-      minOrder: 120000,
-      usageCount: 342,
-      maxUsage: 500,
-      isActive: true,
-    },
-    {
-      id: 'v-02',
-      code: 'FREESHIP15K',
-      title: 'Miễn phí vận chuyển 15.000đ cho đơn từ 50.000đ',
-      discountValue: 15000,
-      minOrder: 50000,
-      usageCount: 615,
-      maxUsage: 1000,
-      isActive: true,
-    },
-    {
-      id: 'v-03',
-      code: 'TIECVIP500',
-      title: 'Ưu đãi 500.000đ cho hợp đồng Đặt Tiệc từ 5.000.000đ',
-      discountValue: 500000,
-      minOrder: 5000000,
-      usageCount: 18,
-      maxUsage: 100,
-      isActive: true,
-    },
-  ]);
+  // Admin Platform Vouchers State (U052) — Persisted in localStorage
+  const [vouchers, setVouchers] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dinego_admin_vouchers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [
+      {
+        id: 'v-01',
+        code: 'DINEGO30',
+        discountType: 'FIXED_AMOUNT' as 'FIXED_AMOUNT' | 'PERCENTAGE',
+        title: 'Giảm 30.000đ cho đơn từ 120.000đ',
+        discountValue: 30000,
+        minOrder: 120000,
+        usageCount: 342,
+        maxUsage: 500,
+        endDate: '2026-12-31',
+        isActive: true,
+      },
+      {
+        id: 'v-02',
+        code: 'FREESHIP15K',
+        discountType: 'FIXED_AMOUNT' as 'FIXED_AMOUNT' | 'PERCENTAGE',
+        title: 'Miễn phí vận chuyển 15.000đ cho đơn từ 50.000đ',
+        discountValue: 15000,
+        minOrder: 50000,
+        usageCount: 615,
+        maxUsage: 1000,
+        endDate: '2026-12-15',
+        isActive: true,
+      },
+      {
+        id: 'v-03',
+        code: 'TIECVIP15',
+        discountType: 'PERCENTAGE' as 'FIXED_AMOUNT' | 'PERCENTAGE',
+        title: 'Giảm 15% cho hợp đồng Đặt Tiệc từ 3.000.000đ',
+        discountValue: 15,
+        minOrder: 3000000,
+        usageCount: 18,
+        maxUsage: 100,
+        endDate: '2027-01-15',
+        isActive: true,
+      },
+    ];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_admin_vouchers', JSON.stringify(vouchers));
+    } catch {}
+  }, [vouchers]);
 
   const [newVoucherCode, setNewVoucherCode] = useState('');
+  const [newVoucherType, setNewVoucherType] = useState<'FIXED_AMOUNT' | 'PERCENTAGE'>('FIXED_AMOUNT');
   const [newVoucherDiscount, setNewVoucherDiscount] = useState(25000);
   const [newVoucherMinOrder, setNewVoucherMinOrder] = useState(100000);
+  const [newVoucherMaxUsage, setNewVoucherMaxUsage] = useState(500);
+  const [newVoucherEndDate, setNewVoucherEndDate] = useState('2026-12-31');
 
   const handleAddVoucher = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newVoucherCode.trim()) return;
+    const code = newVoucherCode.trim().toUpperCase();
+    const title =
+      newVoucherType === 'PERCENTAGE'
+        ? `Giảm ${newVoucherDiscount}% cho đơn từ ${Number(newVoucherMinOrder).toLocaleString('vi-VN')}đ`
+        : `Giảm ${Number(newVoucherDiscount).toLocaleString('vi-VN')}đ cho đơn từ ${Number(newVoucherMinOrder).toLocaleString('vi-VN')}đ`;
     setVouchers((prev) => [
       {
         id: `v-${Date.now()}`,
-        code: newVoucherCode.trim().toUpperCase(),
-        title: `Giảm ${Number(newVoucherDiscount).toLocaleString('vi-VN')}đ cho đơn từ ${Number(newVoucherMinOrder).toLocaleString('vi-VN')}đ`,
+        code,
+        discountType: newVoucherType,
+        title,
         discountValue: Number(newVoucherDiscount),
         minOrder: Number(newVoucherMinOrder),
         usageCount: 0,
-        maxUsage: 500,
+        maxUsage: Number(newVoucherMaxUsage) || 500,
+        endDate: newVoucherEndDate || '2026-12-31',
         isActive: true,
       },
       ...prev,
     ]);
+    appendAuditLog('PHÁT HÀNH VOUCHER MỚI', code, `${title} (Tối đa ${newVoucherMaxUsage} lượt, HSD ${newVoucherEndDate})`);
     setNewVoucherCode('');
   };
 
@@ -557,9 +895,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     setVouchers((prev) => prev.map((v) => (v.id === vId ? { ...v, isActive: !v.isActive } : v)));
   };
 
-  // Merchant Reviews & Replies State
-  const [reviews, setReviews] = useState(() =>
-    isSeedDemoMerchant
+  // Merchant Reviews & Replies State (Persisted in localStorage & synced with Customer ReviewModal; blank for non-seed new accounts)
+  const [reviews, setReviews] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dinego_merchant_reviews');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return isSeedDemoMerchant
       ? [
           {
             id: 'rev-01',
@@ -580,8 +925,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             date: '02/11/2026',
           },
         ]
-      : [],
-  );
+      : [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_merchant_reviews', JSON.stringify(reviews));
+    } catch {}
+  }, [reviews]);
 
   const [replyInput, setReplyInput] = useState<{ [key: string]: string }>({});
 
@@ -653,7 +1004,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
             {[
               { id: 'admin-overview' as NavTab, label: 'Tổng quan vận hành', icon: <BarChart3 size={17} /> },
-              { id: 'admin-merchants' as NavTab, label: 'Đối tác Quán & KYC', icon: <Store size={17} /> },
+              {
+                id: 'admin-merchants' as NavTab,
+                label: 'Đối tác Quán & KYC',
+                icon: <Store size={17} />,
+                badge: allMerchants.filter((m) => getEffectiveMerchantKycStatus(m) === 'PENDING').length || undefined,
+              },
               { id: 'admin-drivers' as NavTab, label: 'Đội ngũ Tài xế', icon: <Bike size={17} /> },
               { id: 'admin-users' as NavTab, label: 'Người dùng & Phân quyền', icon: <UsersIcon size={17} /> },
               {
@@ -665,6 +1021,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   deliveryDisputes.filter((d) => d.status === 'PENDING_REVIEW').length,
               },
               { id: 'admin-reconciliation' as NavTab, label: 'Đối soát & Khuyến mãi', icon: <FileSpreadsheet size={17} /> },
+              {
+                id: 'admin-knowledge' as NavTab,
+                label: 'Tri thức AI (RAG)',
+                icon: <UtensilsCrossed size={17} />,
+                badge: 'Bảo trì',
+              },
               { id: 'admin-settings' as NavTab, label: 'Can thiệp & Cấu hình sàn', icon: <Sliders size={17} /> },
             ].map((item) => {
               const isActive = currentAdminTab === item.id;
@@ -802,6 +1164,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 {currentAdminTab === 'admin-users' && 'Quản lý Danh sách Người dùng & Can thiệp Phân quyền'}
                 {currentAdminTab === 'admin-complaints' && 'Trung tâm Phân xử Khiếu nại, Tranh chấp & Hoàn tiền'}
                 {currentAdminTab === 'admin-reconciliation' && 'Đối soát Công nợ Kỳ, Giải ngân & Quản lý Khuyến mãi'}
+                {currentAdminTab === 'admin-knowledge' && 'Quản trị Cơ sở Tri thức Ẩm thực Địa phương (AI RAG Vector DB — U036)'}
                 {currentAdminTab === 'admin-settings' && 'Bảng Điều Khiển Can Thiệp Sâu & Cấu Hình Hạ Tầng Toàn Sàn'}
               </h1>
             </div>
@@ -896,45 +1259,182 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#0F172A' }}>
                       {adminSystem.totalGmv.toLocaleString('vi-VN')} đ
                     </div>
-                    <div style={{ fontSize: '0.76rem', color: '#059669', marginTop: 6, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span>▲ +22.4%</span>
-                      <span style={{ color: '#64748B', fontWeight: 500 }}>so với kỳ tháng 10/2026</span>
+                    <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: 6 }}>
+                      Tính trực tiếp từ {validOrders.length} đơn hợp lệ & {approvedFeasts.length} tiệc
                     </div>
                   </div>
 
                   <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px 22px', borderTop: '4px solid #00B14F', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
                     <div style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
-                      DOANH THU RÒNG PHÍ SÀN (15%)
+                      DOANH THU RÒNG PHÍ SÀN ({platformCommissionRate}%)
                     </div>
                     <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#00B14F' }}>
                       {adminSystem.platformRevenue.toLocaleString('vi-VN')} đ
                     </div>
                     <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: 6 }}>
-                      Khấu trừ cố định 15% trên thực thu món
+                      Khấu trừ {platformCommissionRate}% trên doanh thu thực tế phát sinh
                     </div>
                   </div>
 
                   <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px 22px', borderTop: '4px solid #0284C7', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
                     <div style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
-                      TỔNG ĐƠN HÀNG HOÀN TẤT
+                      TỔNG ĐƠN HÀNG THỰC TẾ
                     </div>
                     <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#0F172A' }}>
-                      {adminSystem.totalOrders + orders.length} đơn
+                      {adminSystem.totalOrders} đơn
                     </div>
                     <div style={{ fontSize: '0.76rem', color: '#0284C7', marginTop: 6, fontWeight: 700 }}>
-                      Tỷ lệ giao đúng giờ đạt: 97.4%
+                      Đã hoàn tất: {adminSystem.completedOrders} đơn
                     </div>
                   </div>
 
                   <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px 22px', borderTop: '4px solid #F59E0B', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
                     <div style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
-                      ĐỐI TÁC ĐANG HOẠT ĐỘNG
+                      ĐỐI TÁC & NGƯỜI DÙNG HỆ THỐNG
                     </div>
                     <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#0F172A' }}>
-                      {allMerchants.length} quán • {driversList.length} tài xế
+                      {allMerchants.length} quán • {allUsersList.length} user
                     </div>
                     <div style={{ fontSize: '0.76rem', color: '#059669', marginTop: 6, fontWeight: 700 }}>
-                      ✓ 100% tài khoản đã hoàn tất hồ sơ KYC
+                      ✓ {driversList.filter((d) => d.status === 'ACTIVE').length}/{driversList.length} tài xế hoạt động
+                    </div>
+                  </div>
+                </div>
+
+                {/* U044: Biểu đồ tỷ trọng đơn theo luồng & Top Nhà hàng Doanh thu cao nhất */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))',
+                    gap: 20,
+                    marginBottom: 24,
+                  }}
+                >
+                  {/* Phân bổ GMV & Đơn hàng theo Luồng Nghiệp vụ */}
+                  <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 22 }}>
+                    <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: '#0F172A', margin: '0 0 4px 0' }}>
+                      Phân bổ GMV & Số lượng đơn theo Luồng Nghiệp vụ (U044)
+                    </h3>
+                    <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '0 0 18px 0' }}>
+                      Dữ liệu thực tế từ đơn hàng Luồng 1 (Đặt đồ ăn) và Luồng 2 (Đặt mâm cỗ sự kiện)
+                    </p>
+
+                    {(() => {
+                      const totalBoth = Math.max(foodDeliveryGmv + cateringFeastGmv, 1);
+                      const foodPct = totalGmvReal > 0 ? Math.round((foodDeliveryGmv / totalBoth) * 1000) / 10 : 0;
+                      const feastPct = totalGmvReal > 0 ? Math.round((cateringFeastGmv / totalBoth) * 1000) / 10 : 0;
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', fontWeight: 700, marginBottom: 6 }}>
+                              <span style={{ color: '#0F172A' }}>Luồng 1: Đặt đồ ăn giao ngay & Group Order</span>
+                              <span style={{ color: '#4F46E5' }}>
+                                {foodDeliveryGmv.toLocaleString('vi-VN')} đ ({foodPct}% • {validOrders.length} đơn)
+                              </span>
+                            </div>
+                            <div style={{ height: 10, background: '#F1F5F9', borderRadius: 999, overflow: 'hidden' }}>
+                              <div style={{ width: `${foodPct}%`, height: '100%', background: '#4F46E5', borderRadius: 999 }} />
+                            </div>
+                          </div>
+
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', fontWeight: 700, marginBottom: 6 }}>
+                              <span style={{ color: '#0F172A' }}>Luồng 2: Đặt mâm cỗ sự kiện & Cọc 2 đợt</span>
+                              <span style={{ color: '#00B14F' }}>
+                                {cateringFeastGmv.toLocaleString('vi-VN')} đ ({feastPct}% • {approvedFeasts.length} hợp đồng)
+                              </span>
+                            </div>
+                            <div style={{ height: 10, background: '#F1F5F9', borderRadius: 999, overflow: 'hidden' }}>
+                              <div style={{ width: `${feastPct}%`, height: '100%', background: '#00B14F', borderRadius: 999 }} />
+                            </div>
+                          </div>
+
+                          {/* Mini Bar Chart Doanh thu 7 ngày gần nhất từ đơn thực tế */}
+                          <div style={{ marginTop: 8, paddingTop: 14, borderTop: '1px solid #F1F5F9' }}>
+                            <div style={{ fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: 10 }}>
+                              BIỂU ĐỒ GMV THỰC TẾ 7 NGÀY GẦN NHẤT (VNĐ)
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 86 }}>
+                              {sevenDayGmvChart.map((b) => (
+                                <div key={b.dateKey} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                                  <span style={{ fontSize: '0.66rem', fontWeight: 700, color: '#4F46E5' }}>
+                                    {b.gmv > 0 ? `${Math.round(b.gmv / 1000)}k` : '0đ'}
+                                  </span>
+                                  <div
+                                    style={{
+                                      width: '100%',
+                                      height: `${Math.round(b.pct * 0.52)}px`,
+                                      background: b.gmv > 0 ? 'linear-gradient(180deg, #4F46E5 0%, #818CF8 100%)' : '#E2E8F0',
+                                      borderRadius: '4px 4px 0 0',
+                                    }}
+                                  />
+                                  <span style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600 }}>{b.label}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Bảng Xếp hạng Top Nhà hàng Doanh thu cao nhất (Tính thực từ orders) */}
+                  <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 22 }}>
+                    <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: '#0F172A', margin: '0 0 4px 0' }}>
+                      Top Đối tác Nhà hàng Doanh thu cao nhất (Top Merchants)
+                    </h3>
+                    <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '0 0 14px 0' }}>
+                      Tổng hợp trực tiếp từ các đơn hàng thực tế phát sinh của từng quán
+                    </p>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {topMerchantsReal.map((tm, idx) => (
+                        <div
+                          key={tm.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '10px 14px',
+                            borderRadius: 8,
+                            background: idx === 0 ? '#EEF2FF' : '#F8FAFC',
+                            border: idx === 0 ? '1px solid #C7D2FE' : '1px solid #E2E8F0',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span
+                              style={{
+                                width: 24,
+                                height: 24,
+                                borderRadius: '50%',
+                                background: idx === 0 ? '#4F46E5' : '#CBD5E1',
+                                color: idx === 0 ? '#FFFFFF' : '#1E293B',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.74rem',
+                                fontWeight: 800,
+                              }}
+                            >
+                              {idx + 1}
+                            </span>
+                            <div>
+                              <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#0F172A' }}>{tm.name}</div>
+                              <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                                {tm.ordersCount} đơn hàng • ★ {tm.rating}
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontWeight: 800, fontSize: '0.88rem', color: '#00B14F' }}>
+                              {tm.gmv.toLocaleString('vi-VN')} đ
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: '#64748B' }}>
+                              Phí sàn ({platformCommissionRate}%): {tm.platformFee.toLocaleString('vi-VN')} đ
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -963,7 +1463,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                           <th style={{ padding: '12px 20px' }}>Nhà hàng</th>
                           <th style={{ padding: '12px 20px' }}>Khách nhận món</th>
                           <th style={{ padding: '12px 20px' }}>Tổng thanh toán</th>
-                          <th style={{ padding: '12px 20px' }}>Phí sàn (15%)</th>
+                          <th style={{ padding: '12px 20px' }}>Phí sàn ({platformCommissionRate}%)</th>
                           <th style={{ padding: '12px 20px' }}>Phương thức</th>
                           <th style={{ padding: '12px 20px' }}>Trạng thái</th>
                         </tr>
@@ -980,7 +1480,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                               {o.finalTotal.toLocaleString('vi-VN')}đ
                             </td>
                             <td style={{ padding: '14px 20px', fontWeight: 700, color: '#4F46E5' }}>
-                              +{Math.round(o.subtotal * 0.15).toLocaleString('vi-VN')}đ
+                              +{Math.round(o.subtotal * commissionRateDecimal).toLocaleString('vi-VN')}đ
                             </td>
                             <td style={{ padding: '14px 20px', color: '#475569' }}>
                               {o.payment?.paymentMethod === 'COD' ? 'Tiền mặt (COD)' : 'Ví MoMo QR'}
@@ -1008,92 +1508,243 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               </div>
             )}
 
-            {/* ADMIN TAB 2: MERCHANTS & KYC MODERATION */}
+            {/* ADMIN TAB 2: MERCHANTS & KYC MODERATION + AUDIT LOGS (U045) */}
             {currentAdminTab === 'admin-merchants' && (
-              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
-                <div style={{ padding: '18px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <h3 style={{ fontSize: '1.02rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                      Danh mục Đối tác Nhà hàng & Kiểm soát Pháp lý (KYC)
-                    </h3>
-                    <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '3px 0 0 0' }}>
-                      Xác minh giấy phép VSATTP, mặt bằng kinh doanh thực tế và quyền hoạt động độc lập trên sàn
-                    </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                  <div style={{ padding: '18px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                    <div>
+                      <h3 style={{ fontSize: '1.02rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                        Danh mục Đối tác Nhà hàng & Phê duyệt Hồ sơ Pháp lý (KYC — U045)
+                      </h3>
+                      <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '3px 0 0 0' }}>
+                        Duyệt đăng ký quán mới (Approve / Reject), tạm khóa gian hàng vi phạm và ghi nhận Audit Log
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#D97706', background: '#FEF3C7', padding: '5px 12px', borderRadius: 6 }}>
+                        {allMerchants.filter((m) => getEffectiveMerchantKycStatus(m) === 'PENDING').length} chờ duyệt KYC
+                      </span>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#15803D', background: '#DCFCE7', padding: '5px 12px', borderRadius: 6 }}>
+                        {allMerchants.filter((m) => getEffectiveMerchantKycStatus(m) === 'APPROVED').length} đang hoạt động
+                      </span>
+                    </div>
                   </div>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#15803D', background: '#DCFCE7', padding: '5px 14px', borderRadius: 6 }}>
-                    {allMerchants.length} gian hàng đã kích hoạt
-                  </span>
+
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+                      <thead>
+                        <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                          <th style={{ padding: '12px 20px' }}>Gian hàng</th>
+                          <th style={{ padding: '12px 20px' }}>Đại diện & GPKD</th>
+                          <th style={{ padding: '12px 20px' }}>Địa chỉ kinh doanh</th>
+                          <th style={{ padding: '12px 20px' }}>Trạng thái KYC</th>
+                          <th style={{ padding: '12px 20px' }}>Ghi chú</th>
+                          <th style={{ padding: '12px 20px', textAlign: 'right' }}>Quyết định quản trị</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {allMerchants.map((m) => {
+                          const kycStatus = getEffectiveMerchantKycStatus(m);
+                          return (
+                            <tr
+                              key={m.id}
+                              style={{
+                                borderBottom: '1px solid #F1F5F9',
+                                background:
+                                  kycStatus === 'SUSPENDED' || kycStatus === 'REJECTED'
+                                    ? '#FEF2F2'
+                                    : kycStatus === 'PENDING'
+                                    ? '#FFFBEB'
+                                    : '#FFFFFF',
+                              }}
+                            >
+                              <td style={{ padding: '14px 20px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                  <img
+                                    src={m.storeFrontImage || m.coverUrl || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=200&auto=format&fit=crop&q=80'}
+                                    alt={m.name}
+                                    style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover' }}
+                                  />
+                                  <div>
+                                    <div style={{ fontWeight: 700, color: '#0F172A' }}>{m.name}</div>
+                                    <div style={{ fontSize: '0.76rem', color: '#64748B' }}>SĐT: {m.phoneNumber}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td style={{ padding: '14px 20px', color: '#334155', fontWeight: 600 }}>
+                                <div>{m.ownerName || 'Chủ Hộ Kinh Doanh'}</div>
+                                <div style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 500 }}>
+                                  GPKD: {m.businessLicenseNumber || 'VSATTP-2026-HCM'}
+                                </div>
+                              </td>
+                              <td style={{ padding: '14px 20px', color: '#475569', maxWidth: 240 }}>{m.address}</td>
+                              <td style={{ padding: '14px 20px' }}>
+                                <span
+                                  style={{
+                                    padding: '3px 10px',
+                                    borderRadius: 6,
+                                    fontSize: '0.74rem',
+                                    fontWeight: 700,
+                                    background:
+                                      kycStatus === 'APPROVED'
+                                        ? '#DCFCE7'
+                                        : kycStatus === 'PENDING'
+                                        ? '#FEF3C7'
+                                        : '#FEE2E2',
+                                    color:
+                                      kycStatus === 'APPROVED'
+                                        ? '#15803D'
+                                        : kycStatus === 'PENDING'
+                                        ? '#D97706'
+                                        : '#DC2626',
+                                  }}
+                                >
+                                  {kycStatus === 'APPROVED' && 'Đã duyệt KYC'}
+                                  {kycStatus === 'PENDING' && 'Chờ duyệt đăng ký'}
+                                  {kycStatus === 'REJECTED' && 'Từ chối hồ sơ'}
+                                  {kycStatus === 'SUSPENDED' && 'Đang tạm khóa'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '14px 20px' }}>
+                                <input
+                                  type="text"
+                                  placeholder="Nhập ghi chú..."
+                                  value={merchantModerationReasons[m.id] || ''}
+                                  onChange={(e) =>
+                                    setMerchantModerationReasons((prev) => ({
+                                      ...prev,
+                                      [m.id]: e.target.value,
+                                    }))
+                                  }
+                                  style={{
+                                    padding: '6px 10px',
+                                    borderRadius: 6,
+                                    border: '1px solid #CBD5E1',
+                                    fontSize: '0.78rem',
+                                    width: 190,
+                                  }}
+                                />
+                              </td>
+                              <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                                <div style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                  {kycStatus === 'PENDING' && (
+                                    <>
+                                      <button
+                                        onClick={() => handleUpdateMerchantKyc(m, 'APPROVED')}
+                                        style={{
+                                          padding: '6px 12px',
+                                          borderRadius: 6,
+                                          border: 'none',
+                                          background: '#00B14F',
+                                          color: '#FFFFFF',
+                                          fontSize: '0.78rem',
+                                          fontWeight: 700,
+                                          cursor: 'pointer',
+                                        }}
+                                      >
+                                        Duyệt quán
+                                      </button>
+                                      <button
+                                        onClick={() => handleUpdateMerchantKyc(m, 'REJECTED')}
+                                        style={{
+                                          padding: '6px 12px',
+                                          borderRadius: 6,
+                                          border: '1px solid #FCA5A5',
+                                          background: '#FFFFFF',
+                                          color: '#DC2626',
+                                          fontSize: '0.78rem',
+                                          fontWeight: 700,
+                                          cursor: 'pointer',
+                                        }}
+                                      >
+                                        Từ chối
+                                      </button>
+                                    </>
+                                  )}
+                                  {kycStatus === 'APPROVED' && (
+                                    <button
+                                      onClick={() => handleUpdateMerchantKyc(m, 'SUSPENDED')}
+                                      style={{
+                                        padding: '6px 12px',
+                                        borderRadius: 6,
+                                        border: '1px solid #FCA5A5',
+                                        background: '#FFFFFF',
+                                        color: '#DC2626',
+                                        fontSize: '0.78rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      Tạm khóa quán
+                                    </button>
+                                  )}
+                                  {(kycStatus === 'SUSPENDED' || kycStatus === 'REJECTED') && (
+                                    <button
+                                      onClick={() => handleUpdateMerchantKyc(m, 'APPROVED')}
+                                      style={{
+                                        padding: '6px 12px',
+                                        borderRadius: 6,
+                                        border: 'none',
+                                        background: '#10B981',
+                                        color: '#FFFFFF',
+                                        fontSize: '0.78rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      Khôi phục / Duyệt lại
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
 
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
-                    <thead>
-                      <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                        <th style={{ padding: '12px 20px' }}>Gian hàng</th>
-                        <th style={{ padding: '12px 20px' }}>Đại diện pháp lý</th>
-                        <th style={{ padding: '12px 20px' }}>Địa chỉ kinh doanh</th>
-                        <th style={{ padding: '12px 20px' }}>Trạng thái KYC</th>
-                        <th style={{ padding: '12px 20px', textAlign: 'right' }}>Thao tác quản trị</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {allMerchants.map((m) => {
-                        const isLocked = !!lockedMerchants[m.id];
-                        return (
-                          <tr key={m.id} style={{ borderBottom: '1px solid #F1F5F9', background: isLocked ? '#FEF2F2' : '#FFFFFF' }}>
-                            <td style={{ padding: '14px 20px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <img
-                                  src={m.storeFrontImage || m.coverUrl || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=200&auto=format&fit=crop&q=80'}
-                                  alt={m.name}
-                                  style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover' }}
-                                />
-                                <div>
-                                  <div style={{ fontWeight: 700, color: '#0F172A' }}>{m.name}</div>
-                                  <div style={{ fontSize: '0.76rem', color: '#64748B' }}>SĐT: {m.phoneNumber}</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td style={{ padding: '14px 20px', color: '#334155', fontWeight: 600 }}>
-                              {m.ownerName || 'Chủ Hộ Kinh Doanh'}
-                            </td>
-                            <td style={{ padding: '14px 20px', color: '#475569', maxWidth: 280 }}>{m.address}</td>
-                            <td style={{ padding: '14px 20px' }}>
-                              <span
-                                style={{
-                                  padding: '3px 10px',
-                                  borderRadius: 6,
-                                  fontSize: '0.74rem',
-                                  fontWeight: 700,
-                                  background: isLocked ? '#FEE2E2' : '#DCFCE7',
-                                  color: isLocked ? '#DC2626' : '#15803D',
-                                }}
-                              >
-                                {isLocked ? 'Đang tạm đình chỉ' : 'Đã duyệt KYC'}
-                              </span>
-                            </td>
-                            <td style={{ padding: '14px 20px', textAlign: 'right' }}>
-                              <button
-                                onClick={() => toggleLockMerchant(m.id)}
-                                style={{
-                                  padding: '6px 14px',
-                                  borderRadius: 6,
-                                  border: isLocked ? 'none' : '1px solid #FCA5A5',
-                                  background: isLocked ? '#10B981' : '#FFFFFF',
-                                  color: isLocked ? '#FFFFFF' : '#DC2626',
-                                  fontSize: '0.8rem',
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                {isLocked ? 'Khôi phục hoạt động' : 'Tạm khóa gian hàng'}
-                              </button>
-                            </td>
+                {/* Nhật ký Kiểm toán Thao tác Admin (Audit Logs — U045) */}
+                <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
+                  <div style={{ padding: '16px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                        Nhật ký Kiểm toán Quản trị (Admin Audit Logs — U045)
+                      </h3>
+                      <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '2px 0 0 0' }}>
+                        Tự động lưu vết mọi thao tác duyệt quán, khóa tài khoản, phân xử khiếu nại và giải ngân
+                      </p>
+                    </div>
+                    <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#4F46E5', background: '#EEF2FF', padding: '4px 10px', borderRadius: 6 }}>
+                      {adminAuditLogs.length} bản ghi
+                    </span>
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                      <thead>
+                        <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569', fontSize: '0.73rem', textTransform: 'uppercase' }}>
+                          <th style={{ padding: '10px 20px' }}>Thời gian</th>
+                          <th style={{ padding: '10px 20px' }}>Hành động</th>
+                          <th style={{ padding: '10px 20px' }}>Đối tượng tác động</th>
+                          <th style={{ padding: '10px 20px' }}>Ghi chú</th>
+                          <th style={{ padding: '10px 20px' }}>Quản trị viên</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {adminAuditLogs.map((log) => (
+                          <tr key={log.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                            <td style={{ padding: '11px 20px', color: '#64748B', fontVariantNumeric: 'tabular-nums' }}>{log.timestamp}</td>
+                            <td style={{ padding: '11px 20px', fontWeight: 700, color: '#4F46E5' }}>{log.action}</td>
+                            <td style={{ padding: '11px 20px', fontWeight: 700, color: '#0F172A' }}>{log.targetName}</td>
+                            <td style={{ padding: '11px 20px', color: '#334155' }}>{log.reason}</td>
+                            <td style={{ padding: '11px 20px', color: '#64748B' }}>{log.performedBy}</td>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             )}
@@ -1180,17 +1831,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               </div>
             )}
 
-            {/* ADMIN TAB 4: COMPLAINTS & DISPUTES */}
+            {/* ADMIN TAB 4: COMPLAINTS & DISPUTES (U051) */}
             {currentAdminTab === 'admin-complaints' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
                 <div style={{ padding: '18px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <h3 style={{ fontSize: '1.02rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                      Danh sách Hồ sơ Khiếu nại & Yêu cầu Hoàn tiền
+                      Danh sách Hồ sơ Khiếu nại, Ảnh bằng chứng & Phân xử Hoàn tiền (U051)
                     </h3>
                     <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '3px 0 0 0' }}>
-                      Thẩm định phản ánh chất lượng món từ khách hàng và duyệt bồi hoàn trực tiếp
+                      Thẩm định hình ảnh phản ánh chất lượng món từ khách hàng, ghi chú lý do phán quyết và duyệt bồi hoàn
                     </p>
                   </div>
                   <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#D97706', background: '#FEF3C7', padding: '5px 14px', borderRadius: 6 }}>
@@ -1202,29 +1853,68 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem', fontVariantNumeric: 'tabular-nums' }}>
                     <thead>
                       <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                        <th style={{ padding: '12px 20px' }}>Mã hồ sơ</th>
-                        <th style={{ padding: '12px 20px' }}>Mã đơn hàng</th>
-                        <th style={{ padding: '12px 20px' }}>Khách hàng & Gian hàng</th>
-                        <th style={{ padding: '12px 20px' }}>Nội dung phản ánh</th>
-                        <th style={{ padding: '12px 20px' }}>Mức bồi hoàn</th>
-                        <th style={{ padding: '12px 20px' }}>Trạng thái</th>
-                        <th style={{ padding: '12px 20px', textAlign: 'right' }}>Quyết định xử lý</th>
+                        <th style={{ padding: '12px 18px' }}>Mã hồ sơ / Đơn</th>
+                        <th style={{ padding: '12px 18px' }}>Khách hàng & Gian hàng</th>
+                        <th style={{ padding: '12px 18px' }}>Nội dung & Ảnh bằng chứng</th>
+                        <th style={{ padding: '12px 18px' }}>Mức bồi hoàn</th>
+                        <th style={{ padding: '12px 18px' }}>Ghi chú</th>
+                        <th style={{ padding: '12px 18px' }}>Trạng thái</th>
+                        <th style={{ padding: '12px 18px', textAlign: 'right' }}>Quyết định xử lý</th>
                       </tr>
                     </thead>
                     <tbody>
                       {complaints.map((cmp) => (
                         <tr key={cmp.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                          <td style={{ padding: '14px 20px', fontWeight: 700, color: '#0F172A' }}>{cmp.code}</td>
-                          <td style={{ padding: '14px 20px', color: '#475569' }}>#{cmp.orderNumber}</td>
-                          <td style={{ padding: '14px 20px' }}>
+                          <td style={{ padding: '14px 18px' }}>
+                            <div style={{ fontWeight: 700, color: '#0F172A' }}>{cmp.code}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#4F46E5', fontWeight: 600 }}>#{cmp.orderNumber}</div>
+                          </td>
+                          <td style={{ padding: '14px 18px' }}>
                             <div style={{ fontWeight: 600, color: '#0F172A' }}>{cmp.customerName}</div>
                             <div style={{ fontSize: '0.76rem', color: '#64748B' }}>Quán: {cmp.merchantName}</div>
                           </td>
-                          <td style={{ padding: '14px 20px', color: '#334155', maxWidth: 280 }}>{cmp.issueType}</td>
-                          <td style={{ padding: '14px 20px', fontWeight: 700, color: '#DC2626' }}>
+                          <td style={{ padding: '14px 18px', color: '#334155', maxWidth: 280 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              {cmp.evidenceImage && (
+                                <img
+                                  src={cmp.evidenceImage}
+                                  alt="Bằng chứng"
+                                  style={{ width: 46, height: 46, borderRadius: 6, objectFit: 'cover', flexShrink: 0, border: '1px solid #E2E8F0' }}
+                                />
+                              )}
+                              <span style={{ fontSize: '0.82rem' }}>{cmp.issueType}</span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '14px 18px', fontWeight: 700, color: '#DC2626' }}>
                             {cmp.compensationAmount.toLocaleString('vi-VN')}đ
                           </td>
-                          <td style={{ padding: '14px 20px' }}>
+                          <td style={{ padding: '14px 18px' }}>
+                            {cmp.status === 'OPEN' ? (
+                              <input
+                                type="text"
+                                placeholder="Nhập ghi chú..."
+                                value={complaintNoteInputs[cmp.id] || ''}
+                                onChange={(e) =>
+                                  setComplaintNoteInputs((prev) => ({
+                                    ...prev,
+                                    [cmp.id]: e.target.value,
+                                  }))
+                                }
+                                style={{
+                                  padding: '6px 10px',
+                                  borderRadius: 6,
+                                  border: '1px solid #CBD5E1',
+                                  fontSize: '0.78rem',
+                                  width: 195,
+                                }}
+                              />
+                            ) : (
+                              <span style={{ fontSize: '0.78rem', color: '#475569' }}>
+                                {cmp.resolutionNotes || 'Đã hoàn tất xử lý'}
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: '14px 18px' }}>
                             <span
                               style={{
                                 padding: '3px 10px',
@@ -1238,13 +1928,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                               {cmp.status === 'OPEN' ? 'Chờ phân xử' : cmp.status === 'REFUNDED' ? 'Đã hoàn tiền' : 'Đã từ chối'}
                             </span>
                           </td>
-                          <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                          <td style={{ padding: '14px 18px', textAlign: 'right' }}>
                             {cmp.status === 'OPEN' ? (
                               <div style={{ display: 'inline-flex', gap: 6 }}>
                                 <button
                                   onClick={() => handleResolveComplaint(cmp.id, 'REFUND')}
                                   style={{
-                                    padding: '6px 14px',
+                                    padding: '6px 12px',
                                     borderRadius: 6,
                                     background: '#00B14F',
                                     color: '#FFFFFF',
@@ -1259,7 +1949,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                 <button
                                   onClick={() => handleResolveComplaint(cmp.id, 'REJECT')}
                                   style={{
-                                    padding: '6px 14px',
+                                    padding: '6px 12px',
                                     borderRadius: 6,
                                     background: '#FFFFFF',
                                     border: '1px solid #CBD5E1',
@@ -1497,69 +2187,99 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               </div>
             )}
 
-            {/* ADMIN TAB 5: RECONCILIATION & VOUCHERS */}
+            {/* ADMIN TAB 5: RECONCILIATION & VOUCHERS (U046 & U052) */}
             {currentAdminTab === 'admin-reconciliation' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
                   <div style={{ padding: '18px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                     <div>
                       <h3 style={{ fontSize: '1.02rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                        Bảng đối soát công nợ & giải ngân đối tác kỳ 11/2026
+                        Bảng đối soát công nợ & giải ngân đối tác cuối tháng (U046 — BR-42)
                       </h3>
                       <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '3px 0 0 0' }}>
-                        Tổng hợp doanh thu gộp, khấu trừ 15% phí nền tảng và xác nhận ủy nhiệm chi 85% về tài khoản quán
+                        Tổng hợp doanh thu gộp, phí ship thu hộ, khấu trừ 15% phí nền tảng và hoàn tiền khiếu nại
                       </p>
                     </div>
 
-                    <button
-                      onClick={handleExportCsv}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '9px 16px',
-                        borderRadius: 8,
-                        background: '#0F172A',
-                        color: '#FFFFFF',
-                        fontWeight: 700,
-                        fontSize: '0.82rem',
-                        border: 'none',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <Download size={15} /> Xuất báo cáo đối soát (.CSV)
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <select
+                        value={reconciliationPeriodFilter}
+                        onChange={(e) => setReconciliationPeriodFilter(e.target.value)}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          color: '#0F172A',
+                          background: '#F8FAFC',
+                        }}
+                      >
+                        <option value="ALL">Tất cả các kỳ</option>
+                        {availablePeriods.map((p) => (
+                          <option key={p} value={p}>
+                            Kỳ tháng {p}
+                          </option>
+                        ))}
+                      </select>
+
+                      <button
+                        onClick={handleExportCsv}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '9px 16px',
+                          borderRadius: 8,
+                          background: '#0F172A',
+                          color: '#FFFFFF',
+                          fontWeight: 700,
+                          fontSize: '0.82rem',
+                          border: 'none',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Download size={15} /> Xuất báo cáo đối soát (.CSV)
+                      </button>
+                    </div>
                   </div>
 
                   <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem', fontVariantNumeric: 'tabular-nums' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', fontVariantNumeric: 'tabular-nums' }}>
                       <thead>
-                        <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                          <th style={{ padding: '12px 20px' }}>Kỳ</th>
-                          <th style={{ padding: '12px 20px' }}>Đối tác Nhà hàng</th>
-                          <th style={{ padding: '12px 20px' }}>Số đơn</th>
-                          <th style={{ padding: '12px 20px' }}>Doanh thu gộp</th>
-                          <th style={{ padding: '12px 20px' }}>Phí sàn (15%)</th>
-                          <th style={{ padding: '12px 20px' }}>Thực nhận (85%)</th>
-                          <th style={{ padding: '12px 20px' }}>Tài khoản thụ hưởng</th>
-                          <th style={{ padding: '12px 20px', textAlign: 'right' }}>Quyết toán</th>
+                        <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                          <th style={{ padding: '12px 18px' }}>Kỳ</th>
+                          <th style={{ padding: '12px 18px' }}>Đối tác Nhà hàng</th>
+                          <th style={{ padding: '12px 18px' }}>Số đơn</th>
+                          <th style={{ padding: '12px 18px' }}>Doanh thu gộp</th>
+                          <th style={{ padding: '12px 18px' }}>Phí sàn ({platformCommissionRate}%)</th>
+                          <th style={{ padding: '12px 18px' }}>Phí ship / Hoàn tiền</th>
+                          <th style={{ padding: '12px 18px' }}>Thực nhận ròng</th>
+                          <th style={{ padding: '12px 18px' }}>Tài khoản thụ hưởng</th>
+                          <th style={{ padding: '12px 18px', textAlign: 'right' }}>Quyết toán</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {reconciliationList.map((r) => (
+                        {filteredReconciliations.map((r) => (
                           <tr key={r.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                            <td style={{ padding: '14px 20px', color: '#475569' }}>{r.period}</td>
-                            <td style={{ padding: '14px 20px', fontWeight: 700, color: '#0F172A' }}>{r.merchantName}</td>
-                            <td style={{ padding: '14px 20px' }}>{r.totalOrders}</td>
-                            <td style={{ padding: '14px 20px', fontWeight: 600 }}>{r.grossRevenue.toLocaleString('vi-VN')}đ</td>
-                            <td style={{ padding: '14px 20px', color: '#DC2626', fontWeight: 600 }}>
+                            <td style={{ padding: '14px 18px', color: '#475569', fontWeight: 600 }}>{r.period}</td>
+                            <td style={{ padding: '14px 18px', fontWeight: 700, color: '#0F172A' }}>{r.merchantName}</td>
+                            <td style={{ padding: '14px 18px' }}>{r.totalOrders}</td>
+                            <td style={{ padding: '14px 18px', fontWeight: 600 }}>{r.grossRevenue.toLocaleString('vi-VN')}đ</td>
+                            <td style={{ padding: '14px 18px', color: '#DC2626', fontWeight: 600 }}>
                               -{r.commission15.toLocaleString('vi-VN')}đ
                             </td>
-                            <td style={{ padding: '14px 20px', color: '#00B14F', fontWeight: 700 }}>
+                            <td style={{ padding: '14px 18px', fontSize: '0.78rem', color: '#475569' }}>
+                              <div>Ship: {r.shippingFee.toLocaleString('vi-VN')}đ</div>
+                              <div style={{ color: r.refundDeducted > 0 ? '#DC2626' : '#64748B' }}>
+                                Hoàn: -{r.refundDeducted.toLocaleString('vi-VN')}đ
+                              </div>
+                            </td>
+                            <td style={{ padding: '14px 18px', color: '#00B14F', fontWeight: 800 }}>
                               {r.netPayout85.toLocaleString('vi-VN')}đ
                             </td>
-                            <td style={{ padding: '14px 20px', fontSize: '0.8rem', color: '#64748B' }}>{r.bankAccount}</td>
-                            <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                            <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: '#64748B' }}>{r.bankAccount}</td>
+                            <td style={{ padding: '14px 18px', textAlign: 'right' }}>
                               {r.status === 'PAID' ? (
                                 <span style={{ background: '#DCFCE7', color: '#15803D', padding: '3px 10px', borderRadius: 6, fontSize: '0.74rem', fontWeight: 700 }}>
                                   Đã giải ngân
@@ -1589,18 +2309,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   </div>
                 </div>
 
-                {/* Platform Voucher Campaign Manager */}
+                {/* Platform Voucher Campaign Manager (U052) */}
                 <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
                   <h3 style={{ fontSize: '1.02rem', fontWeight: 800, color: '#0F172A', margin: '0 0 16px 0' }}>
-                    Quản lý Chiến dịch Mã giảm giá toàn sàn
+                    Quản lý Chiến dịch Mã giảm giá & Khuyến mãi toàn sàn (U052 — UC-49)
                   </h3>
 
                   <form
                     onSubmit={handleAddVoucher}
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                      gap: 14,
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))',
+                      gap: 12,
                       padding: 18,
                       background: '#F8FAFC',
                       borderRadius: 10,
@@ -1610,7 +2330,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     }}
                   >
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
                         Mã khuyến mãi
                       </label>
                       <input
@@ -1618,37 +2338,77 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                         placeholder="VD: DINEGO50"
                         value={newVoucherCode}
                         onChange={(e) => setNewVoucherCode(e.target.value)}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.86rem' }}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.84rem' }}
                       />
                     </div>
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                        Mức giảm (VNĐ)
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                        Loại giảm giá
+                      </label>
+                      <select
+                        value={newVoucherType}
+                        onChange={(e) => {
+                          const t = e.target.value as 'FIXED_AMOUNT' | 'PERCENTAGE';
+                          setNewVoucherType(t);
+                          setNewVoucherDiscount(t === 'PERCENTAGE' ? 15 : 25000);
+                        }}
+                        style={{ width: '100%', padding: '9px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.84rem', background: '#FFFFFF' }}
+                      >
+                        <option value="FIXED_AMOUNT">Số tiền cố định (VNĐ)</option>
+                        <option value="PERCENTAGE">Theo phần trăm (%)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                        {newVoucherType === 'PERCENTAGE' ? 'Mức giảm (%)' : 'Mức giảm (VNĐ)'}
                       </label>
                       <input
                         type="number"
-                        step="5000"
+                        step={newVoucherType === 'PERCENTAGE' ? 5 : 5000}
                         value={newVoucherDiscount}
                         onChange={(e) => setNewVoucherDiscount(Number(e.target.value))}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.86rem' }}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.84rem' }}
                       />
                     </div>
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                        Giá trị đơn tối thiểu (VNĐ)
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                        Đơn tối thiểu (VNĐ)
                       </label>
                       <input
                         type="number"
                         step="10000"
                         value={newVoucherMinOrder}
                         onChange={(e) => setNewVoucherMinOrder(Number(e.target.value))}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.86rem' }}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.84rem' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                        Giới hạn lượt dùng
+                      </label>
+                      <input
+                        type="number"
+                        step="50"
+                        value={newVoucherMaxUsage}
+                        onChange={(e) => setNewVoucherMaxUsage(Number(e.target.value))}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.84rem' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                        Thời hạn hiệu lực
+                      </label>
+                      <input
+                        type="date"
+                        value={newVoucherEndDate}
+                        onChange={(e) => setNewVoucherEndDate(e.target.value)}
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.84rem' }}
                       />
                     </div>
                     <button
                       type="submit"
                       style={{
-                        padding: '10px 18px',
+                        padding: '10px 16px',
                         borderRadius: 6,
                         background: '#4F46E5',
                         color: '#FFFFFF',
@@ -1658,29 +2418,39 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                         cursor: 'pointer',
                       }}
                     >
-                      + Phát hành mã voucher
+                      + Phát hành mã
                     </button>
                   </form>
 
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem', fontVariantNumeric: 'tabular-nums' }}>
                     <thead>
                       <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                        <th style={{ padding: '12px 18px' }}>Mã Voucher</th>
-                        <th style={{ padding: '12px 18px' }}>Điều kiện áp dụng</th>
-                        <th style={{ padding: '12px 18px' }}>Mức giảm</th>
-                        <th style={{ padding: '12px 18px' }}>Lượt sử dụng</th>
-                        <th style={{ padding: '12px 18px' }}>Trạng thái</th>
-                        <th style={{ padding: '12px 18px', textAlign: 'right' }}>Thao tác</th>
+                        <th style={{ padding: '12px 16px' }}>Mã Voucher</th>
+                        <th style={{ padding: '12px 16px' }}>Loại</th>
+                        <th style={{ padding: '12px 16px' }}>Điều kiện áp dụng</th>
+                        <th style={{ padding: '12px 16px' }}>Mức giảm</th>
+                        <th style={{ padding: '12px 16px' }}>Lượt dùng</th>
+                        <th style={{ padding: '12px 16px' }}>Hạn dùng</th>
+                        <th style={{ padding: '12px 16px' }}>Trạng thái</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'right' }}>Thao tác</th>
                       </tr>
                     </thead>
                     <tbody>
                       {vouchers.map((v) => (
                         <tr key={v.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                          <td style={{ padding: '14px 18px', fontWeight: 800, color: '#4F46E5' }}>{v.code}</td>
-                          <td style={{ padding: '14px 18px', color: '#334155' }}>{v.title}</td>
-                          <td style={{ padding: '14px 18px', fontWeight: 700 }}>{v.discountValue.toLocaleString('vi-VN')}đ</td>
-                          <td style={{ padding: '14px 18px' }}>{v.usageCount} / {v.maxUsage}</td>
-                          <td style={{ padding: '14px 18px' }}>
+                          <td style={{ padding: '14px 16px', fontWeight: 800, color: '#4F46E5' }}>{v.code}</td>
+                          <td style={{ padding: '14px 16px', fontSize: '0.76rem', fontWeight: 700, color: '#475569' }}>
+                            {v.discountType === 'PERCENTAGE' ? 'Giảm %' : 'Cố định'}
+                          </td>
+                          <td style={{ padding: '14px 16px', color: '#334155' }}>{v.title}</td>
+                          <td style={{ padding: '14px 16px', fontWeight: 700 }}>
+                            {v.discountType === 'PERCENTAGE'
+                              ? `${v.discountValue}%`
+                              : `${v.discountValue.toLocaleString('vi-VN')}đ`}
+                          </td>
+                          <td style={{ padding: '14px 16px' }}>{v.usageCount} / {v.maxUsage}</td>
+                          <td style={{ padding: '14px 16px', color: '#64748B', fontSize: '0.8rem' }}>{v.endDate}</td>
+                          <td style={{ padding: '14px 16px' }}>
                             <span
                               style={{
                                 padding: '3px 10px',
@@ -1694,7 +2464,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                               {v.isActive ? 'Đang kích hoạt' : 'Tạm dừng'}
                             </span>
                           </td>
-                          <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                          <td style={{ padding: '14px 16px', textAlign: 'right' }}>
                             <button
                               onClick={() => toggleVoucherStatus(v.id)}
                               style={{
@@ -1716,6 +2486,42 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+
+            {/* ADMIN TAB: AI LOCAL CULINARY KNOWLEDGE BASE (ĐANG BẢO TRÌ) */}
+            {currentAdminTab === 'admin-knowledge' && (
+              <div
+                style={{
+                  background: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: 12,
+                  padding: '64px 24px',
+                  textAlign: 'center',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                }}
+              >
+                <div
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: '50%',
+                    background: '#FEF3C7',
+                    color: '#D97706',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 16,
+                  }}
+                >
+                  <AlertTriangle size={28} />
+                </div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', margin: '0 0 8px 0' }}>
+                  Phân hệ Tri thức AI (RAG) đang bảo trì
+                </h3>
+                <p style={{ fontSize: '0.88rem', color: '#64748B', maxWidth: 460, margin: '0 auto' }}>
+                  Chức năng quản trị cơ sở tri thức AI hiện đang để trống và tạm ngưng để bảo trì nâng cấp hệ thống.
+                </p>
               </div>
             )}
 
@@ -1873,7 +2679,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                               <td style={{ padding: '14px 18px', textAlign: 'right' }}>
                                 {!u.roles.includes('ADMIN') && onToggleUserStatus && (
                                   <button
-                                    onClick={() => onToggleUserStatus(u.id)}
+                                    onClick={() => {
+                                      onToggleUserStatus(u.id);
+                                      appendAuditLog(
+                                        isLocked ? 'MỞ KHÓA TÀI KHOẢN NGƯỜI DÙNG' : 'KHÓA TÀI KHOẢN NGƯỜI DÙNG',
+                                        `${u.fullName} (${u.email})`,
+                                        isLocked
+                                          ? 'Khôi phục quyền đăng nhập vào hệ thống'
+                                          : 'Khóa tài khoản và thu hồi phiên đăng nhập theo quyết định quản trị',
+                                      );
+                                    }}
                                     style={{
                                       padding: '6px 14px',
                                       borderRadius: 6,
@@ -2031,6 +2846,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
                       <button
                         onClick={() => {
+                          void adminApi.updateSystemSettings({
+                            platformCommissionRate,
+                            peakHourSurgeFee,
+                            minOrderForFreeShipping,
+                            autoDispatchRangeKm,
+                            maintenanceMode,
+                            reason: 'Lưu cấu hình can thiệp hệ thống từ bảng điều khiển Admin',
+                          });
+                          appendAuditLog(
+                            'LƯU CẤU HÌNH HỆ THỐNG SÀN',
+                            `Hoa hồng ${platformCommissionRate}% • Bán kính ${autoDispatchRangeKm}km`,
+                            `Phụ phí ${peakHourSurgeFee.toLocaleString('vi-VN')}đ • Freeship từ ${minOrderForFreeShipping.toLocaleString('vi-VN')}đ • Bảo trì: ${maintenanceMode ? 'BẬT' : 'TẮT'}`,
+                          );
                           setConfigSavedBanner('Đã lưu cấu hình can thiệp sâu toàn hệ thống sàn.');
                           setTimeout(() => setConfigSavedBanner(''), 3000);
                         }}

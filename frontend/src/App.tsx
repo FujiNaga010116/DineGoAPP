@@ -25,7 +25,7 @@ import { ReviewModal } from './components/common/ReviewModal';
 import { MerchantRegistrationModal } from './components/common/MerchantRegistrationModal';
 import { AddressSetupModal } from './components/common/AddressSetupModal';
 import { CartProvider } from './context/CartContext';
-import { MOCK_MERCHANTS, MOCK_MENU_ITEMS, MOCK_DRIVERS, MOCK_USERS, isDriverProfileVerified } from './api/client';
+import { MOCK_MERCHANTS, MOCK_MENU_ITEMS, MOCK_DRIVERS, MOCK_USERS, isDriverProfileVerified, adminApi } from './api/client';
 import type {
   DeliveryDisputeReport,
   DriverProfile,
@@ -39,6 +39,7 @@ import type {
   SavedAddress,
   User,
 } from './types';
+import { QrCode, CheckCircle2 } from 'lucide-react';
 
 function createDriverShiftRecord(driver: DriverProfile, existingShifts: DriverShift[]): DriverShift {
   const driverShiftCount = existingShifts.filter((s) => s.driverId === driver.id).length;
@@ -61,7 +62,6 @@ function createDriverShiftRecord(driver: DriverProfile, existingShifts: DriverSh
     trips: [],
   };
 }
-import { QrCode, CheckCircle2 } from 'lucide-react';
 
 interface AppContentProps {
   currentUser: User | null;
@@ -564,7 +564,60 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
   // Admin toggles user account active / suspended
   const handleToggleUserStatus = (userId: string) => {
     setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, isActive: u.isActive === false ? true : false } : u)),
+      prev.map((u) => {
+        if (u.id !== userId) return u;
+        const nextActive = u.isActive === false ? true : false;
+        void adminApi.updateUserStatus(
+          userId,
+          nextActive,
+          nextActive ? 'Mở khóa tài khoản bởi Admin' : 'Tạm khóa tài khoản bởi Admin',
+        );
+        return { ...u, isActive: nextActive };
+      }),
+    );
+  };
+
+  // Admin updates merchant KYC & operating status
+  const handleAdminUpdateMerchantStatus = (
+    merchantId: string,
+    nextStatus: 'APPROVED' | 'REJECTED' | 'SUSPENDED',
+    reason?: string,
+  ) => {
+    void adminApi.updateMerchantStatus(merchantId, nextStatus, reason);
+    setMerchants((prev) =>
+      prev.map((m) => {
+        if (m.id !== merchantId) return m;
+        return {
+          ...m,
+          kycStatus:
+            nextStatus === 'APPROVED'
+              ? 'VERIFIED'
+              : nextStatus === 'REJECTED'
+              ? 'REJECTED'
+              : m.kycStatus,
+          isActive: nextStatus === 'APPROVED',
+          verifiedAt:
+            nextStatus === 'APPROVED'
+              ? new Date().toISOString().slice(0, 10)
+              : m.verifiedAt,
+        };
+      }),
+    );
+  };
+
+  // Admin updates driver active / suspended status
+  const handleAdminUpdateDriverStatus = (
+    driverId: string,
+    nextStatus: 'ACTIVE' | 'SUSPENDED',
+    reason?: string,
+  ) => {
+    void adminApi.updateDriverStatus(driverId, nextStatus, reason);
+    setDrivers((prev) =>
+      prev.map((d) =>
+        d.id === driverId
+          ? { ...d, status: nextStatus === 'ACTIVE' ? 'ONLINE' : 'SUSPENDED' }
+          : d,
+      ),
     );
   };
 
@@ -798,6 +851,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     currentTab === 'admin-users' ||
     currentTab === 'admin-complaints' ||
     currentTab === 'admin-reconciliation' ||
+    currentTab === 'admin-knowledge' ||
     currentTab === 'admin-settings';
 
   const isDriverPortalMode =
@@ -995,6 +1049,8 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
             deliveryDisputes={deliveryDisputes}
             onResolveDeliveryDispute={handleResolveDeliveryDispute}
             onConfirmMerchantPickup={handleConfirmMerchantPickup}
+            onAdminUpdateMerchantStatus={handleAdminUpdateMerchantStatus}
+            onAdminUpdateDriverStatus={handleAdminUpdateDriverStatus}
             onOpenMerchantRegisterModal={() => setIsMerchantRegisterModalOpen(true)}
           />
         )}
@@ -1077,7 +1133,58 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
         onClose={() => setReviewModalOrder(null)}
         order={reviewModalOrder}
         onSubmitted={(data) => {
-          console.log('[Review / Complaint Submitted]', data);
+          if (!reviewModalOrder) return;
+          const nowStr = new Date().toLocaleString('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+
+          if (data.type === 'COMPLAINT') {
+            try {
+              const saved = localStorage.getItem('dinego_admin_complaints');
+              const currentList = saved ? JSON.parse(saved) : [];
+              const newComplaint = {
+                id: `cmp-${Date.now()}`,
+                code: `CMP-${String(Date.now()).slice(-6)}`,
+                orderNumber: reviewModalOrder.orderNumber,
+                customerName: currentUser?.fullName || reviewModalOrder.recipientName || 'Khách hàng',
+                merchantName: reviewModalOrder.merchant?.name || 'Nhà hàng DineGo',
+                issueType: data.description || 'Khiếu nại chất lượng đơn hàng',
+                evidenceImage:
+                  reviewModalOrder.items?.[0]?.itemImage ||
+                  'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=240&auto=format&fit=crop&q=80',
+                compensationAmount: Math.min(reviewModalOrder.finalTotal || 35000, 100000),
+                resolutionNotes: '',
+                status: 'OPEN',
+                createdAt: nowStr,
+              };
+              localStorage.setItem(
+                'dinego_admin_complaints',
+                JSON.stringify([newComplaint, ...(Array.isArray(currentList) ? currentList : [])]),
+              );
+            } catch {}
+          } else if (data.type === 'REVIEW') {
+            try {
+              const saved = localStorage.getItem('dinego_merchant_reviews');
+              const currentList = saved ? JSON.parse(saved) : [];
+              const newReview = {
+                id: `rev-${Date.now()}`,
+                customerName: currentUser?.fullName || reviewModalOrder.recipientName || 'Khách hàng',
+                orderRef: reviewModalOrder.orderNumber,
+                rating: Number(data.rating) || 5,
+                comment: data.comment || '',
+                reply: null,
+                date: new Date().toLocaleDateString('vi-VN'),
+              };
+              localStorage.setItem(
+                'dinego_merchant_reviews',
+                JSON.stringify([newReview, ...(Array.isArray(currentList) ? currentList : [])]),
+              );
+            } catch {}
+          }
         }}
       />
 

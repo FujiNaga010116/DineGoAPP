@@ -41,3 +41,36 @@ export interface MerchantReconciliation {
   createdAt: Date;
 }
 
+export interface AdminAuditLogEntry {
+  id: string;
+  action: string;
+  targetType: 'MERCHANT' | 'USER' | 'DRIVER' | 'RECONCILIATION' | 'COMPLAINT' | 'VOUCHER' | 'SYSTEM';
+  targetId: string;
+  targetName: string;
+  reason?: string;
+  performedBy: string;
+  createdAt: Date;
+}
+
+export interface AdminSystemSettings {
+  platformCommissionRate: number;
+  peakHourSurgeFee: number;
+  minOrderForFreeShipping: number;
+  autoDispatchRangeKm: number;
+  maintenanceMode: boolean;
+  updatedAt: Date;
+  updatedBy: string;
+}
+
+export interface AdminDriverSummary {
+  id: string;
+  email: string;
+  fullName: string | null;
+  phoneNumber: string | null;
+  isActive: boolean;
+  status: 'ACTIVE' | 'SUSPENDED';
+  completedTrips: number;
+  createdAt: Date;
+}
+
+

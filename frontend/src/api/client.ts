@@ -648,3 +648,97 @@ export function isDriverProfileVerified(driver?: DriverProfile | null): boolean 
       driver.bankAccountHolder?.trim(),
   );
 }
+
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  try {
+    const token = localStorage.getItem('dinego_access_token');
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+  } catch {}
+  return headers;
+}
+
+async function safeRequest<T>(path: string, options?: RequestInit): Promise<T | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        ...getAuthHeaders(),
+        ...(options?.headers || {}),
+      },
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return (json?.data ?? json) as T;
+  } catch {
+    return null;
+  }
+}
+
+export const adminApi = {
+  getSystemOverview: () => safeRequest('/admin/dashboard/overview'),
+  getAllUsers: () => safeRequest('/admin/users'),
+  updateUserStatus: (userId: string, isActive: boolean, reason?: string) =>
+    safeRequest(`/admin/users/${encodeURIComponent(userId)}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isActive, reason }),
+    }),
+  updateMerchantStatus: (
+    merchantId: string,
+    status: 'APPROVED' | 'REJECTED' | 'SUSPENDED',
+    reason?: string,
+  ) =>
+    safeRequest(`/admin/merchants/${encodeURIComponent(merchantId)}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, reason }),
+    }),
+  getDrivers: () => safeRequest('/admin/drivers'),
+  updateDriverStatus: (driverId: string, status: 'ACTIVE' | 'SUSPENDED', reason?: string) =>
+    safeRequest(`/admin/drivers/${encodeURIComponent(driverId)}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, reason }),
+    }),
+  getSystemSettings: () => safeRequest('/admin/settings'),
+  updateSystemSettings: (payload: {
+    platformCommissionRate?: number;
+    peakHourSurgeFee?: number;
+    minOrderForFreeShipping?: number;
+    autoDispatchRangeKm?: number;
+    maintenanceMode?: boolean;
+    reason?: string;
+  }) =>
+    safeRequest('/admin/settings', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+  getAuditLogs: () => safeRequest('/admin/audit-logs'),
+  getMonthlyReconciliation: (merchantId?: string, month?: string) => {
+    const params = new URLSearchParams();
+    if (merchantId) params.set('merchantId', merchantId);
+    if (month) params.set('month', month);
+    const qs = params.toString();
+    return safeRequest(`/admin/reconciliation/monthly${qs ? `?${qs}` : ''}`);
+  },
+  confirmReconciliationPayout: (reconciliationId: string) =>
+    safeRequest(`/admin/reconciliation/${encodeURIComponent(reconciliationId)}/payout`, {
+      method: 'PATCH',
+    }),
+  getComplaints: (merchantId?: string) =>
+    safeRequest(`/complaints${merchantId ? `?merchantId=${encodeURIComponent(merchantId)}` : ''}`),
+  resolveComplaint: (
+    complaintId: string,
+    payload: {
+      decision: 'RESOLVED_REFUND' | 'RESOLVED_COMPENSATE' | 'REJECTED';
+      resolutionNotes: string;
+      compensationAmount?: number;
+    },
+  ) =>
+    safeRequest(`/complaints/${encodeURIComponent(complaintId)}/resolve`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+};

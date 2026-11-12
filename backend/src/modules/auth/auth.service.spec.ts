@@ -369,10 +369,10 @@ describe('AuthService', () => {
       expect(forgotRes.success).toBe(true);
 
       // Retrieve generated token from store
-      const entries = Array.from((authService as any).passwordResetStore.entries());
-      const tokenEntry = entries.find(([, val]: any) => val.email === 'forgot@dinego.vn');
+      const entries = Array.from((authService as any).passwordResetStore.entries()) as [string, any][];
+      const tokenEntry = entries.find(([, val]) => val.email === 'forgot@dinego.vn');
       expect(tokenEntry).toBeDefined();
-      const token = tokenEntry![0] as string;
+      const token = tokenEntry![0];
 
       mockPrisma.user.update.mockResolvedValue({});
       mockPrisma.userSession.updateMany.mockResolvedValue({});

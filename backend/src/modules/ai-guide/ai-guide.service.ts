@@ -12,7 +12,11 @@ import {
 import crypto from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface.js';
-import { NaturalLanguageSearchDto, SendChatMessageDto } from './dto/chat-message.dto.js';
+import {
+  NaturalLanguageSearchDto,
+  SendChatMessageDto,
+  UpsertKnowledgeDto,
+} from './dto/chat-message.dto.js';
 import type {
   ChatMessage,
   ChatSession,
@@ -368,5 +372,62 @@ export class AiGuideService {
       throw new NotFoundException('Không tìm thấy lịch sử phiên chat này');
     }
     return session;
+  }
+
+  // ----------------------------------------------------------------------------
+  // U036: QUẢN TRỊ CƠ SỞ TRI THỨC ẨM THỰC ĐỊA PHƯƠNG (RAG KNOWLEDGE BASE CRUD)
+  // ----------------------------------------------------------------------------
+
+  getAllKnowledge(region?: 'NORTH' | 'CENTRAL' | 'SOUTH'): LocalCulinaryKnowledge[] {
+    if (region) {
+      return this.knowledgeBase.filter((kb) => kb.region === region);
+    }
+    return this.knowledgeBase;
+  }
+
+  createKnowledge(dto: UpsertKnowledgeDto): LocalCulinaryKnowledge {
+    const newEntry: LocalCulinaryKnowledge = {
+      id: `kb-${Date.now()}`,
+      dishName: dto.dishName.trim(),
+      region: dto.region,
+      origin: dto.origin.trim(),
+      story: dto.story.trim(),
+      keyIngredients: dto.keyIngredients,
+      flavorProfile: dto.flavorProfile.trim(),
+      suitableOccasions: dto.suitableOccasions,
+    };
+    this.knowledgeBase.unshift(newEntry);
+    this.logger.log(`[RAG Knowledge Base] Đã thêm mục tri thức mới: ${newEntry.dishName} (${newEntry.region})`);
+    return newEntry;
+  }
+
+  updateKnowledge(id: string, dto: UpsertKnowledgeDto): LocalCulinaryKnowledge {
+    const idx = this.knowledgeBase.findIndex((kb) => kb.id === id);
+    if (idx === -1) {
+      throw new NotFoundException('Không tìm thấy mục tri thức ẩm thực');
+    }
+    const updated: LocalCulinaryKnowledge = {
+      id,
+      dishName: dto.dishName.trim(),
+      region: dto.region,
+      origin: dto.origin.trim(),
+      story: dto.story.trim(),
+      keyIngredients: dto.keyIngredients,
+      flavorProfile: dto.flavorProfile.trim(),
+      suitableOccasions: dto.suitableOccasions,
+    };
+    this.knowledgeBase[idx] = updated;
+    this.logger.log(`[RAG Knowledge Base] Đã cập nhật mục tri thức: ${updated.dishName}`);
+    return updated;
+  }
+
+  deleteKnowledge(id: string): { deleted: boolean; id: string } {
+    const idx = this.knowledgeBase.findIndex((kb) => kb.id === id);
+    if (idx === -1) {
+      throw new NotFoundException('Không tìm thấy mục tri thức ẩm thực cần xóa');
+    }
+    const removed = this.knowledgeBase.splice(idx, 1)[0];
+    this.logger.log(`[RAG Knowledge Base] Đã xóa mục tri thức: ${removed.dishName}`);
+    return { deleted: true, id };
   }
 }
