@@ -370,6 +370,40 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
   const [shiftTickMs, setShiftTickMs] = useState<number>(() => Date.now());
   const activeShift = driverShifts.find((s) => s.status === 'ACTIVE') || null;
   const [withdrawnNotice, setWithdrawnNotice] = useState(false);
+  const [withdrawAmountInput, setWithdrawAmountInput] = useState('');
+  const [withdrawError, setWithdrawError] = useState('');
+  const [driverWithdrawals, setDriverWithdrawals] = useState<
+    Array<{
+      id: string;
+      driverId: string;
+      driverName: string;
+      driverPhone: string;
+      licensePlate: string;
+      bankName: string;
+      bankAccountNumber: string;
+      bankAccountHolder: string;
+      amount: number;
+      status: 'PENDING' | 'APPROVED' | 'REJECTED';
+      note?: string;
+      createdAt: string;
+      processedAt?: string;
+    }>
+  >(() => {
+    try {
+      const saved = localStorage.getItem('dinego_driver_withdrawals');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_driver_withdrawals', JSON.stringify(driverWithdrawals));
+    } catch {}
+  }, [driverWithdrawals]);
   const [profileSavedNotice, setProfileSavedNotice] = useState('');
   const [profileErrorNotice, setProfileErrorNotice] = useState('');
 
@@ -1337,6 +1371,10 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
     completedDriverOrders.reduce((s, o) => s + (o.deliveryFee || 15000), 0) +
     currentDriver.walletBalance;
   const driverNetIncome = Math.round(totalShippingEarned * 0.85);
+  const approvedWithdrawnTotal = driverWithdrawals
+    .filter((w) => w.driverId === currentDriver.id && w.status === 'APPROVED')
+    .reduce((s, w) => s + w.amount, 0);
+  const driverWalletBalance = Math.max(0, driverNetIncome - approvedWithdrawnTotal);
 
   // ============================================================================
   // 1. STANDALONE DRIVER PARTNER PORTAL (DARK SIDEBAR + OPERATIONAL WORKSPACE)
@@ -1677,7 +1715,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
               </div>
               <div style={{ height: 18, width: 1, background: '#E2E8F0' }} />
               <div style={{ fontSize: '0.82rem', color: '#475569' }}>
-                Số dư ví: <strong style={{ color: '#0284C7' }}>{driverNetIncome.toLocaleString('vi-VN')}đ</strong>
+                Số dư ví: <strong style={{ color: '#0284C7' }}>{driverWalletBalance.toLocaleString('vi-VN')}đ</strong>
               </div>
 
               {onLogout && (
@@ -3579,13 +3617,13 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
 
                   <div style={{ background: '#FFFFFF', padding: 22, borderRadius: 12, border: '1px solid #E2E8F0' }}>
                     <div style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 600, marginBottom: 6 }}>
-                      Thu nhập thực nhận (85%)
+                      Số dư ví hiện tại (Thực nhận 85%)
                     </div>
                     <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0284C7' }}>
-                      {driverNetIncome.toLocaleString('vi-VN')}đ
+                      {driverWalletBalance.toLocaleString('vi-VN')}đ
                     </div>
                     <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: 4 }}>
-                      Đã khấu trừ 15% phí nền tảng & thuế
+                      Tổng thu nhập: {driverNetIncome.toLocaleString('vi-VN')}đ • Đã rút: {approvedWithdrawnTotal.toLocaleString('vi-VN')}đ
                     </div>
                   </div>
 
@@ -3596,26 +3634,115 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                     <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', marginBottom: 8 }}>
                       {currentDriver.bankName || 'Chưa cập nhật'} • {currentDriver.bankAccountNumber || '—'}
                     </div>
-                    <button
-                      disabled={driverNetIncome <= 0}
-                      onClick={() => {
-                        if (driverNetIncome > 0) setWithdrawnNotice(true);
-                      }}
-                      style={{
-                        padding: '8px 14px',
-                        borderRadius: 6,
-                        background: driverNetIncome > 0 ? '#059669' : '#CBD5E1',
-                        color: driverNetIncome > 0 ? '#FFFFFF' : '#64748B',
-                        fontWeight: 700,
-                        fontSize: '0.8rem',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        cursor: driverNetIncome > 0 ? 'pointer' : 'not-allowed',
-                      }}
-                    >
-                      <ArrowUpRight size={15} /> Rút tiền về ngân hàng
-                    </button>
+                    {(() => {
+                      const myWithdrawals = driverWithdrawals.filter((w) => w.driverId === currentDriver.id);
+                      const approvedTotal = myWithdrawals
+                        .filter((w) => w.status === 'APPROVED')
+                        .reduce((s, w) => s + w.amount, 0);
+                      const pendingReq = myWithdrawals.find((w) => w.status === 'PENDING');
+                      const availableToWithdraw = Math.max(0, driverNetIncome - approvedTotal);
+                      const canWithdraw = availableToWithdraw > 0 && !pendingReq;
+
+                      return (
+                        <>
+                          <div style={{ fontSize: '0.76rem', color: '#64748B', marginBottom: 8 }}>
+                            Số dư khả dụng rút:{' '}
+                            <strong style={{ color: '#059669' }}>
+                              {availableToWithdraw.toLocaleString('vi-VN')}đ
+                            </strong>
+                            {' • '}Tối thiểu 50.000đ
+                          </div>
+                          {!pendingReq && availableToWithdraw > 0 && (
+                            <div style={{ marginBottom: 8 }}>
+                              <input
+                                type="number"
+                                min={50000}
+                                max={availableToWithdraw}
+                                step={10000}
+                                value={withdrawAmountInput}
+                                onChange={(e) => {
+                                  setWithdrawAmountInput(e.target.value);
+                                  if (withdrawError) setWithdrawError('');
+                                }}
+                                placeholder={`Nhập số tiền muốn rút (tối đa ${availableToWithdraw.toLocaleString('vi-VN')}đ)`}
+                                style={{
+                                  width: '100%',
+                                  padding: '8px 10px',
+                                  borderRadius: 6,
+                                  border: withdrawError ? '1px solid #EF4444' : '1px solid #CBD5E1',
+                                  fontSize: '0.8rem',
+                                  background: '#FFFFFF',
+                                }}
+                              />
+                              {withdrawError && (
+                                <div style={{ fontSize: '0.74rem', color: '#DC2626', marginTop: 4, fontWeight: 600 }}>
+                                  {withdrawError}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          <button
+                            disabled={!canWithdraw}
+                            onClick={() => {
+                              if (!canWithdraw) return;
+                              const parsedAmount = Number(withdrawAmountInput);
+                              if (!withdrawAmountInput.trim() || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+                                setWithdrawError('Vui lòng nhập số tiền muốn rút.');
+                                return;
+                              }
+                              if (parsedAmount < 50000) {
+                                setWithdrawError('Hạn mức rút tối thiểu là 50.000đ.');
+                                return;
+                              }
+                              if (parsedAmount > availableToWithdraw) {
+                                setWithdrawError(
+                                  `Số tiền rút không được vượt quá số dư khả dụng (${availableToWithdraw.toLocaleString('vi-VN')}đ).`,
+                                );
+                                return;
+                              }
+                              const newReq = {
+                                id: `wd-${Date.now()}`,
+                                driverId: currentDriver.id,
+                                driverName: currentDriver.fullName,
+                                driverPhone: currentDriver.phoneNumber,
+                                licensePlate: currentDriver.licensePlate,
+                                bankName: currentDriver.bankName || 'Ngân hàng liên kết',
+                                bankAccountNumber: currentDriver.bankAccountNumber || '—',
+                                bankAccountHolder: currentDriver.bankAccountHolder || currentDriver.fullName,
+                                amount: parsedAmount,
+                                status: 'PENDING' as const,
+                                createdAt: new Date().toLocaleString('vi-VN', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                }),
+                              };
+                              setDriverWithdrawals((prev) => [newReq, ...prev]);
+                              setWithdrawAmountInput('');
+                              setWithdrawError('');
+                              setWithdrawnNotice(true);
+                            }}
+                            style={{
+                              padding: '8px 14px',
+                              borderRadius: 6,
+                              background: canWithdraw ? '#059669' : '#CBD5E1',
+                              color: canWithdraw ? '#FFFFFF' : '#64748B',
+                              fontWeight: 700,
+                              fontSize: '0.8rem',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              cursor: canWithdraw ? 'pointer' : 'not-allowed',
+                            }}
+                          >
+                            <ArrowUpRight size={15} />{' '}
+                            {pendingReq ? 'Đang chờ Admin duyệt rút tiền' : 'Gửi yêu cầu rút tiền về ngân hàng'}
+                          </button>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -3624,14 +3751,77 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                     style={{
                       padding: '12px 16px',
                       borderRadius: 8,
-                      background: '#DCFCE7',
-                      color: '#166534',
+                      background: '#FEF3C7',
+                      color: '#92400E',
                       fontSize: '0.84rem',
                       fontWeight: 600,
                       marginBottom: 20,
+                      border: '1px solid #FDE68A',
                     }}
                   >
-                    Yêu cầu rút {driverNetIncome.toLocaleString('vi-VN')}đ về tài khoản {currentDriver.bankName} ({currentDriver.bankAccountNumber} - {currentDriver.bankAccountHolder}) đã được ghi nhận.
+                    Đã gửi yêu cầu rút tiền về tài khoản {currentDriver.bankName} ({currentDriver.bankAccountNumber}). Trạng thái: <strong>Chờ Admin duyệt & giải ngân</strong>.
+                  </div>
+                )}
+
+                {driverWithdrawals.filter((w) => w.driverId === currentDriver.id).length > 0 && (
+                  <div style={{ background: '#FFFFFF', borderRadius: 12, border: '1px solid #E2E8F0', padding: 20, marginBottom: 20 }}>
+                    <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0F172A', margin: '0 0 12px 0' }}>
+                      Lịch sử Yêu cầu Rút tiền (Đồng bộ Admin)
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {driverWithdrawals
+                        .filter((w) => w.driverId === currentDriver.id)
+                        .map((w) => (
+                          <div
+                            key={w.id}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              padding: '10px 14px',
+                              borderRadius: 8,
+                              background: '#F8FAFC',
+                              border: '1px solid #E2E8F0',
+                              fontSize: '0.82rem',
+                            }}
+                          >
+                            <div>
+                              <strong style={{ color: '#0F172A' }}>{w.amount.toLocaleString('vi-VN')}đ</strong> → {w.bankName} ({w.bankAccountNumber})
+                              <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 2 }}>
+                                Gửi lúc: {w.createdAt}
+                                {w.processedAt ? ` • Xử lý: ${w.processedAt}` : ''}
+                                {w.note ? ` • Ghi chú: ${w.note}` : ''}
+                              </div>
+                            </div>
+                            <span
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: 6,
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                background:
+                                  w.status === 'APPROVED'
+                                    ? '#DCFCE7'
+                                    : w.status === 'REJECTED'
+                                    ? '#FEE2E2'
+                                    : '#FEF3C7',
+                                color:
+                                  w.status === 'APPROVED'
+                                    ? '#15803D'
+                                    : w.status === 'REJECTED'
+                                    ? '#DC2626'
+                                    : '#B45309',
+                              }}
+                            >
+                              {w.status === 'APPROVED'
+                                ? 'Admin đã giải ngân'
+                                : w.status === 'REJECTED'
+                                ? 'Đã từ chối'
+                                : 'Chờ Admin duyệt'}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
                   </div>
                 )}
 

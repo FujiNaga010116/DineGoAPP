@@ -525,6 +525,68 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     } catch {}
   }, [driverStatusOverrides]);
 
+  // Driver Withdrawal Requests State (Synced with Driver Console in TrackingPage)
+  const [driverWithdrawals, setDriverWithdrawals] = useState<
+    Array<{
+      id: string;
+      driverId: string;
+      driverName: string;
+      driverPhone: string;
+      licensePlate: string;
+      bankName: string;
+      bankAccountNumber: string;
+      bankAccountHolder: string;
+      amount: number;
+      status: 'PENDING' | 'APPROVED' | 'REJECTED';
+      note?: string;
+      createdAt: string;
+      processedAt?: string;
+    }>
+  >(() => {
+    try {
+      const saved = localStorage.getItem('dinego_driver_withdrawals');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_driver_withdrawals', JSON.stringify(driverWithdrawals));
+    } catch {}
+  }, [driverWithdrawals]);
+
+  const handleProcessDriverWithdrawal = (id: string, nextStatus: 'APPROVED' | 'REJECTED') => {
+    const target = driverWithdrawals.find((w) => w.id === id);
+    const nowStr = new Date().toLocaleString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const note =
+      nextStatus === 'APPROVED'
+        ? 'Admin đã đối soát và giải ngân về tài khoản ngân hàng tài xế'
+        : 'Từ chối yêu cầu rút tiền do cần đối soát lại cước chuyến';
+
+    setDriverWithdrawals((prev) =>
+      prev.map((w) =>
+        w.id === id ? { ...w, status: nextStatus, processedAt: nowStr, note } : w,
+      ),
+    );
+    if (target) {
+      appendAuditLog(
+        nextStatus === 'APPROVED' ? 'DUYỆT RÚT TIỀN TÀI XẾ' : 'TỪ CHỐI RÚT TIỀN TÀI XẾ',
+        `${target.driverName} (${target.amount.toLocaleString('vi-VN')}đ)`,
+        `${note} • ${target.bankName} (${target.bankAccountNumber})`,
+      );
+    }
+  };
+
   const driversList = allDriversList.map((drv, idx) => {
     const realDriverTrips = completedOrdersList.filter(
       (o) => o.assignedDriverId === drv.id || o.assignedDriverName === drv.fullName,
@@ -1825,6 +1887,130 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                           </td>
                         </tr>
                       ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Driver Withdrawal Requests Section */}
+                <div style={{ borderTop: '1px solid #E2E8F0', padding: '18px 24px', background: '#F8FAFC', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      Yêu cầu Rút tiền về Ngân hàng của Tài xế
+                    </h4>
+                    <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '3px 0 0 0' }}>
+                      Admin kiểm tra số dư thực nhận và xác nhận giải ngân cho tài xế
+                    </p>
+                  </div>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#B45309', background: '#FEF3C7', padding: '4px 12px', borderRadius: 6 }}>
+                    {driverWithdrawals.filter((w) => w.status === 'PENDING').length} yêu cầu chờ duyệt
+                  </span>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem', fontVariantNumeric: 'tabular-nums' }}>
+                    <thead>
+                      <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569', fontSize: '0.74rem', textTransform: 'uppercase' }}>
+                        <th style={{ padding: '10px 20px' }}>Tài xế</th>
+                        <th style={{ padding: '10px 20px' }}>Tài khoản nhận</th>
+                        <th style={{ padding: '10px 20px' }}>Số tiền rút</th>
+                        <th style={{ padding: '10px 20px' }}>Thời gian gửi</th>
+                        <th style={{ padding: '10px 20px' }}>Trạng thái</th>
+                        <th style={{ padding: '10px 20px', textAlign: 'right' }}>Phê duyệt</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {driverWithdrawals.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} style={{ padding: '20px', textAlign: 'center', color: '#94A3B8' }}>
+                            Chưa có yêu cầu rút tiền nào từ tài xế.
+                          </td>
+                        </tr>
+                      ) : (
+                        driverWithdrawals.map((w) => (
+                          <tr key={w.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                            <td style={{ padding: '12px 20px' }}>
+                              <div style={{ fontWeight: 700, color: '#0F172A' }}>{w.driverName}</div>
+                              <div style={{ fontSize: '0.74rem', color: '#64748B' }}>{w.driverPhone} • {w.licensePlate}</div>
+                            </td>
+                            <td style={{ padding: '12px 20px', color: '#334155' }}>
+                              <div><strong>{w.bankName}</strong> • {w.bankAccountNumber}</div>
+                              <div style={{ fontSize: '0.74rem', color: '#64748B' }}>{w.bankAccountHolder}</div>
+                            </td>
+                            <td style={{ padding: '12px 20px', fontWeight: 800, color: '#0284C7' }}>
+                              {w.amount.toLocaleString('vi-VN')}đ
+                            </td>
+                            <td style={{ padding: '12px 20px', color: '#64748B', fontSize: '0.78rem' }}>{w.createdAt}</td>
+                            <td style={{ padding: '12px 20px' }}>
+                              <span
+                                style={{
+                                  padding: '3px 10px',
+                                  borderRadius: 6,
+                                  fontSize: '0.74rem',
+                                  fontWeight: 700,
+                                  background:
+                                    w.status === 'APPROVED'
+                                      ? '#DCFCE7'
+                                      : w.status === 'REJECTED'
+                                      ? '#FEE2E2'
+                                      : '#FEF3C7',
+                                  color:
+                                    w.status === 'APPROVED'
+                                      ? '#15803D'
+                                      : w.status === 'REJECTED'
+                                      ? '#DC2626'
+                                      : '#B45309',
+                                }}
+                              >
+                                {w.status === 'APPROVED'
+                                  ? 'Đã giải ngân'
+                                  : w.status === 'REJECTED'
+                                  ? 'Đã từ chối'
+                                  : 'Chờ Admin duyệt'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                              {w.status === 'PENDING' ? (
+                                <div style={{ display: 'inline-flex', gap: 8 }}>
+                                  <button
+                                    onClick={() => handleProcessDriverWithdrawal(w.id, 'APPROVED')}
+                                    style={{
+                                      padding: '6px 12px',
+                                      borderRadius: 6,
+                                      background: '#10B981',
+                                      color: '#FFFFFF',
+                                      fontSize: '0.78rem',
+                                      fontWeight: 700,
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    Duyệt giải ngân
+                                  </button>
+                                  <button
+                                    onClick={() => handleProcessDriverWithdrawal(w.id, 'REJECTED')}
+                                    style={{
+                                      padding: '6px 12px',
+                                      borderRadius: 6,
+                                      background: '#FFFFFF',
+                                      color: '#DC2626',
+                                      border: '1px solid #FCA5A5',
+                                      fontSize: '0.78rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    Từ chối
+                                  </button>
+                                </div>
+                              ) : (
+                                <span style={{ fontSize: '0.76rem', color: '#64748B' }}>
+                                  {w.processedAt || 'Đã xử lý'}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
