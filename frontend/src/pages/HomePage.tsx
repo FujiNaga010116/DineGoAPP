@@ -46,7 +46,7 @@ const CATEGORIES = [
     id: 'tra-sua',
     name: 'Trà sữa & Cà phê',
     count: '54 quán',
-    image: 'https://images.unsplash.com/photo-1558857563-b37cfb8cb36b?w=300&auto=format&fit=crop&q=80',
+    image: '/images/tra-sua-ca-phe.jpg',
   },
   {
     id: 'mam-co',
@@ -253,6 +253,13 @@ export const HomePage: React.FC<HomePageProps> = ({
                 >
                   Tư vấn thực đơn hôm nay <ArrowRight size={14} color="#00B14F" />
                 </span>
+                <span style={{ color: '#475569' }}>|</span>
+                <span
+                  onClick={() => onNavigate('vouchers')}
+                  style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700, color: '#FDE047' }}
+                >
+                  Săn Voucher Sự kiện &amp; Lễ <ArrowRight size={14} color="#FDE047" />
+                </span>
               </div>
             </div>
 
@@ -449,7 +456,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 originalPrice: 55000,
                 salePrice: 35000,
                 discount: '-36%',
-                image: 'https://images.unsplash.com/photo-1558857563-b37cfb8cb36b?w=400&auto=format&fit=crop&q=80',
+                image: '/images/tra-sua-ca-phe.jpg',
                 remaining: 'Còn 18 ly',
               },
               {

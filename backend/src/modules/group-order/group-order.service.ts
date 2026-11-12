@@ -28,12 +28,25 @@ import type {
   MemberBillShare,
 } from './interfaces/group-order.interface.js';
 
+export interface PublicAccountRecord {
+  id: string;
+  email: string;
+  fullName: string;
+  phoneNumber?: string;
+  avatarUrl?: string;
+  roles: string[];
+  isActive?: boolean;
+}
+
 @Injectable()
 export class GroupOrderService {
   private readonly logger = new Logger(GroupOrderService.name);
 
   // In-memory Shared Rooms Map (RoomCode -> GroupOrderRoom)
   private readonly rooms = new Map<string, GroupOrderRoom>();
+  // In-memory Public Account Directory & Live Frontend Group Rooms (cross-tab / cross-browser sync)
+  private readonly publicAccounts = new Map<string, PublicAccountRecord>();
+  private readonly liveRooms = new Map<string, Record<string, unknown>>();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -428,5 +441,50 @@ export class GroupOrderService {
       orderNumber: order.orderNumber,
       totalAmount,
     };
+  }
+
+  /**
+   * Đồng bộ danh mục tài khoản công khai (không lưu mật khẩu) để các trình duyệt/tab mời nhau
+   */
+  syncPublicAccounts(accounts: PublicAccountRecord[]): PublicAccountRecord[] {
+    if (Array.isArray(accounts)) {
+      for (const acc of accounts) {
+        if (!acc || typeof acc.email !== 'string' || !acc.email.trim()) continue;
+        const emailKey = acc.email.trim().toLowerCase();
+        this.publicAccounts.set(emailKey, {
+          id: acc.id,
+          email: acc.email.trim(),
+          fullName: acc.fullName || acc.email.trim(),
+          phoneNumber: acc.phoneNumber,
+          avatarUrl: acc.avatarUrl,
+          roles: Array.isArray(acc.roles) && acc.roles.length > 0 ? acc.roles : ['CUSTOMER'],
+          isActive: acc.isActive !== false,
+        });
+      }
+    }
+    return Array.from(this.publicAccounts.values());
+  }
+
+  listPublicAccounts(): PublicAccountRecord[] {
+    return Array.from(this.publicAccounts.values());
+  }
+
+  listLiveRooms(): Record<string, unknown>[] {
+    return Array.from(this.liveRooms.values());
+  }
+
+  upsertLiveRoom(roomPayload: Record<string, unknown>): Record<string, unknown> {
+    const codeRaw = roomPayload?.roomCode;
+    if (typeof codeRaw !== 'string' || !codeRaw.trim()) {
+      throw new BadRequestException('Thiếu mã phòng nhóm (roomCode)');
+    }
+    const normalized = codeRaw.trim().toUpperCase();
+    const record = { ...roomPayload, roomCode: normalized };
+    this.liveRooms.set(normalized, record);
+    return record;
+  }
+
+  deleteLiveRoom(roomCode: string): { deleted: boolean } {
+    return { deleted: this.liveRooms.delete(roomCode.trim().toUpperCase()) };
   }
 }

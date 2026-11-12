@@ -43,6 +43,32 @@ import { PromotionService } from './promotion.service.js';
 export class PromotionController {
   constructor(private readonly promotionService: PromotionService) {}
 
+  @Get('live')
+  @ApiOperation({ summary: 'Lấy danh sách voucher sự kiện / ngày lễ đang đồng bộ từ Admin' })
+  getLiveVouchers() {
+    return this.promotionService.getLiveVouchers();
+  }
+
+  @Post('live/sync')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Admin đồng bộ danh sách voucher sự kiện / ngày lễ' })
+  syncLiveVouchers(@Body() body: { vouchers?: Record<string, unknown>[] }) {
+    return this.promotionService.syncLiveVouchers(body?.vouchers || []);
+  }
+
+  @Get('live/claims/:userId')
+  @ApiOperation({ summary: 'Lấy danh sách mã voucher user đã săn' })
+  getLiveUserClaims(@Param('userId') userId: string) {
+    return this.promotionService.getLiveUserClaims(userId);
+  }
+
+  @Post('live/claim')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'User săn / lưu mã voucher vào ví tài khoản' })
+  claimLiveVoucher(@Body() body: { userId: string; code: string }) {
+    return this.promotionService.claimLiveVoucher(body);
+  }
+
   @Post('validate')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
