@@ -30,7 +30,7 @@ export interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLoginSuccess: (user: User) => void;
-  onRegisterMerchantAccount?: (newMerchant: Merchant, newUser: User) => void;
+  onRegisterMerchantAccount?: (newUser: User) => void;
   onRegisterDriverAccount?: (newDriver: DriverProfile, newUser: User) => void;
   onRegisterCustomerAccount?: (newUser: User) => void;
   allUsers?: User[];
@@ -115,21 +115,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [fullName, setFullName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPhone, setRegPhone] = useState('');
-  const [regAddress, setRegAddress] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // Merchant Registration specific fields
-  const [storeName, setStoreName] = useState('');
-  const [storeCategory, setStoreCategory] = useState('Cơm');
-  const [taxCode, setTaxCode] = useState('');
-  const [businessLicense, setBusinessLicense] = useState('');
-  const [bankName, setBankName] = useState('Vietcombank');
-  const [bankAccountNumber, setBankAccountNumber] = useState('');
-
   const [errorMsg, setErrorMsg] = useState('');
 
-  const roleUsers = allUsers.filter((u) => u.roles.includes(selectedRole));
+  const roleUsers = allUsers.filter((u) => (u.roles || []).includes(selectedRole));
 
   useEffect(() => {
     if (isOpen) {
@@ -140,10 +131,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setFullName('');
       setRegEmail('');
       setRegPhone('');
-      setRegAddress('');
       setRegPassword('');
       setConfirmPassword('');
-      const firstForRole = allUsers.find((u) => u.roles.includes(role));
+      const firstForRole = allUsers.find((u) => (u.roles || []).includes(role));
       if (firstForRole) {
         setEmailOrPhone(firstForRole.email);
         setPassword(firstForRole.password || 'DineGo@2026_SecurePass');
@@ -160,7 +150,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     if (role === 'ADMIN' && mode === 'register') {
       setMode('login');
     }
-    const firstForRole = allUsers.find((u) => u.roles.includes(role));
+    const firstForRole = allUsers.find((u) => (u.roles || []).includes(role));
     if (firstForRole) {
       setEmailOrPhone(firstForRole.email);
       setPassword(firstForRole.password || 'DineGo@2026_SecurePass');
@@ -186,7 +176,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       (u) =>
         (u.email.toLowerCase() === emailOrPhone.trim().toLowerCase() ||
           u.phoneNumber === emailOrPhone.trim()) &&
-        u.roles.includes(selectedRole),
+        (u.roles || []).includes(selectedRole),
     );
 
     if (!foundUser) {
@@ -235,42 +225,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const nowDate = new Date().toISOString().split('T')[0];
 
     if (selectedRole === 'MERCHANT') {
-      if (!storeName.trim() || !regAddress.trim()) {
-        setErrorMsg('Vui lòng nhập Tên nhà hàng và Địa chỉ kinh doanh.');
-        return;
-      }
-      const newMerchantId = `merchant-${Date.now()}`;
       const newUserId = `u-merchant-${Date.now()}`;
-
-      const newMerchant: Merchant = {
-        id: newMerchantId,
-        ownerUserId: newUserId,
-        ownerEmail: regEmail.trim(),
-        name: storeName.trim(),
-        slug: storeName.trim().toLowerCase().replace(/\s+/g, '-'),
-        address: regAddress.trim(),
-        phoneNumber: regPhone.trim(),
-        ownerName: fullName.trim(),
-        businessLicenseNumber: businessLicense.trim() || `GPKD-${Date.now().toString().slice(-6)}`,
-        foodSafetyCertNumber: `ATTP-HCM-2026-${Date.now().toString().slice(-4)}`,
-        taxCode: taxCode.trim() || `031${Date.now().toString().slice(-7)}`,
-        bankName: bankName.trim() || 'Vietcombank',
-        bankAccountNumber: bankAccountNumber.trim() || '0071000889900',
-        bankAccountHolder: fullName.trim().toUpperCase(),
-        commissionRate: 15,
-        openingHours: '07:00 - 22:00',
-        kycStatus: 'VERIFIED',
-        verifiedAt: nowDate,
-        coverUrl: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80',
-        logoUrl: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=100&auto=format&fit=crop&q=80',
-        rating: 5.0,
-        reviewCount: 1,
-        deliveryTimeMin: 20,
-        deliveryTimeMax: 30,
-        isActive: true,
-        isOpen: true,
-        categories: [storeCategory],
-      };
 
       const newMerchantUser: User = {
         id: newUserId,
@@ -278,18 +233,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         password: regPassword,
         fullName: fullName.trim(),
         phoneNumber: regPhone.trim(),
-        address: regAddress.trim(),
-        bankName: bankName.trim() || 'Vietcombank',
-        bankAccountNumber: bankAccountNumber.trim() || '0071000889900',
-        bankAccountHolder: fullName.trim().toUpperCase(),
+        address: '',
         roles: ['MERCHANT'],
-        merchantId: newMerchantId,
+        merchantId: undefined, // Chưa setup quán — vào trong app sẽ hiện màn hình yêu cầu setup Nhà hàng
         isActive: true,
         createdAt: nowDate,
       };
 
       if (onRegisterMerchantAccount) {
-        onRegisterMerchantAccount(newMerchant, newMerchantUser);
+        onRegisterMerchantAccount(newMerchantUser);
       } else {
         onLoginSuccess(newMerchantUser);
       }
@@ -734,7 +686,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
             </div>
           ) : (
-            /* REGISTER FORM (Supports Independent Merchant Registration, Multiple Driver Registration, or Customer Registration) */
+            /* REGISTER FORM (Step 1: Account creation only — Store/Driver setup happens inside the app) */
             <form onSubmit={handleRegisterSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {selectedRole === 'MERCHANT' && (
                 <div
@@ -745,49 +697,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     border: '1px solid #FDE68A',
                     fontSize: '0.8rem',
                     color: '#92400E',
+                    lineHeight: 1.45,
                   }}
                 >
-                  Mỗi nhà hàng đăng ký mới sẽ được cấp <strong>1 tài khoản quản trị riêng biệt</strong> và gian hàng độc lập trên sàn DineGo.
-                </div>
-              )}
-
-              {selectedRole === 'MERCHANT' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 10 }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                      Tên nhà hàng / Quán ăn *
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="VD: Bún Bò Huế Đông Ba"
-                      value={storeName}
-                      onChange={(e) => setStoreName(e.target.value)}
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                      Ngành hàng chính *
-                    </label>
-                    <select
-                      value={storeCategory}
-                      onChange={(e) => setStoreCategory(e.target.value)}
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem', background: '#fff' }}
-                    >
-                      <option value="Cơm">Cơm văn phòng / Cơm tấm</option>
-                      <option value="Phở / Bún">Phở / Bún / Mì</option>
-                      <option value="Trà sữa">Trà sữa & Đồ uống</option>
-                      <option value="Món Nướng">Lẩu & Nướng</option>
-                      <option value="Pizza">Pizza & Món Âu</option>
-                    </select>
-                  </div>
+                  <strong>Bước 1 — Tạo tài khoản chủ nhà hàng:</strong> Chỉ cần điền thông tin tài khoản cơ bản. Sau khi đăng ký xong và vào bên trong ứng dụng, màn hình <strong>Thiết lập Quán &amp; Thực đơn</strong> sẽ hiện lên để bạn cấu hình Nhà hàng.
                 </div>
               )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                    {selectedRole === 'MERCHANT' ? 'Họ tên chủ nhà hàng *' : selectedRole === 'DRIVER' ? 'Họ và tên tài xế *' : 'Họ và tên *'}
+                    {selectedRole === 'MERCHANT' ? 'Họ và tên chủ tài khoản *' : selectedRole === 'DRIVER' ? 'Họ và tên tài xế *' : 'Họ và tên *'}
                   </label>
                   <input
                     type="text"
@@ -830,21 +750,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 />
               </div>
 
-              {selectedRole === 'MERCHANT' && (
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                    Địa chỉ kinh doanh của nhà hàng *
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Số nhà, Tên đường, Phường/Xã, Quận/Huyện, TP"
-                    value={regAddress}
-                    onChange={(e) => setRegAddress(e.target.value)}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem' }}
-                  />
-                </div>
-              )}
-
               {selectedRole === 'CUSTOMER' && (
                 <div style={{
                   padding: '9px 12px',
@@ -870,35 +775,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   lineHeight: 1.45,
                 }}>
                   Sau khi tạo tài khoản xong, bạn sẽ được chuyển thẳng vào màn hình bắt buộc để hoàn tất thủ tục đăng ký xe &amp; thông tin cá nhân (CCCD, GPLX, biển số xe, tài khoản ngân hàng) trước khi được phép vận chuyển hàng.
-                </div>
-              )}
-
-              {selectedRole === 'MERCHANT' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                      Ngân hàng nhận đối soát
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Vietcombank / Techcombank"
-                      value={bankName}
-                      onChange={(e) => setBankName(e.target.value)}
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                      Số tài khoản ngân hàng
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="0071000889900"
-                      value={bankAccountNumber}
-                      onChange={(e) => setBankAccountNumber(e.target.value)}
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem' }}
-                    />
-                  </div>
                 </div>
               )}
 
@@ -942,7 +818,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   marginTop: 6,
                 }}
               >
-                Hoàn tất đăng ký tài khoản {currentRoleCfg.shortLabel}
+                Tạo tài khoản {currentRoleCfg.shortLabel}
               </button>
             </form>
           )}

@@ -3,7 +3,6 @@
 // ==============================================================================
 
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { VALID_VOUCHERS } from '../api/client';
 import { loadAdminVouchers } from '../utils/vouchers';
 import type { Cart, CartItem, CartItemTopping, MenuItem } from '../types';
 
@@ -162,22 +161,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
       };
     }
 
-    const staticVoucher = VALID_VOUCHERS[code];
-    if (staticVoucher) {
-      return {
-        code,
-        title: staticVoucher.name,
-        discountType: 'FIXED_AMOUNT',
-        discountValue: staticVoucher.discount,
-        minOrder: staticVoucher.minOrder,
-        isActive: true,
-        usageCount: 0,
-        maxUsage: 999999,
-        merchantId: 'ALL',
-        merchantName: 'Toàn sàn DineGo',
-      };
-    }
-
     return null;
   };
 
@@ -202,11 +185,29 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
       minFreeShip > 0 && subtotal >= minFreeShip ? 0 : Math.max(0, 15000 + surgeFee);
     let discountAmount = 0;
 
-    if (voucherCode) {
-      const v = resolveVoucherByCode(voucherCode);
+    let effectiveVoucherCode = voucherCode;
+    if (!effectiveVoucherCode && merchantId) {
+      try {
+        const rawPre = localStorage.getItem('dinego_preselected_voucher');
+        if (rawPre) {
+          const parsedPre = JSON.parse(rawPre);
+          if (
+            parsedPre?.code &&
+            (!parsedPre.merchantId || parsedPre.merchantId === 'ALL' || parsedPre.merchantId === merchantId)
+          ) {
+            effectiveVoucherCode = String(parsedPre.code).toUpperCase();
+          }
+        }
+      } catch {}
+    }
+
+    if (effectiveVoucherCode) {
+      const v = resolveVoucherByCode(effectiveVoucherCode);
       const merchantAllowed =
         !v?.merchantId || v.merchantId === 'ALL' || !merchantId || v.merchantId === merchantId;
-      if (v && v.isActive && v.usageCount < v.maxUsage && subtotal >= v.minOrder && merchantAllowed) {
+      if (!v || !v.isActive || v.usageCount >= v.maxUsage || !merchantAllowed) {
+        effectiveVoucherCode = null;
+      } else if (subtotal >= v.minOrder) {
         let rawDiscount =
           v.discountType === 'PERCENTAGE'
             ? Math.round((subtotal * v.discountValue) / 100)
@@ -215,6 +216,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
           rawDiscount = Math.min(rawDiscount, v.maxDiscountAmount);
         }
         discountAmount = Math.min(rawDiscount, subtotal + deliveryFee);
+        try {
+          localStorage.removeItem('dinego_preselected_voucher');
+        } catch {}
+      } else {
+        // Keep voucher code remembered ONLY if preselected, otherwise clear active voucher code until minOrder met
+        effectiveVoucherCode = null;
       }
     }
 
@@ -227,7 +234,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
       subtotal,
       deliveryFee,
       discountAmount,
-      voucherCode,
+      voucherCode: effectiveVoucherCode,
       finalTotal,
     };
   };
@@ -337,6 +344,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
   };
 
   const removeVoucher = () => {
+    try {
+      localStorage.removeItem('dinego_preselected_voucher');
+    } catch {}
     setCart(recalculateCart(cart.items, cart.merchantId, cart.merchantName, null));
   };
 

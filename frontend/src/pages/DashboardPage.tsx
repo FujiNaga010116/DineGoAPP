@@ -67,6 +67,7 @@ interface DashboardPageProps {
   onUpdateDish?: (dish: MenuItem) => void;
   onDeleteDish?: (dishId: string) => void;
   currentMerchant?: Merchant | null;
+  onUpdateMerchantProfile?: (updatedMerchant: Merchant, updatedUser?: User) => void;
   allMerchants?: Merchant[];
   allDriversList?: DriverProfile[];
   allUsersList?: User[];
@@ -106,6 +107,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onUpdateDish,
   onDeleteDish,
   currentMerchant,
+  onUpdateMerchantProfile,
   allMerchants = [],
   allDriversList = [],
   allUsersList = [],
@@ -174,10 +176,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const currentMerchantTab:
     | 'merchant-orders'
     | 'merchant-menu'
+    | 'merchant-vouchers'
     | 'merchant-catering'
     | 'merchant-analytics'
     | 'merchant-kyc' =
     activeTab === 'merchant-menu' ||
+    activeTab === 'merchant-vouchers' ||
     activeTab === 'merchant-catering' ||
     activeTab === 'merchant-analytics' ||
     activeTab === 'merchant-kyc'
@@ -205,11 +209,144 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       : 'admin-overview';
 
   // Merchant Operational States
-  const [storeOpen, setStoreOpen] = useState(true);
+  const [storeOpen, setStoreOpen] = useState<boolean>(currentMerchant?.isOpen ?? true);
   const [kitchenStatusFilter, setKitchenStatusFilter] = useState<'ACTIVE' | 'COMPLETED' | 'ALL'>('ACTIVE');
   const [orderSearch, setOrderSearch] = useState('');
   const [printingOrder, setPrintingOrder] = useState<Order | null>(null);
   const [merchantWithdrawSuccess, setMerchantWithdrawSuccess] = useState(false);
+
+  // Merchant KYC & Store Settings Editable States
+  const [isEditingMerchantKyc, setIsEditingMerchantKyc] = useState(true);
+  const [merchantKycSavedBanner, setMerchantKycSavedBanner] = useState('');
+  const [kycStoreName, setKycStoreName] = useState(currentMerchant?.name || '');
+  const [kycCategory, setKycCategory] = useState(
+    currentMerchant?.categories?.[0] || 'Cơm & Món Việt',
+  );
+  const [kycOwnerName, setKycOwnerName] = useState(
+    currentMerchant?.ownerName || currentUser?.fullName || '',
+  );
+  const [kycOwnerEmail, setKycOwnerEmail] = useState(
+    currentMerchant?.ownerEmail || currentUser?.email || '',
+  );
+  const [kycPhone, setKycPhone] = useState(
+    currentMerchant?.phoneNumber || currentUser?.phoneNumber || '',
+  );
+  const [kycOpeningHours, setKycOpeningHours] = useState(
+    currentMerchant?.openingHours || '07:00 - 22:00',
+  );
+  const [kycDeliveryMin, setKycDeliveryMin] = useState<number>(
+    currentMerchant?.deliveryTimeMin || 20,
+  );
+  const [kycDeliveryMax, setKycDeliveryMax] = useState<number>(
+    currentMerchant?.deliveryTimeMax || 30,
+  );
+  const [kycAddress, setKycAddress] = useState(currentMerchant?.address || '');
+  const [kycBusinessLicense, setKycBusinessLicense] = useState(
+    currentMerchant?.businessLicenseNumber || 'GPKD-41A8029144',
+  );
+  const [kycFoodSafetyCert, setKycFoodSafetyCert] = useState(
+    currentMerchant?.foodSafetyCertNumber || 'ATTP-HCM-2026-0891',
+  );
+  const [kycTaxCode, setKycTaxCode] = useState(
+    currentMerchant?.taxCode || '0318992819',
+  );
+  const [kycBankName, setKycBankName] = useState(
+    currentMerchant?.bankName || currentUser?.bankName || 'Vietcombank',
+  );
+  const [kycBankAccountNumber, setKycBankAccountNumber] = useState(
+    currentMerchant?.bankAccountNumber || currentUser?.bankAccountNumber || '0071000889900',
+  );
+  const [kycBankAccountHolder, setKycBankAccountHolder] = useState(
+    currentMerchant?.bankAccountHolder ||
+      currentUser?.bankAccountHolder ||
+      (currentMerchant?.ownerName || currentUser?.fullName || '').toUpperCase(),
+  );
+  const [kycStoreFrontImage, setKycStoreFrontImage] = useState(
+    currentMerchant?.storeFrontImage ||
+      currentMerchant?.coverUrl ||
+      'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80',
+  );
+
+  useEffect(() => {
+    if (!currentMerchant) return;
+    setStoreOpen(currentMerchant.isOpen ?? true);
+    setKycStoreName(currentMerchant.name || '');
+    setKycCategory(currentMerchant.categories?.[0] || 'Cơm & Món Việt');
+    setKycOwnerName(currentMerchant.ownerName || currentUser?.fullName || '');
+    setKycOwnerEmail(currentMerchant.ownerEmail || currentUser?.email || '');
+    setKycPhone(currentMerchant.phoneNumber || currentUser?.phoneNumber || '');
+    setKycOpeningHours(currentMerchant.openingHours || '07:00 - 22:00');
+    setKycDeliveryMin(currentMerchant.deliveryTimeMin || 20);
+    setKycDeliveryMax(currentMerchant.deliveryTimeMax || 30);
+    setKycAddress(currentMerchant.address || '');
+    setKycBusinessLicense(currentMerchant.businessLicenseNumber || 'GPKD-41A8029144');
+    setKycFoodSafetyCert(currentMerchant.foodSafetyCertNumber || 'ATTP-HCM-2026-0891');
+    setKycTaxCode(currentMerchant.taxCode || '0318992819');
+    setKycBankName(currentMerchant.bankName || currentUser?.bankName || 'Vietcombank');
+    setKycBankAccountNumber(
+      currentMerchant.bankAccountNumber || currentUser?.bankAccountNumber || '0071000889900',
+    );
+    setKycBankAccountHolder(
+      currentMerchant.bankAccountHolder ||
+        currentUser?.bankAccountHolder ||
+        (currentMerchant.ownerName || currentUser?.fullName || '').toUpperCase(),
+    );
+    setKycStoreFrontImage(
+      currentMerchant.storeFrontImage ||
+        currentMerchant.coverUrl ||
+        'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80',
+    );
+  }, [currentMerchant?.id]);
+
+  const handleSaveMerchantKycAndSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentMerchant) return;
+
+    const updatedMerchant: Merchant = {
+      ...currentMerchant,
+      name: kycStoreName.trim() || currentMerchant.name,
+      categories: [kycCategory],
+      ownerName: kycOwnerName.trim() || currentMerchant.ownerName,
+      ownerEmail: kycOwnerEmail.trim() || currentMerchant.ownerEmail,
+      phoneNumber: kycPhone.trim() || currentMerchant.phoneNumber,
+      openingHours: kycOpeningHours.trim() || '07:00 - 22:00',
+      deliveryTimeMin: Number(kycDeliveryMin) > 0 ? Number(kycDeliveryMin) : 20,
+      deliveryTimeMax: Number(kycDeliveryMax) > 0 ? Number(kycDeliveryMax) : 30,
+      address: kycAddress.trim() || currentMerchant.address,
+      businessLicenseNumber: kycBusinessLicense.trim() || currentMerchant.businessLicenseNumber,
+      foodSafetyCertNumber: kycFoodSafetyCert.trim() || currentMerchant.foodSafetyCertNumber,
+      taxCode: kycTaxCode.trim() || currentMerchant.taxCode,
+      bankName: kycBankName.trim() || 'Vietcombank',
+      bankAccountNumber: kycBankAccountNumber.trim() || '0071000889900',
+      bankAccountHolder:
+        kycBankAccountHolder.trim().toUpperCase() ||
+        (kycOwnerName.trim() || currentUser?.fullName || '').toUpperCase(),
+      storeFrontImage: kycStoreFrontImage.trim() || currentMerchant.storeFrontImage,
+      coverUrl: kycStoreFrontImage.trim() || currentMerchant.coverUrl,
+      logoUrl: kycStoreFrontImage.trim() || currentMerchant.logoUrl,
+      isOpen: storeOpen,
+    };
+
+    const updatedUser: User | undefined = currentUser
+      ? {
+          ...currentUser,
+          fullName: kycOwnerName.trim() || currentUser.fullName,
+          email: kycOwnerEmail.trim() || currentUser.email,
+          phoneNumber: kycPhone.trim() || currentUser.phoneNumber,
+          address: kycAddress.trim() || currentUser.address,
+          bankName: updatedMerchant.bankName,
+          bankAccountNumber: updatedMerchant.bankAccountNumber,
+          bankAccountHolder: updatedMerchant.bankAccountHolder,
+          avatarUrl: updatedMerchant.storeFrontImage || currentUser.avatarUrl,
+        }
+      : undefined;
+
+    onUpdateMerchantProfile?.(updatedMerchant, updatedUser);
+    setMerchantKycSavedBanner(
+      `Đã lưu cập nhật Hồ sơ pháp lý & Cài đặt gian hàng "${updatedMerchant.name}" thành công lúc ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}!`,
+    );
+    setTimeout(() => setMerchantKycSavedBanner(''), 5000);
+  };
 
   // Menu Search & Filter States
   const [menuSearchQuery, setMenuSearchQuery] = useState('');
@@ -883,7 +1020,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   useEffect(() => {
     const syncRemoteClaims = async () => {
       const remote = await fetchRemoteAdminVouchers();
-      if (remote && remote.length > 0) {
+      if (remote !== null) {
         setVouchers(remote);
       }
     };
@@ -892,9 +1029,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         setVouchers(loadAdminVouchers());
       }
     };
+    const ch =
+      typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('dinego_vouchers_sync') : null;
+    if (ch) {
+      ch.onmessage = () => setVouchers(loadAdminVouchers());
+    }
     window.addEventListener('storage', handleStorage);
     void syncRemoteClaims();
-    return () => window.removeEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      ch?.close();
+    };
   }, []);
 
   const [newVoucherCode, setNewVoucherCode] = useState('');
@@ -908,6 +1053,28 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [newVoucherEventTag, setNewVoucherEventTag] = useState('Sự Kiện Flash Sale Giờ Vàng');
   const [newVoucherMerchantId, setNewVoucherMerchantId] = useState<string>('ALL');
   const [newVoucherFlashHunt, setNewVoucherFlashHunt] = useState(true);
+  const [editingAdminVoucherId, setEditingAdminVoucherId] = useState<string | null>(null);
+  const [adminVoucherScopeFilter, setAdminVoucherScopeFilter] = useState<'ALL' | 'PLATFORM' | 'MERCHANT'>('ALL');
+  const [adminVoucherMerchantFilter, setAdminVoucherMerchantFilter] = useState<string>('ALL');
+  const [adminVoucherSearch, setAdminVoucherSearch] = useState('');
+
+  // Merchant Shop Voucher Form States (Scoped to currentMerchant)
+  const [shopVoucherCode, setShopVoucherCode] = useState('');
+  const [shopVoucherType, setShopVoucherType] = useState<'FIXED_AMOUNT' | 'PERCENTAGE'>('FIXED_AMOUNT');
+  const [shopVoucherDiscount, setShopVoucherDiscount] = useState(20000);
+  const [shopVoucherMaxDiscount, setShopVoucherMaxDiscount] = useState(40000);
+  const [shopVoucherMinOrder, setShopVoucherMinOrder] = useState(80000);
+  const [shopVoucherMaxUsage, setShopVoucherMaxUsage] = useState(150);
+  const [shopVoucherEndDate, setShopVoucherEndDate] = useState('2026-12-31');
+  const [shopVoucherEventTheme, setShopVoucherEventTheme] = useState<VoucherEventTheme>('FLASH_SALE');
+  const [shopVoucherEventTag, setShopVoucherEventTag] = useState('Ưu Đãi Độc Quyền Của Quán');
+  const [shopVoucherFlashHunt, setShopVoucherFlashHunt] = useState(true);
+  const [editingShopVoucherId, setEditingShopVoucherId] = useState<string | null>(null);
+  const [shopVoucherBanner, setShopVoucherBanner] = useState('');
+
+  const merchantShopVouchers = vouchers.filter(
+    (v) => currentMerchant?.id && v.merchantId === currentMerchant.id,
+  );
 
   const handleAddVoucher = (e: React.FormEvent) => {
     e.preventDefault();
@@ -926,6 +1093,38 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       newVoucherType === 'PERCENTAGE'
         ? `Giảm ${newVoucherDiscount}%${newVoucherMaxDiscount ? ` (tối đa ${(Number(newVoucherMaxDiscount) / 1000).toFixed(0)}k)` : ''} • ${merchantName} (đơn từ ${Number(newVoucherMinOrder).toLocaleString('vi-VN')}đ)`
         : `Giảm ${Number(newVoucherDiscount).toLocaleString('vi-VN')}đ • ${merchantName} (đơn từ ${Number(newVoucherMinOrder).toLocaleString('vi-VN')}đ)`;
+
+    if (editingAdminVoucherId) {
+      setVouchers((prev) =>
+        prev.map((v) =>
+          v.id === editingAdminVoucherId
+            ? {
+                ...v,
+                code,
+                discountType: newVoucherType,
+                title,
+                discountValue: Number(newVoucherDiscount),
+                maxDiscountAmount:
+                  newVoucherType === 'PERCENTAGE' && newVoucherMaxDiscount > 0
+                    ? Number(newVoucherMaxDiscount)
+                    : undefined,
+                minOrder: Number(newVoucherMinOrder),
+                maxUsage: Number(newVoucherMaxUsage) || 200,
+                endDate: newVoucherEndDate || '2026-12-31',
+                eventTheme: newVoucherEventTheme,
+                eventTag: themeLabel,
+                merchantId: targetMerchant ? targetMerchant.id : 'ALL',
+                merchantName,
+                isFlashHunt: newVoucherFlashHunt,
+              }
+            : v,
+        ),
+      );
+      appendAuditLog('CẬP NHẬT VOUCHER', code, `${themeLabel} • ${merchantName} (${title})`);
+      setEditingAdminVoucherId(null);
+      setNewVoucherCode('');
+      return;
+    }
 
     const created: ManagedVoucher = {
       id: `v-${Date.now()}`,
@@ -959,6 +1158,110 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     setNewVoucherCode('');
   };
 
+  const handleStartEditAdminVoucher = (v: ManagedVoucher) => {
+    setEditingAdminVoucherId(v.id);
+    setNewVoucherCode(v.code);
+    setNewVoucherType(v.discountType === 'PERCENTAGE' ? 'PERCENTAGE' : 'FIXED_AMOUNT');
+    setNewVoucherDiscount(v.discountValue);
+    setNewVoucherMaxDiscount(v.maxDiscountAmount || 50000);
+    setNewVoucherMinOrder(v.minOrder);
+    setNewVoucherMaxUsage(v.maxUsage);
+    setNewVoucherEndDate(v.endDate);
+    setNewVoucherEventTheme(v.eventTheme || 'FLASH_SALE');
+    setNewVoucherEventTag(v.eventTag || 'Ưu đãi sự kiện');
+    setNewVoucherMerchantId(v.merchantId || 'ALL');
+    setNewVoucherFlashHunt(v.isFlashHunt !== false);
+  };
+
+  const handleSaveShopVoucher = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentMerchant || !shopVoucherCode.trim()) return;
+    const code = shopVoucherCode.trim().toUpperCase();
+    const merchantName = currentMerchant.name;
+    const themeLabel = shopVoucherEventTag.trim() || 'Ưu Đãi Độc Quyền Của Quán';
+    const title =
+      shopVoucherType === 'PERCENTAGE'
+        ? `Giảm ${shopVoucherDiscount}%${shopVoucherMaxDiscount ? ` (tối đa ${(Number(shopVoucherMaxDiscount) / 1000).toFixed(0)}k)` : ''} • ${merchantName} (đơn từ ${Number(shopVoucherMinOrder).toLocaleString('vi-VN')}đ)`
+        : `Giảm ${Number(shopVoucherDiscount).toLocaleString('vi-VN')}đ • ${merchantName} (đơn từ ${Number(shopVoucherMinOrder).toLocaleString('vi-VN')}đ)`;
+
+    if (editingShopVoucherId) {
+      setVouchers((prev) =>
+        prev.map((v) =>
+          v.id === editingShopVoucherId
+            ? {
+                ...v,
+                code,
+                discountType: shopVoucherType,
+                title,
+                discountValue: Number(shopVoucherDiscount),
+                maxDiscountAmount:
+                  shopVoucherType === 'PERCENTAGE' && shopVoucherMaxDiscount > 0
+                    ? Number(shopVoucherMaxDiscount)
+                    : undefined,
+                minOrder: Number(shopVoucherMinOrder),
+                maxUsage: Number(shopVoucherMaxUsage) || 150,
+                endDate: shopVoucherEndDate || '2026-12-31',
+                eventTheme: shopVoucherEventTheme,
+                eventTag: themeLabel,
+                merchantId: currentMerchant.id,
+                merchantName,
+                isFlashHunt: shopVoucherFlashHunt,
+              }
+            : v,
+        ),
+      );
+      setEditingShopVoucherId(null);
+      setShopVoucherCode('');
+      setShopVoucherBanner(`Đã cập nhật thông tin mã voucher "${code}" của quán thành công!`);
+      setTimeout(() => setShopVoucherBanner(''), 3500);
+      return;
+    }
+
+    const created: ManagedVoucher = {
+      id: `v-shop-${Date.now()}`,
+      code,
+      discountType: shopVoucherType,
+      title,
+      discountValue: Number(shopVoucherDiscount),
+      maxDiscountAmount:
+        shopVoucherType === 'PERCENTAGE' && shopVoucherMaxDiscount > 0
+          ? Number(shopVoucherMaxDiscount)
+          : undefined,
+      minOrder: Number(shopVoucherMinOrder),
+      usageCount: 0,
+      claimedCount: 0,
+      maxUsage: Number(shopVoucherMaxUsage) || 150,
+      endDate: shopVoucherEndDate || '2026-12-31',
+      isActive: true,
+      eventTheme: shopVoucherEventTheme,
+      eventTag: themeLabel,
+      merchantId: currentMerchant.id,
+      merchantName,
+      isFlashHunt: shopVoucherFlashHunt,
+    };
+
+    setVouchers((prev) => [created, ...prev]);
+    setShopVoucherCode('');
+    setShopVoucherBanner(
+      `🎉 Đã phát hành mã "${code}" cho quán ${merchantName}! Khách hàng có thể săn và áp mã ngay tại gian hàng.`,
+    );
+    setTimeout(() => setShopVoucherBanner(''), 4000);
+  };
+
+  const handleStartEditShopVoucher = (v: ManagedVoucher) => {
+    setEditingShopVoucherId(v.id);
+    setShopVoucherCode(v.code);
+    setShopVoucherType(v.discountType === 'PERCENTAGE' ? 'PERCENTAGE' : 'FIXED_AMOUNT');
+    setShopVoucherDiscount(v.discountValue);
+    setShopVoucherMaxDiscount(v.maxDiscountAmount || 40000);
+    setShopVoucherMinOrder(v.minOrder);
+    setShopVoucherMaxUsage(v.maxUsage);
+    setShopVoucherEndDate(v.endDate);
+    setShopVoucherEventTheme(v.eventTheme || 'FLASH_SALE');
+    setShopVoucherEventTag(v.eventTag || 'Ưu Đãi Độc Quyền Của Quán');
+    setShopVoucherFlashHunt(v.isFlashHunt !== false);
+  };
+
   const toggleVoucherStatus = (vId: string) => {
     setVouchers((prev) => prev.map((v) => (v.id === vId ? { ...v, isActive: !v.isActive } : v)));
   };
@@ -972,55 +1275,122 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const handleDeleteVoucher = (vId: string, code: string) => {
     if (!window.confirm(`Xóa mã khuyến mãi "${code}" khỏi hệ thống?`)) return;
     setVouchers((prev) => prev.filter((v) => v.id !== vId));
-    appendAuditLog('XÓA VOUCHER SỰ KIỆN', code, 'Admin đã gỡ bỏ mã khỏi danh sách sự kiện');
+    appendAuditLog('XÓA VOUCHER SỰ KIỆN', code, 'Đã gỡ bỏ mã khỏi danh sách khuyến mãi');
   };
 
-  // Merchant Reviews & Replies State (Persisted in localStorage & synced with Customer ReviewModal; blank for non-seed new accounts)
-  const [reviews, setReviews] = useState(() => {
+  // Merchant Reviews & Replies State (Persisted in localStorage & synced in real-time with Customer ReviewModal)
+  const loadStoredReviews = () => {
     try {
       const saved = localStorage.getItem('dinego_merchant_reviews');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {}
-    return isSeedDemoMerchant
-      ? [
-          {
-            id: 'rev-01',
-            customerName: 'Trần Thị Bình',
-            orderRef: 'DG20261102-8812',
-            rating: 5,
-            comment: 'Cơm sườn ngon, miếng sườn dày ướp vừa miệng. Đóng gói hộp giấy sạch sẽ.',
-            reply: 'Cơm Tấm Sài Gòn 1985 cảm ơn quý khách đã ủng hộ. Hẹn gặp lại bạn ở những đơn tiếp theo!',
-            date: '03/11/2026',
-          },
-          {
-            id: 'rev-02',
-            customerName: 'Phạm Minh Tuấn',
-            orderRef: 'DG20261101-4409',
-            rating: 4,
-            comment: 'Đồ ăn nóng hổi nhưng lần sau quán nhớ cho thêm 1 gói nước mắm ớt riêng nhé.',
-            reply: null as string | null,
-            date: '02/11/2026',
-          },
-        ]
-      : [];
-  });
+    return [
+      {
+        id: 'rev-01',
+        merchantId: 'merchant-com-tam',
+        merchantName: 'Cơm Tấm Sài Gòn 1985',
+        customerName: 'Trần Thị Bình',
+        orderRef: 'DG20261102-8812',
+        itemsSummary: '1x Cơm Tấm Sườn Bì Chả Đặc Biệt',
+        rating: 5,
+        comment: 'Cơm sườn ngon, miếng sườn dày ướp vừa miệng. Đóng gói hộp giấy sạch sẽ.',
+        reply: 'Cơm Tấm Sài Gòn 1985 cảm ơn quý khách đã ủng hộ. Hẹn gặp lại bạn ở những đơn tiếp theo!',
+        date: '03/11/2026',
+      },
+      {
+        id: 'rev-02',
+        merchantId: 'merchant-com-tam',
+        merchantName: 'Cơm Tấm Sài Gòn 1985',
+        customerName: 'Phạm Minh Tuấn',
+        orderRef: 'DG20261101-4409',
+        itemsSummary: '2x Cơm Sườn Nướng Mật Ong',
+        rating: 4,
+        comment: 'Đồ ăn nóng hổi nhưng lần sau quán nhớ cho thêm 1 gói nước mắm ớt riêng nhé.',
+        reply: null as string | null,
+        date: '02/11/2026',
+      },
+    ];
+  };
+
+  const [reviews, setReviews] = useState<any[]>(() => loadStoredReviews());
 
   useEffect(() => {
-    try {
-      localStorage.setItem('dinego_merchant_reviews', JSON.stringify(reviews));
-    } catch {}
-  }, [reviews]);
+    const refreshReviews = () => {
+      setReviews(loadStoredReviews());
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'dinego_merchant_reviews') {
+        refreshReviews();
+      }
+    };
+    const ch =
+      typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('dinego_reviews_sync') : null;
+    if (ch) {
+      ch.onmessage = () => refreshReviews();
+    }
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('dinego_reviews_updated', refreshReviews);
+    window.addEventListener('focus', refreshReviews);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('dinego_reviews_updated', refreshReviews);
+      window.removeEventListener('focus', refreshReviews);
+      ch?.close();
+    };
+  }, []);
+
+  // Filter reviews specifically belonging to the current Merchant
+  const currentMerchantReviews = reviews.filter((r: any) => {
+    if (r.merchantId && currentMerchant?.id) {
+      return r.merchantId === currentMerchant.id;
+    }
+    if (r.merchantName && currentMerchant?.name) {
+      return r.merchantName.trim().toLowerCase() === currentMerchant.name.trim().toLowerCase();
+    }
+    if (r.orderRef && orders.some((o) => o.orderNumber === r.orderRef)) {
+      return true;
+    }
+    return isSeedDemoMerchant && !r.merchantId;
+  });
 
   const [replyInput, setReplyInput] = useState<{ [key: string]: string }>({});
 
   const handleSendReply = (reviewId: string) => {
     const text = replyInput[reviewId];
     if (!text?.trim()) return;
-    setReviews(reviews.map((r) => (r.id === reviewId ? { ...r, reply: text.trim() } : r)));
+    const latestAll = loadStoredReviews();
+    const existsInStorage = latestAll.some((r: any) => r.id === reviewId);
+    const baseList = existsInStorage ? latestAll : reviews;
+    const nextReviews = baseList.map((r: any) =>
+      r.id === reviewId
+        ? {
+            ...r,
+            reply: text.trim(),
+            repliedAt: new Date().toLocaleString('vi-VN', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+          }
+        : r,
+    );
+    setReviews(nextReviews);
     setReplyInput({ ...replyInput, [reviewId]: '' });
+    try {
+      const serialized = JSON.stringify(nextReviews);
+      localStorage.setItem('dinego_merchant_reviews', serialized);
+      window.dispatchEvent(new CustomEvent('dinego_reviews_updated'));
+      if (typeof BroadcastChannel !== 'undefined') {
+        const ch = new BroadcastChannel('dinego_reviews_sync');
+        ch.postMessage(serialized);
+        ch.close();
+      }
+    } catch {}
   };
 
   // ============================================================================
@@ -2518,11 +2888,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
                     <div>
                       <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: '0 0 4px 0' }}>
-                        Quản lý Phiếu Giảm Giá Cửa Hàng Theo Sự Kiện &amp; Ngày Lễ (U052)
+                        Quản lý Phiếu Giảm Giá Toàn Sàn &amp; Voucher Của Các Quán (U052)
                       </h3>
                       <p style={{ fontSize: '0.8rem', color: '#64748B', margin: 0 }}>
-                        Các mã được kích hoạt và bật hiển thị sẽ xuất hiện trực tiếp tại mục <strong>Săn Voucher</strong> của khách hàng.
+                        Admin có thể phát hành, chỉnh sửa, tạm dừng hoặc gỡ bỏ mọi mã giảm giá Toàn sàn lẫn mã do từng Cửa hàng phát hành.
                       </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ padding: '5px 12px', borderRadius: 8, background: '#EEF2FF', color: '#4F46E5', fontSize: '0.78rem', fontWeight: 800 }}>
+                        🌐 Toàn sàn: {vouchers.filter((v) => !v.merchantId || v.merchantId === 'ALL').length} mã
+                      </span>
+                      <span style={{ padding: '5px 12px', borderRadius: 8, background: '#FEF3C7', color: '#B45309', fontSize: '0.78rem', fontWeight: 800 }}>
+                        🏪 Voucher các Quán: {vouchers.filter((v) => v.merchantId && v.merchantId !== 'ALL').length} mã
+                      </span>
                     </div>
                   </div>
 
@@ -2533,9 +2911,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       gridTemplateColumns: 'repeat(auto-fit, minmax(175px, 1fr))',
                       gap: 12,
                       padding: 18,
-                      background: '#F8FAFC',
+                      background: editingAdminVoucherId ? '#EEF2FF' : '#F8FAFC',
                       borderRadius: 10,
-                      border: '1px solid #E2E8F0',
+                      border: editingAdminVoucherId ? '1.5px solid #6366F1' : '1px solid #E2E8F0',
                       marginBottom: 20,
                       alignItems: 'end',
                     }}
@@ -2575,17 +2953,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     </div>
                     <div>
                       <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                        Cửa hàng áp dụng
+                        Phạm vi / Cửa hàng áp dụng
                       </label>
                       <select
                         value={newVoucherMerchantId}
                         onChange={(e) => setNewVoucherMerchantId(e.target.value)}
                         style={{ width: '100%', padding: '9px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.84rem', background: '#FFFFFF' }}
                       >
-                        <option value="ALL">Toàn sàn DineGo (Mọi quán)</option>
+                        <option value="ALL">🌐 Toàn sàn DineGo (Mọi quán)</option>
                         {allMerchants.map((m) => (
                           <option key={m.id} value={m.id}>
-                            {m.name}
+                            🏪 {m.name}
                           </option>
                         ))}
                       </select>
@@ -2598,8 +2976,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                         type="text"
                         placeholder="VD: NOEL50K"
                         value={newVoucherCode}
-                        onChange={(e) => setNewVoucherCode(e.target.value)}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.84rem' }}
+                        onChange={(e) => setNewVoucherCode(e.target.value.toUpperCase())}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.84rem', fontWeight: 700 }}
                       />
                     </div>
                     <div>
@@ -2688,22 +3066,129 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       />
                       Đưa lên mục Săn Voucher
                     </label>
-                    <button
-                      type="submit"
-                      style={{
-                        padding: '10px 16px',
-                        borderRadius: 6,
-                        background: '#4F46E5',
-                        color: '#FFFFFF',
-                        fontWeight: 700,
-                        fontSize: '0.84rem',
-                        border: 'none',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      + Phát hành Voucher
-                    </button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        type="submit"
+                        style={{
+                          flex: 1,
+                          padding: '10px 14px',
+                          borderRadius: 6,
+                          background: '#4F46E5',
+                          color: '#FFFFFF',
+                          fontWeight: 700,
+                          fontSize: '0.84rem',
+                          border: 'none',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {editingAdminVoucherId ? 'Lưu cập nhật' : '+ Phát hành Voucher'}
+                      </button>
+                      {editingAdminVoucherId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingAdminVoucherId(null);
+                            setNewVoucherCode('');
+                          }}
+                          style={{
+                            padding: '10px 12px',
+                            borderRadius: 6,
+                            background: '#FFFFFF',
+                            color: '#475569',
+                            fontWeight: 700,
+                            fontSize: '0.8rem',
+                            border: '1px solid #CBD5E1',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Hủy
+                        </button>
+                      )}
+                    </div>
                   </form>
+
+                  {/* Admin Filter Bar for Platform vs Shop Vouchers */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: 12,
+                      marginBottom: 16,
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {[
+                        { id: 'ALL' as const, label: `Tất cả (${vouchers.length})` },
+                        {
+                          id: 'PLATFORM' as const,
+                          label: `🌐 Toàn sàn (${vouchers.filter((v) => !v.merchantId || v.merchantId === 'ALL').length})`,
+                        },
+                        {
+                          id: 'MERCHANT' as const,
+                          label: `🏪 Voucher của Quán (${vouchers.filter((v) => v.merchantId && v.merchantId !== 'ALL').length})`,
+                        },
+                      ].map((tab) => (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setAdminVoucherScopeFilter(tab.id)}
+                          style={{
+                            padding: '7px 14px',
+                            borderRadius: 8,
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            border:
+                              adminVoucherScopeFilter === tab.id
+                                ? '1px solid #4F46E5'
+                                : '1px solid #CBD5E1',
+                            background: adminVoucherScopeFilter === tab.id ? '#4F46E5' : '#FFFFFF',
+                            color: adminVoucherScopeFilter === tab.id ? '#FFFFFF' : '#334155',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <select
+                        value={adminVoucherMerchantFilter}
+                        onChange={(e) => setAdminVoucherMerchantFilter(e.target.value)}
+                        style={{
+                          padding: '7px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          fontSize: '0.8rem',
+                          fontWeight: 600,
+                          background: '#FFFFFF',
+                        }}
+                      >
+                        <option value="ALL">Lọc theo nhà hàng: Tất cả</option>
+                        {allMerchants.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            🏪 {m.name}
+                          </option>
+                        ))}
+                      </select>
+
+                      <input
+                        type="text"
+                        placeholder="Tìm mã voucher, tên quán..."
+                        value={adminVoucherSearch}
+                        onChange={(e) => setAdminVoucherSearch(e.target.value)}
+                        style={{
+                          padding: '7px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          fontSize: '0.8rem',
+                          width: 210,
+                        }}
+                      />
+                    </div>
+                  </div>
 
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem', fontVariantNumeric: 'tabular-nums' }}>
@@ -2711,7 +3196,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                         <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                           <th style={{ padding: '12px 14px' }}>Mã Voucher</th>
                           <th style={{ padding: '12px 14px' }}>Sự kiện / Lễ</th>
-                          <th style={{ padding: '12px 14px' }}>Cửa hàng áp dụng</th>
+                          <th style={{ padding: '12px 14px' }}>Phạm vi / Cửa hàng</th>
                           <th style={{ padding: '12px 14px' }}>Mức giảm &amp; Điều kiện</th>
                           <th style={{ padding: '12px 14px' }}>Đã săn / Dùng / Tổng</th>
                           <th style={{ padding: '12px 14px' }}>Hạn dùng</th>
@@ -2720,114 +3205,164 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                         </tr>
                       </thead>
                       <tbody>
-                        {vouchers.map((v) => {
-                          const evStyle = getEventThemeStyle(v.eventTheme);
-                          return (
-                            <tr key={v.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                              <td style={{ padding: '13px 14px', fontWeight: 800, color: '#4F46E5' }}>{v.code}</td>
-                              <td style={{ padding: '13px 14px' }}>
-                                <span
-                                  style={{
-                                    padding: '3px 9px',
-                                    borderRadius: 999,
-                                    fontSize: '0.72rem',
-                                    fontWeight: 800,
-                                    background: evStyle.badgeBg,
-                                    color: evStyle.badgeColor,
-                                    whiteSpace: 'nowrap',
-                                  }}
-                                >
-                                  {v.eventTag || evStyle.label}
-                                </span>
-                              </td>
-                              <td style={{ padding: '13px 14px', fontWeight: 700, color: '#0F172A' }}>
-                                {v.merchantName || 'Toàn sàn DineGo'}
-                              </td>
-                              <td style={{ padding: '13px 14px', color: '#334155' }}>
-                                <div style={{ fontWeight: 800, color: '#00B14F' }}>
-                                  {v.discountType === 'PERCENTAGE'
-                                    ? `Giảm ${v.discountValue}%${v.maxDiscountAmount ? ` (Tối đa ${(v.maxDiscountAmount / 1000).toFixed(0)}k)` : ''}`
-                                    : `Giảm ${v.discountValue.toLocaleString('vi-VN')}đ`}
-                                </div>
-                                <div style={{ fontSize: '0.74rem', color: '#64748B' }}>{v.title}</div>
-                              </td>
-                              <td style={{ padding: '13px 14px', fontWeight: 600 }}>
-                                <div>Săn: {v.claimedCount ?? 0} / {v.maxUsage}</div>
-                                <div style={{ fontSize: '0.74rem', color: '#64748B' }}>Đã dùng: {v.usageCount}</div>
-                              </td>
-                              <td style={{ padding: '13px 14px', color: '#64748B', fontSize: '0.8rem' }}>{v.endDate}</td>
-                              <td style={{ padding: '13px 14px' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                        {vouchers
+                          .filter((v) => {
+                            if (adminVoucherScopeFilter === 'PLATFORM' && v.merchantId && v.merchantId !== 'ALL') {
+                              return false;
+                            }
+                            if (adminVoucherScopeFilter === 'MERCHANT' && (!v.merchantId || v.merchantId === 'ALL')) {
+                              return false;
+                            }
+                            if (adminVoucherMerchantFilter !== 'ALL' && v.merchantId !== adminVoucherMerchantFilter) {
+                              return false;
+                            }
+                            const q = adminVoucherSearch.trim().toLowerCase();
+                            if (
+                              q &&
+                              !v.code.toLowerCase().includes(q) &&
+                              !(v.merchantName || '').toLowerCase().includes(q) &&
+                              !(v.title || '').toLowerCase().includes(q)
+                            ) {
+                              return false;
+                            }
+                            return true;
+                          })
+                          .map((v) => {
+                            const evStyle = getEventThemeStyle(v.eventTheme);
+                            const isShop = Boolean(v.merchantId && v.merchantId !== 'ALL');
+                            return (
+                              <tr key={v.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                                <td style={{ padding: '13px 14px', fontWeight: 800, color: '#4F46E5' }}>{v.code}</td>
+                                <td style={{ padding: '13px 14px' }}>
                                   <span
                                     style={{
                                       padding: '3px 9px',
-                                      borderRadius: 6,
+                                      borderRadius: 999,
                                       fontSize: '0.72rem',
-                                      fontWeight: 700,
-                                      background: v.isActive ? '#DCFCE7' : '#F1F5F9',
-                                      color: v.isActive ? '#15803D' : '#64748B',
+                                      fontWeight: 800,
+                                      background: evStyle.badgeBg,
+                                      color: evStyle.badgeColor,
+                                      whiteSpace: 'nowrap',
                                     }}
                                   >
-                                    {v.isActive ? 'Đang kích hoạt' : 'Tạm dừng'}
+                                    {v.eventTag || evStyle.label}
                                   </span>
-                                  <span style={{ fontSize: '0.7rem', color: v.isFlashHunt !== false ? '#C2410C' : '#94A3B8', fontWeight: 700 }}>
-                                    {v.isFlashHunt !== false ? '🔥 Hiện trên Săn Voucher' : 'Ẩn khỏi Săn Voucher'}
+                                </td>
+                                <td style={{ padding: '13px 14px', fontWeight: 700, color: '#0F172A' }}>
+                                  <span
+                                    style={{
+                                      padding: '3px 8px',
+                                      borderRadius: 6,
+                                      fontSize: '0.74rem',
+                                      fontWeight: 700,
+                                      background: isShop ? '#FEF3C7' : '#EEF2FF',
+                                      color: isShop ? '#B45309' : '#4F46E5',
+                                    }}
+                                  >
+                                    {isShop ? `🏪 ${v.merchantName}` : '🌐 Toàn sàn DineGo'}
                                   </span>
-                                </div>
-                              </td>
-                              <td style={{ padding: '13px 14px', textAlign: 'right' }}>
-                                <div style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                                  <button
-                                    onClick={() => toggleVoucherFlashHunt(v.id)}
-                                    style={{
-                                      padding: '5px 10px',
-                                      borderRadius: 6,
-                                      border: '1px solid #FED7AA',
-                                      background: '#FFF7ED',
-                                      color: '#C2410C',
-                                      fontSize: '0.74rem',
-                                      fontWeight: 700,
-                                      cursor: 'pointer',
-                                    }}
-                                  >
-                                    {v.isFlashHunt !== false ? 'Ẩn Săn' : 'Mở Săn'}
-                                  </button>
-                                  <button
-                                    onClick={() => toggleVoucherStatus(v.id)}
-                                    style={{
-                                      padding: '5px 10px',
-                                      borderRadius: 6,
-                                      border: '1px solid #CBD5E1',
-                                      background: '#FFFFFF',
-                                      color: '#334155',
-                                      fontSize: '0.74rem',
-                                      fontWeight: 600,
-                                      cursor: 'pointer',
-                                    }}
-                                  >
-                                    {v.isActive ? 'Tạm dừng' : 'Kích hoạt'}
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteVoucher(v.id, v.code)}
-                                    style={{
-                                      padding: '5px 8px',
-                                      borderRadius: 6,
-                                      border: '1px solid #FECACA',
-                                      background: '#FEF2F2',
-                                      color: '#DC2626',
-                                      fontSize: '0.74rem',
-                                      fontWeight: 700,
-                                      cursor: 'pointer',
-                                    }}
-                                    title="Xóa mã"
-                                  >
-                                    <Trash2 size={13} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
+                                </td>
+                                <td style={{ padding: '13px 14px', color: '#334155' }}>
+                                  <div style={{ fontWeight: 800, color: '#00B14F' }}>
+                                    {v.discountType === 'PERCENTAGE'
+                                      ? `Giảm ${v.discountValue}%${v.maxDiscountAmount ? ` (Tối đa ${(v.maxDiscountAmount / 1000).toFixed(0)}k)` : ''}`
+                                      : `Giảm ${v.discountValue.toLocaleString('vi-VN')}đ`}
+                                  </div>
+                                  <div style={{ fontSize: '0.74rem', color: '#64748B' }}>{v.title}</div>
+                                </td>
+                                <td style={{ padding: '13px 14px', fontWeight: 600 }}>
+                                  <div>Săn: {v.claimedCount ?? 0} / {v.maxUsage}</div>
+                                  <div style={{ fontSize: '0.74rem', color: '#64748B' }}>Đã dùng: {v.usageCount}</div>
+                                </td>
+                                <td style={{ padding: '13px 14px', color: '#64748B', fontSize: '0.8rem' }}>{v.endDate}</td>
+                                <td style={{ padding: '13px 14px' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                                    <span
+                                      style={{
+                                        padding: '3px 9px',
+                                        borderRadius: 6,
+                                        fontSize: '0.72rem',
+                                        fontWeight: 700,
+                                        background: v.isActive ? '#DCFCE7' : '#F1F5F9',
+                                        color: v.isActive ? '#15803D' : '#64748B',
+                                      }}
+                                    >
+                                      {v.isActive ? 'Đang kích hoạt' : 'Tạm dừng'}
+                                    </span>
+                                    <span style={{ fontSize: '0.7rem', color: v.isFlashHunt !== false ? '#C2410C' : '#94A3B8', fontWeight: 700 }}>
+                                      {v.isFlashHunt !== false ? '🔥 Hiện trên Săn Voucher' : 'Ẩn khỏi Săn Voucher'}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td style={{ padding: '13px 14px', textAlign: 'right' }}>
+                                  <div style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartEditAdminVoucher(v)}
+                                      style={{
+                                        padding: '5px 10px',
+                                        borderRadius: 6,
+                                        border: '1px solid #C7D2FE',
+                                        background: '#EEF2FF',
+                                        color: '#4F46E5',
+                                        fontSize: '0.74rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      Sửa
+                                    </button>
+                                    <button
+                                      onClick={() => toggleVoucherFlashHunt(v.id)}
+                                      style={{
+                                        padding: '5px 10px',
+                                        borderRadius: 6,
+                                        border: '1px solid #FED7AA',
+                                        background: '#FFF7ED',
+                                        color: '#C2410C',
+                                        fontSize: '0.74rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      {v.isFlashHunt !== false ? 'Ẩn Săn' : 'Mở Săn'}
+                                    </button>
+                                    <button
+                                      onClick={() => toggleVoucherStatus(v.id)}
+                                      style={{
+                                        padding: '5px 10px',
+                                        borderRadius: 6,
+                                        border: '1px solid #CBD5E1',
+                                        background: '#FFFFFF',
+                                        color: '#334155',
+                                        fontSize: '0.74rem',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      {v.isActive ? 'Tạm dừng' : 'Kích hoạt'}
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteVoucher(v.id, v.code)}
+                                      style={{
+                                        padding: '5px 8px',
+                                        borderRadius: 6,
+                                        border: '1px solid #FECACA',
+                                        background: '#FEF2F2',
+                                        color: '#DC2626',
+                                        fontSize: '0.74rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                      }}
+                                      title="Xóa mã"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
                       </tbody>
                     </table>
                   </div>
@@ -3404,6 +3939,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               badge: merchantDishes.length,
             },
             {
+              id: 'merchant-vouchers' as NavTab,
+              label: 'Mã Ưu Đãi & Voucher Quán',
+              icon: <Ticket size={17} />,
+              badge: merchantShopVouchers.filter((v) => v.isActive).length,
+            },
+            {
               id: 'merchant-catering' as NavTab,
               label: 'Hợp đồng Tiệc & Lịch',
               icon: <Calendar size={17} />,
@@ -3413,6 +3954,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               id: 'merchant-analytics' as NavTab,
               label: 'Doanh thu & Đánh giá',
               icon: <BarChart3 size={17} />,
+              badge: currentMerchantReviews.length,
             },
             {
               id: 'merchant-kyc' as NavTab,
@@ -3540,6 +4082,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <h1 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
               {currentMerchantTab === 'merchant-orders' && 'Điều phối đơn hàng & Bếp trực tiếp'}
               {currentMerchantTab === 'merchant-menu' && 'Quản lý danh mục Thực đơn & Trạng thái món'}
+              {currentMerchantTab === 'merchant-vouchers' && 'Quản lý Mã Ưu Đãi & Voucher Độc Quyền Của Quán'}
               {currentMerchantTab === 'merchant-catering' && 'Quản lý Hợp đồng Đặt tiệc & Lịch phục vụ'}
               {currentMerchantTab === 'merchant-analytics' && 'Báo cáo Doanh thu, Đối soát & Đánh giá'}
               {currentMerchantTab === 'merchant-kyc' && 'Hồ sơ Pháp lý Gian hàng & Cài đặt Vận hành'}
@@ -3859,6 +4402,100 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                             </div>
                           </div>
                         </div>
+
+                        {/* Customer Review Linked to This Order (Live Sync) */}
+                        {(() => {
+                          const orderRev = reviews.find(
+                            (r: any) =>
+                              (r.orderId && r.orderId === order.id) ||
+                              (r.orderRef && r.orderRef === order.orderNumber),
+                          );
+                          if (!orderRev) return null;
+                          return (
+                            <div
+                              style={{
+                                marginBottom: 14,
+                                padding: '12px 16px',
+                                borderRadius: 10,
+                                background: '#FFFBEB',
+                                border: '1px solid #FDE68A',
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span style={{ fontWeight: 800, fontSize: '0.86rem', color: '#92400E' }}>
+                                    ⭐ Đánh giá từ khách hàng {orderRev.customerName}
+                                  </span>
+                                  <span style={{ fontSize: '0.76rem', color: '#B45309' }}>• {orderRev.date}</span>
+                                </div>
+                                <span
+                                  style={{
+                                    padding: '2px 10px',
+                                    borderRadius: 999,
+                                    background: '#FEF3C7',
+                                    color: '#D97706',
+                                    fontWeight: 800,
+                                    fontSize: '0.8rem',
+                                  }}
+                                >
+                                  {'★'.repeat(Math.max(1, Math.min(5, Number(orderRev.rating) || 5)))} ({orderRev.rating}.0/5)
+                                </span>
+                              </div>
+                              <div style={{ fontSize: '0.86rem', color: '#1E293B', fontWeight: 600, marginBottom: 8 }}>
+                                &ldquo;{orderRev.comment}&rdquo;
+                              </div>
+                              {orderRev.reply ? (
+                                <div
+                                  style={{
+                                    background: '#FFFFFF',
+                                    borderLeft: '3px solid #D97706',
+                                    padding: '8px 12px',
+                                    borderRadius: 6,
+                                    fontSize: '0.8rem',
+                                    color: '#334155',
+                                  }}
+                                >
+                                  <strong style={{ color: '#B45309' }}>Phản hồi của quán:</strong> {orderRev.reply}
+                                </div>
+                              ) : (
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                  <input
+                                    type="text"
+                                    placeholder="Nhập phản hồi cảm ơn hoặc giải đáp cho khách hàng..."
+                                    value={replyInput[orderRev.id] || ''}
+                                    onChange={(e) =>
+                                      setReplyInput({ ...replyInput, [orderRev.id]: e.target.value })
+                                    }
+                                    style={{
+                                      flex: 1,
+                                      padding: '7px 12px',
+                                      borderRadius: 6,
+                                      border: '1px solid #FCD34D',
+                                      background: '#FFFFFF',
+                                      fontSize: '0.82rem',
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSendReply(orderRev.id)}
+                                    style={{
+                                      padding: '7px 14px',
+                                      borderRadius: 6,
+                                      background: '#D97706',
+                                      color: '#FFFFFF',
+                                      fontSize: '0.8rem',
+                                      fontWeight: 700,
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    Gửi phản hồi
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         {/* Driver Arrival / Pickup Handover Status Strip */}
                         {order.status !== 'COMPLETED' &&
@@ -4228,6 +4865,543 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
           )}
 
+          {/* MERCHANT TAB 2.5: SHOP VOUCHERS & PROMOTIONS MANAGEMENT */}
+          {currentMerchantTab === 'merchant-vouchers' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              {/* KPI Summary Cards for Merchant Vouchers */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 16 }}>
+                <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 18 }}>
+                  <div style={{ fontSize: '0.76rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+                    Tổng Voucher Của Quán
+                  </div>
+                  <div style={{ fontSize: '1.65rem', fontWeight: 900, color: '#0F172A', marginTop: 6 }}>
+                    {merchantShopVouchers.length} mã
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#D97706', fontWeight: 600, marginTop: 4 }}>
+                    Áp dụng riêng tại {currentMerchant?.name}
+                  </div>
+                </div>
+                <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 18 }}>
+                  <div style={{ fontSize: '0.76rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+                    Đang Kích Hoạt
+                  </div>
+                  <div style={{ fontSize: '1.65rem', fontWeight: 900, color: '#15803D', marginTop: 6 }}>
+                    {merchantShopVouchers.filter((v) => v.isActive).length} mã
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#059669', fontWeight: 600, marginTop: 4 }}>
+                    Hiển thị trực tiếp trên Gian hàng &amp; Thanh toán
+                  </div>
+                </div>
+                <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 18 }}>
+                  <div style={{ fontSize: '0.76rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+                    Lượt Khách Đã Lưu Ví
+                  </div>
+                  <div style={{ fontSize: '1.65rem', fontWeight: 900, color: '#4F46E5', marginTop: 6 }}>
+                    {merchantShopVouchers.reduce((sum, v) => sum + Number(v.claimedCount || 0), 0)} lượt
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#6366F1', fontWeight: 600, marginTop: 4 }}>
+                    Khách săn từ Gian hàng &amp; Săn Voucher
+                  </div>
+                </div>
+                <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 18 }}>
+                  <div style={{ fontSize: '0.76rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+                    Lượt Đã Áp Mã Đặt Đơn
+                  </div>
+                  <div style={{ fontSize: '1.65rem', fontWeight: 900, color: '#D97706', marginTop: 6 }}>
+                    {merchantShopVouchers.reduce((sum, v) => sum + Number(v.usageCount || 0), 0)} đơn
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 600, marginTop: 4 }}>
+                    Tăng tỷ lệ chốt đơn tại quán
+                  </div>
+                </div>
+              </div>
+
+              {shopVoucherBanner && (
+                <div
+                  style={{
+                    padding: '12px 18px',
+                    borderRadius: 10,
+                    background: '#DCFCE7',
+                    border: '1px solid #86EFAC',
+                    color: '#166534',
+                    fontSize: '0.88rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <CheckCircle2 size={18} />
+                  <span>{shopVoucherBanner}</span>
+                </div>
+              )}
+
+              {/* Create / Edit Shop Voucher Form Card */}
+              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.04rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      {editingShopVoucherId
+                        ? 'Chỉnh sửa Mã Ưu Đãi Của Quán'
+                        : `Phát hành Mã Ưu Đãi Mới Cho Quán "${currentMerchant?.name || 'Của Bạn'}"`}
+                    </h3>
+                    <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '3px 0 0 0' }}>
+                      Mã ưu đãi do quán tạo chỉ áp dụng cho đơn hàng đặt tại <strong>{currentMerchant?.name}</strong> và tự động hiển thị trên trang thực đơn của quán.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const randomSuffix = Math.floor(10 + Math.random() * 89);
+                      setShopVoucherCode(`QUAN${randomSuffix}K`);
+                    }}
+                    style={{
+                      padding: '7px 14px',
+                      borderRadius: 8,
+                      border: '1px solid #F59E0B',
+                      background: '#FFFBEB',
+                      color: '#B45309',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ✨ Gợi ý mã nhanh
+                  </button>
+                </div>
+
+                <form
+                  onSubmit={handleSaveShopVoucher}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(185px, 1fr))',
+                    gap: 14,
+                    padding: 18,
+                    background: editingShopVoucherId ? '#FFFBEB' : '#F8FAFC',
+                    borderRadius: 10,
+                    border: editingShopVoucherId ? '1.5px solid #F59E0B' : '1px solid #E2E8F0',
+                    alignItems: 'end',
+                  }}
+                >
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                      Mã Voucher của Quán *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="VD: COMTAM25K"
+                      value={shopVoucherCode}
+                      onChange={(e) => setShopVoucherCode(e.target.value.toUpperCase())}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: 6,
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.86rem',
+                        fontWeight: 800,
+                        color: '#B45309',
+                        background: '#FFFFFF',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                      Tên chương trình ưu đãi
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="VD: Ưu đãi khách quen của quán"
+                      value={shopVoucherEventTag}
+                      onChange={(e) => setShopVoucherEventTag(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: 6,
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.84rem',
+                        background: '#FFFFFF',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                      Chủ đề khuyến mãi
+                    </label>
+                    <select
+                      value={shopVoucherEventTheme}
+                      onChange={(e) => setShopVoucherEventTheme(e.target.value as VoucherEventTheme)}
+                      style={{
+                        width: '100%',
+                        padding: '9px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.84rem',
+                        background: '#FFFFFF',
+                      }}
+                    >
+                      {EVENT_THEME_OPTIONS.map((ev) => (
+                        <option key={ev.value} value={ev.value}>
+                          {ev.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                      Hình thức giảm giá
+                    </label>
+                    <select
+                      value={shopVoucherType}
+                      onChange={(e) => {
+                        const t = e.target.value as 'FIXED_AMOUNT' | 'PERCENTAGE';
+                        setShopVoucherType(t);
+                        setShopVoucherDiscount(t === 'PERCENTAGE' ? 15 : 20000);
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '9px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.84rem',
+                        background: '#FFFFFF',
+                      }}
+                    >
+                      <option value="FIXED_AMOUNT">Giảm tiền mặt cố định (VNĐ)</option>
+                      <option value="PERCENTAGE">Giảm theo phần trăm (%)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                      {shopVoucherType === 'PERCENTAGE' ? 'Mức giảm (%)' : 'Số tiền giảm (VNĐ)'}
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      step={shopVoucherType === 'PERCENTAGE' ? 5 : 5000}
+                      value={shopVoucherDiscount}
+                      onChange={(e) => setShopVoucherDiscount(Number(e.target.value))}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: 6,
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.84rem',
+                        background: '#FFFFFF',
+                      }}
+                    />
+                  </div>
+
+                  {shopVoucherType === 'PERCENTAGE' && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                        Giảm tối đa (VNĐ)
+                      </label>
+                      <input
+                        type="number"
+                        step="5000"
+                        value={shopVoucherMaxDiscount}
+                        onChange={(e) => setShopVoucherMaxDiscount(Number(e.target.value))}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: 6,
+                          border: '1px solid #CBD5E1',
+                          fontSize: '0.84rem',
+                          background: '#FFFFFF',
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                      Đơn tối thiểu tại quán (VNĐ)
+                    </label>
+                    <input
+                      type="number"
+                      step="10000"
+                      value={shopVoucherMinOrder}
+                      onChange={(e) => setShopVoucherMinOrder(Number(e.target.value))}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: 6,
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.84rem',
+                        background: '#FFFFFF',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                      Số lượng mã phát hành
+                    </label>
+                    <input
+                      type="number"
+                      step="20"
+                      value={shopVoucherMaxUsage}
+                      onChange={(e) => setShopVoucherMaxUsage(Number(e.target.value))}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: 6,
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.84rem',
+                        background: '#FFFFFF',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                      Hạn sử dụng
+                    </label>
+                    <input
+                      type="date"
+                      value={shopVoucherEndDate}
+                      onChange={(e) => setShopVoucherEndDate(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.84rem',
+                        background: '#FFFFFF',
+                      }}
+                    />
+                  </div>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', fontWeight: 700, color: '#334155', cursor: 'pointer', paddingBottom: 8 }}>
+                    <input
+                      type="checkbox"
+                      checked={shopVoucherFlashHunt}
+                      onChange={(e) => setShopVoucherFlashHunt(e.target.checked)}
+                    />
+                    Đưa lên trang Săn Voucher
+                  </label>
+
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="submit"
+                      style={{
+                        flex: 1,
+                        padding: '10px 16px',
+                        borderRadius: 8,
+                        background: '#D97706',
+                        color: '#FFFFFF',
+                        fontWeight: 800,
+                        fontSize: '0.85rem',
+                        border: 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {editingShopVoucherId ? 'Lưu thay đổi' : '+ Tạo Voucher Quán'}
+                    </button>
+                    {editingShopVoucherId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingShopVoucherId(null);
+                          setShopVoucherCode('');
+                        }}
+                        style={{
+                          padding: '10px 12px',
+                          borderRadius: 8,
+                          background: '#FFFFFF',
+                          color: '#475569',
+                          fontWeight: 700,
+                          fontSize: '0.8rem',
+                          border: '1px solid #CBD5E1',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Hủy
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
+
+              {/* Merchant Vouchers Table */}
+              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
+                <div style={{ padding: '18px 22px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                  <div>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      Danh sách Mã Ưu Đãi Của Quán ({merchantShopVouchers.length})
+                    </h3>
+                    <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '2px 0 0 0' }}>
+                      Quản lý trạng thái hoạt động, số lượt sử dụng và chỉnh sửa mức ưu đãi của quán theo thời gian thực
+                    </p>
+                  </div>
+                </div>
+
+                {merchantShopVouchers.length === 0 ? (
+                  <div style={{ padding: '44px 24px', textAlign: 'center', color: '#64748B' }}>
+                    <Ticket size={36} color="#D97706" style={{ marginBottom: 10, opacity: 0.75 }} />
+                    <div style={{ fontWeight: 800, fontSize: '0.96rem', color: '#0F172A', marginBottom: 4 }}>
+                      Quán chưa có mã ưu đãi riêng nào
+                    </div>
+                    <div style={{ fontSize: '0.84rem' }}>
+                      Hãy tạo mã ưu đãi đầu tiên ở biểu mẫu phía trên để thu hút khách hàng đặt món tại quán!
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', fontVariantNumeric: 'tabular-nums' }}>
+                      <thead>
+                        <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569', fontSize: '0.74rem', textTransform: 'uppercase' }}>
+                          <th style={{ padding: '12px 16px' }}>Mã Voucher</th>
+                          <th style={{ padding: '12px 16px' }}>Chương trình</th>
+                          <th style={{ padding: '12px 16px' }}>Mức giảm &amp; Điều kiện</th>
+                          <th style={{ padding: '12px 16px' }}>Lượt lưu / Đã dùng</th>
+                          <th style={{ padding: '12px 16px' }}>Hạn dùng</th>
+                          <th style={{ padding: '12px 16px' }}>Trạng thái</th>
+                          <th style={{ padding: '12px 16px', textAlign: 'right' }}>Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {merchantShopVouchers.map((v) => {
+                          const evStyle = getEventThemeStyle(v.eventTheme);
+                          return (
+                            <tr key={v.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                              <td style={{ padding: '14px 16px', fontWeight: 900, color: '#B45309', fontSize: '0.92rem' }}>
+                                {v.code}
+                              </td>
+                              <td style={{ padding: '14px 16px' }}>
+                                <span
+                                  style={{
+                                    padding: '3px 9px',
+                                    borderRadius: 999,
+                                    fontSize: '0.72rem',
+                                    fontWeight: 800,
+                                    background: evStyle.badgeBg,
+                                    color: evStyle.badgeColor,
+                                  }}
+                                >
+                                  {v.eventTag || evStyle.label}
+                                </span>
+                              </td>
+                              <td style={{ padding: '14px 16px' }}>
+                                <div style={{ fontWeight: 800, color: '#059669' }}>
+                                  {v.discountType === 'PERCENTAGE'
+                                    ? `Giảm ${v.discountValue}%${v.maxDiscountAmount ? ` (Tối đa ${(v.maxDiscountAmount / 1000).toFixed(0)}k)` : ''}`
+                                    : `Giảm ${v.discountValue.toLocaleString('vi-VN')}đ`}
+                                </div>
+                                <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: 2 }}>
+                                  Đơn tối thiểu {v.minOrder.toLocaleString('vi-VN')}đ
+                                </div>
+                              </td>
+                              <td style={{ padding: '14px 16px', fontWeight: 600 }}>
+                                <div>Đã lưu ví: {v.claimedCount ?? 0} / {v.maxUsage}</div>
+                                <div style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 700 }}>
+                                  Đã áp đơn: {v.usageCount} lượt
+                                </div>
+                              </td>
+                              <td style={{ padding: '14px 16px', color: '#475569' }}>{v.endDate}</td>
+                              <td style={{ padding: '14px 16px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                                  <span
+                                    style={{
+                                      padding: '3px 9px',
+                                      borderRadius: 6,
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      background: v.isActive ? '#DCFCE7' : '#F1F5F9',
+                                      color: v.isActive ? '#15803D' : '#64748B',
+                                    }}
+                                  >
+                                    {v.isActive ? 'Đang chạy' : 'Tạm ngưng'}
+                                  </span>
+                                  <span style={{ fontSize: '0.7rem', color: v.isFlashHunt !== false ? '#D97706' : '#94A3B8', fontWeight: 700 }}>
+                                    {v.isFlashHunt !== false ? '🔥 Hiện trên Săn Voucher' : 'Chỉ hiện tại Gian hàng'}
+                                  </span>
+                                </div>
+                              </td>
+                              <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                                <div style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStartEditShopVoucher(v)}
+                                    style={{
+                                      padding: '5px 10px',
+                                      borderRadius: 6,
+                                      border: '1px solid #FDE68A',
+                                      background: '#FFFBEB',
+                                      color: '#B45309',
+                                      fontSize: '0.75rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    Sửa
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleVoucherFlashHunt(v.id)}
+                                    style={{
+                                      padding: '5px 10px',
+                                      borderRadius: 6,
+                                      border: '1px solid #FED7AA',
+                                      background: '#FFF7ED',
+                                      color: '#C2410C',
+                                      fontSize: '0.75rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    {v.isFlashHunt !== false ? 'Ẩn Săn' : 'Mở Săn'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleVoucherStatus(v.id)}
+                                    style={{
+                                      padding: '5px 10px',
+                                      borderRadius: 6,
+                                      border: '1px solid #CBD5E1',
+                                      background: '#FFFFFF',
+                                      color: '#334155',
+                                      fontSize: '0.75rem',
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    {v.isActive ? 'Tạm ngưng' : 'Kích hoạt'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteVoucher(v.id, v.code)}
+                                    style={{
+                                      padding: '5px 8px',
+                                      borderRadius: 6,
+                                      border: '1px solid #FECACA',
+                                      background: '#FEF2F2',
+                                      color: '#DC2626',
+                                      fontSize: '0.75rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    Xóa
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* MERCHANT TAB 3: CATERING & FEAST BOOKINGS */}
           {currentMerchantTab === 'merchant-catering' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -4482,47 +5656,81 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
                 {/* Customer Reviews Panel */}
                 <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 20 }}>
-                  <h3 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: '0 0 14px 0' }}>
-                    Phản hồi đánh giá từ thực khách
-                  </h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <h3 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      Phản hồi đánh giá từ thực khách ({currentMerchantReviews.length})
+                    </h3>
+                    {currentMerchantReviews.length > 0 && (
+                      <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#D97706', background: '#FEF3C7', padding: '3px 10px', borderRadius: 999 }}>
+                        TB:{' '}
+                        {(
+                          currentMerchantReviews.reduce((s, r) => s + (Number(r.rating) || 5), 0) /
+                          currentMerchantReviews.length
+                        ).toFixed(1)}{' '}
+                        ★
+                      </span>
+                    )}
+                  </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                    {reviews.length === 0 ? (
+                    {currentMerchantReviews.length === 0 ? (
                       <div style={{ padding: '28px 16px', textAlign: 'center', color: '#64748B', fontSize: '0.86rem' }}>
-                        Chưa có đánh giá nào từ thực khách.
+                        Chưa có đánh giá nào từ thực khách cho quán <strong>{currentMerchant?.name}</strong>.
                       </div>
                     ) : (
-                    reviews.map((rev) => (
-                      <div key={rev.id} style={{ padding: 14, borderRadius: 8, background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                          <span style={{ fontWeight: 700, fontSize: '0.86rem', color: '#0F172A' }}>
-                            {rev.customerName} <span style={{ color: '#64748B', fontWeight: 500 }}>(#{rev.orderRef})</span>
-                          </span>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#D97706' }}>{rev.rating}.0 ★</span>
+                      currentMerchantReviews.map((rev: any) => (
+                        <div key={rev.id} style={{ padding: 14, borderRadius: 8, background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+                            <div>
+                              <span style={{ fontWeight: 800, fontSize: '0.88rem', color: '#0F172A' }}>
+                                {rev.customerName}{' '}
+                                <span style={{ color: '#64748B', fontWeight: 600 }}>(#{rev.orderRef})</span>
+                              </span>
+                              {rev.date && (
+                                <span style={{ fontSize: '0.75rem', color: '#94A3B8', marginLeft: 8 }}>
+                                  • {rev.date}
+                                </span>
+                              )}
+                              {rev.itemsSummary && (
+                                <div style={{ fontSize: '0.76rem', color: '#059669', fontWeight: 700, marginTop: 2 }}>
+                                  Món đã đặt: {rev.itemsSummary}
+                                </div>
+                              )}
+                            </div>
+                            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#D97706', background: '#FEF3C7', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>
+                              {'★'.repeat(Math.max(1, Math.min(5, Number(rev.rating) || 5)))} ({rev.rating}.0)
+                            </span>
+                          </div>
+                          <p style={{ fontSize: '0.86rem', color: '#1E293B', margin: '6px 0 10px 0', fontWeight: 500 }}>
+                            &ldquo;{rev.comment}&rdquo;
+                          </p>
+                          {rev.reply ? (
+                            <div style={{ background: '#FFFFFF', borderLeft: '3px solid #D97706', padding: '8px 12px', borderRadius: 4, fontSize: '0.8rem', color: '#475569' }}>
+                              <strong style={{ color: '#B45309' }}>Phản hồi của quán:</strong> {rev.reply}
+                              {rev.repliedAt && (
+                                <span style={{ fontSize: '0.72rem', color: '#94A3B8', marginLeft: 6 }}>
+                                  ({rev.repliedAt})
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                              <input
+                                type="text"
+                                placeholder="Nhập nội dung phản hồi thực khách..."
+                                value={replyInput[rev.id] || ''}
+                                onChange={(e) => setReplyInput({ ...replyInput, [rev.id]: e.target.value })}
+                                style={{ flex: 1, padding: '7px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.82rem', background: '#FFFFFF' }}
+                              />
+                              <button
+                                onClick={() => handleSendReply(rev.id)}
+                                style={{ padding: '7px 14px', borderRadius: 6, background: '#0F172A', color: '#FFFFFF', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', border: 'none' }}
+                              >
+                                Gửi phản hồi
+                              </button>
+                            </div>
+                          )}
                         </div>
-                        <p style={{ fontSize: '0.84rem', color: '#334155', margin: '4px 0 8px 0' }}>{rev.comment}</p>
-                        {rev.reply ? (
-                          <div style={{ background: '#FFFFFF', borderLeft: '3px solid #D97706', padding: '8px 12px', fontSize: '0.8rem', color: '#475569' }}>
-                            <strong>Phản hồi của quán:</strong> {rev.reply}
-                          </div>
-                        ) : (
-                          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                            <input
-                              type="text"
-                              placeholder="Nhập nội dung phản hồi..."
-                              value={replyInput[rev.id] || ''}
-                              onChange={(e) => setReplyInput({ ...replyInput, [rev.id]: e.target.value })}
-                              style={{ flex: 1, padding: '7px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}
-                            />
-                            <button
-                              onClick={() => handleSendReply(rev.id)}
-                              style={{ padding: '7px 14px', borderRadius: 6, background: '#0F172A', color: '#FFFFFF', fontSize: '0.8rem', fontWeight: 600 }}
-                            >
-                              Gửi
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))
+                      ))
                     )}
                   </div>
                 </div>
@@ -4530,87 +5738,379 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
           )}
 
-          {/* MERCHANT TAB 5: STOREFRONT KYC PROFILE */}
+          {/* MERCHANT TAB 5: STOREFRONT KYC PROFILE & SETTINGS */}
           {currentMerchantTab === 'merchant-kyc' && (
-            <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 24 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 16, marginBottom: 20, borderBottom: '1px solid #E2E8F0' }}>
+            <form
+              onSubmit={handleSaveMerchantKycAndSettings}
+              style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
+            >
+              {/* Header Banner & Edit/Save Action Bar */}
+              <div
+                style={{
+                  background: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: 12,
+                  padding: '20px 24px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 14,
+                }}
+              >
                 <div>
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                    Hồ sơ pháp lý & Thông tin định danh gian hàng
-                  </h3>
-                  <p style={{ fontSize: '0.82rem', color: '#64748B', margin: '2px 0 0 0' }}>
-                    Dữ liệu đăng ký kinh doanh và chứng nhận An toàn vệ sinh thực phẩm đã được xác thực
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      Hồ sơ Pháp lý, Tài khoản Đối soát &amp; Cài đặt Gian hàng
+                    </h3>
+                    <span
+                      style={{
+                        background:
+                          currentMerchant?.kycStatus === 'REJECTED'
+                            ? '#FEE2E2'
+                            : currentMerchant?.kycStatus === 'PENDING_APPROVAL'
+                            ? '#FEF3C7'
+                            : '#DCFCE7',
+                        color:
+                          currentMerchant?.kycStatus === 'REJECTED'
+                            ? '#DC2626'
+                            : currentMerchant?.kycStatus === 'PENDING_APPROVAL'
+                            ? '#B45309'
+                            : '#15803D',
+                        padding: '4px 12px',
+                        borderRadius: 6,
+                        fontSize: '0.76rem',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {currentMerchant?.kycStatus === 'REJECTED'
+                        ? 'Hồ sơ bị từ chối'
+                        : currentMerchant?.kycStatus === 'PENDING_APPROVAL'
+                        ? 'Đang chờ thẩm định'
+                        : `Đã xác thực KYC${currentMerchant?.verifiedAt ? ` • ${currentMerchant.verifiedAt}` : ''}`}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.82rem', color: '#64748B', margin: 0 }}>
+                    Quản lý và chỉnh sửa toàn bộ thông tin nhà hàng, địa điểm kinh doanh, giấy tờ pháp lý, tài khoản ngân hàng nhận doanh thu và cài đặt vận hành quán.
                   </p>
                 </div>
-                <span style={{ background: '#DCFCE7', color: '#15803D', padding: '4px 12px', borderRadius: 6, fontSize: '0.78rem', fontWeight: 700 }}>
-                  Đã xác thực KYC
-                </span>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingMerchantKyc((prev) => !prev)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '9px 16px',
+                      borderRadius: 8,
+                      border: '1px solid #CBD5E1',
+                      background: isEditingMerchantKyc ? '#F8FAFC' : '#FFFFFF',
+                      color: '#334155',
+                      fontSize: '0.84rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Edit3 size={15} />
+                    <span>{isEditingMerchantKyc ? 'Khóa chỉnh sửa (Chỉ xem)' : 'Bật chế độ chỉnh sửa'}</span>
+                  </button>
+
+                  <button
+                    type="submit"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 7,
+                      padding: '9px 20px',
+                      borderRadius: 8,
+                      background: '#00B14F',
+                      color: '#FFFFFF',
+                      fontSize: '0.85rem',
+                      fontWeight: 800,
+                      border: 'none',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(0, 177, 79, 0.25)',
+                    }}
+                  >
+                    <CheckCircle2 size={16} />
+                    <span>Lưu cập nhật thông tin</span>
+                  </button>
+                </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 28 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {merchantKycSavedBanner && (
+                <div
+                  style={{
+                    background: '#ECFDF5',
+                    border: '1px solid #6EE7B7',
+                    color: '#065F46',
+                    padding: '12px 18px',
+                    borderRadius: 10,
+                    fontSize: '0.86rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                  }}
+                >
+                  <CheckCircle2 size={18} color="#059669" />
+                  <span>{merchantKycSavedBanner}</span>
+                </div>
+              )}
+
+              {/* Grid Row 1: Store Identity & Operational Settings + Storefront Image */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.35fr 1fr', gap: 20, alignItems: 'start' }}>
+                {/* Section 1: Thông tin Thương hiệu & Cài đặt Vận hành */}
+                <div
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: 12,
+                    padding: 22,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 14,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
+                    <Store size={18} color="#D97706" />
+                    <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      1. Thông tin Nhà hàng &amp; Cài đặt Vận hành
+                    </h4>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 14 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                        TÊN NHÀ HÀNG / THƯƠNG HIỆU TRÊN SÀN *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        readOnly={!isEditingMerchantKyc}
+                        value={kycStoreName}
+                        onChange={(e) => setKycStoreName(e.target.value)}
+                        placeholder="Nhập tên nhà hàng..."
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                          fontWeight: 700,
+                          color: '#0F172A',
+                          fontSize: '0.88rem',
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                        NGÀNH HÀNG ẨM THỰC CHÍNH
+                      </label>
+                      <select
+                        disabled={!isEditingMerchantKyc}
+                        value={kycCategory}
+                        onChange={(e) => setKycCategory(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                          fontWeight: 600,
+                          color: '#0F172A',
+                          fontSize: '0.86rem',
+                        }}
+                      >
+                        <option value="Cơm & Món Việt">Cơm văn phòng / Cơm tấm &amp; Món Việt</option>
+                        <option value="Cơm">Cơm tấm &amp; Cơm truyền thống</option>
+                        <option value="Phở / Bún">Phở / Bún / Mì truyền thống</option>
+                        <option value="Trà sữa">Trà sữa, Cà phê &amp; Đồ uống</option>
+                        <option value="Món Nướng">Lẩu &amp; Nướng BBQ</option>
+                        <option value="Pizza">Pizza, Mỳ Ý &amp; Đồ ăn nhanh</option>
+                        <option value="Mâm Cỗ">Đặt Tiệc &amp; Mâm Cỗ Sự Kiện</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                        SỐ ĐIỆN THOẠI HOTLINE QUÁN *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        readOnly={!isEditingMerchantKyc}
+                        value={kycPhone}
+                        onChange={(e) => setKycPhone(e.target.value)}
+                        placeholder="0909123456"
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                          fontSize: '0.88rem',
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                        KHUNG GIỜ MỞ CỬA HOẠT ĐỘNG
+                      </label>
+                      <input
+                        type="text"
+                        readOnly={!isEditingMerchantKyc}
+                        value={kycOpeningHours}
+                        onChange={(e) => setKycOpeningHours(e.target.value)}
+                        placeholder="07:00 - 22:00"
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                          fontSize: '0.88rem',
+                        }}
+                      />
+                    </div>
+                  </div>
+
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#64748B', marginBottom: 4 }}>
-                      TÊN THƯƠNG HIỆU TRÊN SÀN
+                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                      ĐỊA CHỈ MẶT BẰNG KINH DOANH THỰC TẾ *
                     </label>
                     <input
                       type="text"
-                      readOnly
-                      value={currentMerchant?.name || 'Chưa cập nhật'}
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#F8FAFC', fontWeight: 700 }}
+                      required
+                      readOnly={!isEditingMerchantKyc}
+                      value={kycAddress}
+                      onChange={(e) => setKycAddress(e.target.value)}
+                      placeholder="Số nhà, Tên đường, Phường/Xã, Quận/Huyện, Tỉnh/TP"
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #CBD5E1',
+                        background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                        fontSize: '0.88rem',
+                      }}
                     />
                   </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#64748B', marginBottom: 4 }}>
-                      NGƯỜI ĐẠI DIỆN PHÁP LÝ / CHỦ HỘ KINH DOANH
-                    </label>
-                    <input
-                      type="text"
-                      readOnly
-                      value={currentMerchant?.ownerName || currentUser?.fullName || 'Chưa cập nhật'}
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#F8FAFC' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#64748B', marginBottom: 4 }}>
-                      ĐỊA CHỈ MẶT BẰNG KINH DOANH
-                    </label>
-                    <input
-                      type="text"
-                      readOnly
-                      value={currentMerchant?.address || 'Chưa cập nhật'}
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#F8FAFC' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#64748B', marginBottom: 4 }}>
-                      SỐ GIẤY PHÉP KINH DOANH & CHỨNG NHẬN ATTP
-                    </label>
-                    <input
-                      type="text"
-                      readOnly
-                      value={currentMerchant?.businessLicenseImage || 'Chưa cập nhật giấy phép'}
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#F8FAFC' }}
-                    />
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: 12 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                        TG CHUẨN BỊ TỐI THIỂU (PHÚT)
+                      </label>
+                      <input
+                        type="number"
+                        min={5}
+                        max={90}
+                        readOnly={!isEditingMerchantKyc}
+                        value={kycDeliveryMin}
+                        onChange={(e) => setKycDeliveryMin(Number(e.target.value))}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                          fontSize: '0.86rem',
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                        TG GIAO TỐI ĐA (PHÚT)
+                      </label>
+                      <input
+                        type="number"
+                        min={10}
+                        max={120}
+                        readOnly={!isEditingMerchantKyc}
+                        value={kycDeliveryMax}
+                        onChange={(e) => setKycDeliveryMax(Number(e.target.value))}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                          fontSize: '0.86rem',
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                        CÀI ĐẶT TRẠNG THÁI MỞ BÁN
+                      </label>
+                      <button
+                        type="button"
+                        disabled={!isEditingMerchantKyc}
+                        onClick={() => setStoreOpen((prev) => !prev)}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: 8,
+                          border: storeOpen ? '1px solid #86EFAC' : '1px solid #FCA5A5',
+                          background: storeOpen ? '#F0FDF4' : '#FEF2F2',
+                          color: storeOpen ? '#15803D' : '#DC2626',
+                          fontWeight: 700,
+                          fontSize: '0.82rem',
+                          cursor: isEditingMerchantKyc ? 'pointer' : 'default',
+                        }}
+                      >
+                        {storeOpen ? '● Đang mở cửa nhận đơn' : '○ Đang tạm đóng cửa'}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <div style={{ fontSize: '0.76rem', fontWeight: 700, color: '#64748B', marginBottom: 8 }}>
-                    HÌNH ẢNH MẶT TIỀN ĐÃ NGHIỆM THU THỰC ĐỊA
+                {/* Section 2: Hình ảnh Mặt tiền & Bảng hiệu Gian hàng */}
+                <div
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: 12,
+                    padding: 22,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
+                    <Camera size={18} color="#0284C7" />
+                    <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      2. Hình ảnh Mặt tiền &amp; Ảnh đại diện Quán
+                    </h4>
                   </div>
-                  {currentMerchant?.storeFrontImage ? (
+
+                  {kycStoreFrontImage ? (
                     <img
-                      src={currentMerchant.storeFrontImage}
+                      src={kycStoreFrontImage}
                       alt="Mặt tiền quán"
-                      style={{ width: '100%', height: 220, objectFit: 'cover', borderRadius: 8, border: '1px solid #E2E8F0' }}
+                      style={{
+                        width: '100%',
+                        height: 190,
+                        objectFit: 'cover',
+                        borderRadius: 10,
+                        border: '1px solid #E2E8F0',
+                      }}
                     />
                   ) : (
                     <div
                       style={{
                         width: '100%',
-                        height: 220,
-                        borderRadius: 8,
+                        height: 190,
+                        borderRadius: 10,
                         border: '1px dashed #CBD5E1',
                         background: '#F8FAFC',
                         display: 'flex',
@@ -4624,9 +6124,367 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       Chưa cập nhật ảnh mặt tiền quán
                     </div>
                   )}
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                      ĐƯỜNG DẪN ẢNH MẶT TIỀN / ẢNH BÌA GIAN HÀNG (URL)
+                    </label>
+                    <input
+                      type="url"
+                      readOnly={!isEditingMerchantKyc}
+                      value={kycStoreFrontImage}
+                      onChange={(e) => setKycStoreFrontImage(e.target.value)}
+                      placeholder="https://images.unsplash.com/..."
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #CBD5E1',
+                        background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                        fontSize: '0.82rem',
+                      }}
+                    />
+                  </div>
+
+                  {isEditingMerchantKyc && (
+                    <div>
+                      <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748B', marginBottom: 6 }}>
+                        CHỌN NHANH ẢNH MẪU GIAN HÀNG:
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {[
+                          {
+                            label: 'Quán Cơm & Món Việt',
+                            url: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80',
+                          },
+                          {
+                            label: 'Phở & Bún Truyền Thống',
+                            url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&auto=format&fit=crop&q=80',
+                          },
+                          {
+                            label: 'Tiệm Trà Sữa & Cà Phê',
+                            url: 'https://images.unsplash.com/photo-1559925393-8be0ec4767c8?w=800&auto=format&fit=crop&q=80',
+                          },
+                          {
+                            label: 'Nhà hàng Âu & Pizza',
+                            url: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800&auto=format&fit=crop&q=80',
+                          },
+                        ].map((preset, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setKycStoreFrontImage(preset.url)}
+                            style={{
+                              padding: '5px 10px',
+                              borderRadius: 6,
+                              border:
+                                kycStoreFrontImage === preset.url
+                                  ? '1.5px solid #D97706'
+                                  : '1px solid #CBD5E1',
+                              background: kycStoreFrontImage === preset.url ? '#FFFBEB' : '#F8FAFC',
+                              color: kycStoreFrontImage === preset.url ? '#B45309' : '#475569',
+                              fontSize: '0.74rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
+
+              {/* Grid Row 2: Legal Documents (KYC) + Payout Bank Account */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
+                {/* Section 3: Hồ sơ Pháp lý & Định danh Chủ quán */}
+                <div
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: 12,
+                    padding: 22,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 14,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
+                    <ShieldCheck size={18} color="#00B14F" />
+                    <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      3. Hồ sơ Pháp lý &amp; Giấy phép Kinh doanh (KYC)
+                    </h4>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                        NGƯỜI ĐẠI DIỆN PHÁP LÝ / CHỦ QUÁN *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        readOnly={!isEditingMerchantKyc}
+                        value={kycOwnerName}
+                        onChange={(e) => setKycOwnerName(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                          fontSize: '0.86rem',
+                          fontWeight: 600,
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                        EMAIL ĐĂNG NHẬP QUẢN TRỊ QUÁN *
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        readOnly={!isEditingMerchantKyc}
+                        value={kycOwnerEmail}
+                        onChange={(e) => setKycOwnerEmail(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                          fontSize: '0.86rem',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                        SỐ GIẤY PHÉP ĐĂNG KÝ KINH DOANH
+                      </label>
+                      <input
+                        type="text"
+                        readOnly={!isEditingMerchantKyc}
+                        value={kycBusinessLicense}
+                        onChange={(e) => setKycBusinessLicense(e.target.value)}
+                        placeholder="VD: GPKD-41A8029144"
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                          fontSize: '0.86rem',
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                        MÃ SỐ THUẾ HỘ KINH DOANH / DOANH NGHIỆP
+                      </label>
+                      <input
+                        type="text"
+                        readOnly={!isEditingMerchantKyc}
+                        value={kycTaxCode}
+                        onChange={(e) => setKycTaxCode(e.target.value)}
+                        placeholder="VD: 0318992819"
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                          fontSize: '0.86rem',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                      SỐ CHỨNG NHẬN VỆ SINH AN TOÀN THỰC PHẨM (VSATTP)
+                    </label>
+                    <input
+                      type="text"
+                      readOnly={!isEditingMerchantKyc}
+                      value={kycFoodSafetyCert}
+                      onChange={(e) => setKycFoodSafetyCert(e.target.value)}
+                      placeholder="VD: ATTP-HCM-2026-0891"
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #CBD5E1',
+                        background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                        fontSize: '0.86rem',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Section 4: Tài khoản Ngân hàng Nhận Đối Soát Doanh Thu */}
+                <div
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: 12,
+                    padding: 22,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 14,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
+                    <DollarSign size={18} color="#4F46E5" />
+                    <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      4. Tài khoản Ngân hàng Nhận Đối Soát &amp; Doanh Thu
+                    </h4>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                        NGÂN HÀNG THỤ HƯỞNG *
+                      </label>
+                      <select
+                        disabled={!isEditingMerchantKyc}
+                        value={kycBankName}
+                        onChange={(e) => setKycBankName(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                          fontSize: '0.86rem',
+                          fontWeight: 600,
+                        }}
+                      >
+                        <option value="Vietcombank">Vietcombank</option>
+                        <option value="Techcombank">Techcombank</option>
+                        <option value="MB Bank">MB Bank</option>
+                        <option value="ACB">ACB</option>
+                        <option value="BIDV">BIDV</option>
+                        <option value="VietinBank">VietinBank</option>
+                        <option value="VPBank">VPBank</option>
+                        <option value="TPBank">TPBank</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                        SỐ TÀI KHOẢN NHẬN ĐỐI SOÁT *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        readOnly={!isEditingMerchantKyc}
+                        value={kycBankAccountNumber}
+                        onChange={(e) => setKycBankAccountNumber(e.target.value)}
+                        placeholder="0071000889900"
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                          fontSize: '0.86rem',
+                          fontWeight: 700,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                      TÊN CHỦ TÀI KHOẢN THỤ HƯỞNG (IN HOA KHÔNG DẤU) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      readOnly={!isEditingMerchantKyc}
+                      value={kycBankAccountHolder}
+                      onChange={(e) => setKycBankAccountHolder(e.target.value.toUpperCase())}
+                      placeholder="NGUYEN VAN A"
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #CBD5E1',
+                        background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                        fontSize: '0.86rem',
+                        fontWeight: 700,
+                      }}
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: 8,
+                      background: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontSize: '0.82rem',
+                      color: '#475569',
+                    }}
+                  >
+                    <span>Biểu phí chiết khấu sàn theo hợp đồng đối tác:</span>
+                    <strong style={{ color: '#0F172A', fontSize: '0.9rem' }}>
+                      {currentMerchant?.commissionRate ?? platformCommissionRate}% / đơn hoàn tất (Quán nhận {100 - (currentMerchant?.commissionRate ?? platformCommissionRate)}%)
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Sticky Save Bar */}
+              <div
+                style={{
+                  background: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: 12,
+                  padding: '16px 24px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 12,
+                }}
+              >
+                <div style={{ fontSize: '0.82rem', color: '#64748B' }}>
+                  Mọi thay đổi về tên quán, địa chỉ, khung giờ mở cửa và tài khoản ngân hàng sẽ được áp dụng ngay trên toàn hệ thống DineGo.
+                </div>
+                <button
+                  type="submit"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '11px 24px',
+                    borderRadius: 8,
+                    background: '#00B14F',
+                    color: '#FFFFFF',
+                    fontSize: '0.9rem',
+                    fontWeight: 800,
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(0, 177, 79, 0.28)',
+                  }}
+                >
+                  <CheckCircle2 size={17} />
+                  <span>Lưu toàn bộ Hồ sơ &amp; Cài đặt Quán</span>
+                </button>
+              </div>
+            </form>
           )}
         </div>
       </div>

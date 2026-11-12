@@ -140,6 +140,45 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
   const [filterTab, setFilterTab] = useState<'all' | 'active' | 'completed'>('all');
   const [isAutoPlay, setIsAutoPlay] = useState<boolean>(false);
   const [autoNotice, setAutoNotice] = useState<string>('');
+  const [allReviews, setAllReviews] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('dinego_merchant_reviews');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+
+  useEffect(() => {
+    const refreshReviews = () => {
+      try {
+        const saved = localStorage.getItem('dinego_merchant_reviews');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setAllReviews(parsed);
+        }
+      } catch {}
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'dinego_merchant_reviews') refreshReviews();
+    };
+    const ch =
+      typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('dinego_reviews_sync') : null;
+    if (ch) {
+      ch.onmessage = () => refreshReviews();
+    }
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('dinego_reviews_updated', refreshReviews);
+    window.addEventListener('focus', refreshReviews);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('dinego_reviews_updated', refreshReviews);
+      window.removeEventListener('focus', refreshReviews);
+      ch?.close();
+    };
+  }, []);
 
   const filteredOrders = orders.filter((order) => {
     if (filterTab === 'active') {
@@ -1068,26 +1107,103 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                 </button>
               )}
 
-              {/* Review CTA when COMPLETED */}
-              {selectedOrder.status === 'COMPLETED' && onOpenReviewModal && (
-                <button
-                  onClick={() => onOpenReviewModal(selectedOrder)}
-                  className="btn btn-secondary"
-                  style={{
-                    width: '100%',
-                    padding: '12px 18px',
-                    borderRadius: 12,
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 6,
-                  }}
-                >
-                  <Star size={16} color="#F59E0B" fill="#F59E0B" />
-                  <span>Đánh giá món ăn &amp; Tài xế</span>
-                </button>
-              )}
+              {/* Review Display & CTA when COMPLETED */}
+              {selectedOrder.status === 'COMPLETED' && (() => {
+                const existingReview = allReviews.find(
+                  (r: any) =>
+                    (r.orderId && r.orderId === selectedOrder.id) ||
+                    (r.orderRef && r.orderRef === selectedOrder.orderNumber),
+                );
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {existingReview && (
+                      <div
+                        style={{
+                          background: '#FFFBEB',
+                          border: '1.5px solid #FDE68A',
+                          borderRadius: 14,
+                          padding: '14px 16px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Star size={16} color="#F59E0B" fill="#F59E0B" />
+                            <span style={{ fontWeight: 800, fontSize: '0.88rem', color: '#92400E' }}>
+                              Đánh giá của bạn đã gửi tới quán {selectedOrder.merchant?.name}
+                            </span>
+                          </div>
+                          <span
+                            style={{
+                              padding: '2px 10px',
+                              borderRadius: 999,
+                              background: '#FEF3C7',
+                              color: '#D97706',
+                              fontWeight: 800,
+                              fontSize: '0.78rem',
+                            }}
+                          >
+                            {'★'.repeat(Math.max(1, Math.min(5, Number(existingReview.rating) || 5)))} ({existingReview.rating}.0/5)
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '0.86rem', color: '#1E293B', fontWeight: 600 }}>
+                          &ldquo;{existingReview.comment}&rdquo;
+                        </div>
+                        {existingReview.date && (
+                          <div style={{ fontSize: '0.74rem', color: '#94A3B8', marginTop: 4 }}>
+                            Gửi lúc: {existingReview.date}
+                          </div>
+                        )}
+                        {existingReview.reply ? (
+                          <div
+                            style={{
+                              marginTop: 10,
+                              padding: '10px 12px',
+                              borderRadius: 10,
+                              background: '#FFFFFF',
+                              borderLeft: '3px solid #D97706',
+                              fontSize: '0.82rem',
+                              color: '#334155',
+                            }}
+                          >
+                            <div style={{ fontWeight: 800, color: '#B45309', marginBottom: 2 }}>
+                              💬 Phản hồi từ quán {selectedOrder.merchant?.name}:
+                            </div>
+                            <div>{existingReview.reply}</div>
+                          </div>
+                        ) : (
+                          <div style={{ marginTop: 8, fontSize: '0.76rem', color: '#B45309', fontWeight: 600 }}>
+                            ✓ Quán đã nhận được đánh giá của bạn trong mục &ldquo;Đơn hàng&rdquo; &amp; &ldquo;Doanh thu &amp; Đánh giá&rdquo;.
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {onOpenReviewModal && (
+                      <button
+                        onClick={() => onOpenReviewModal(selectedOrder)}
+                        className="btn btn-secondary"
+                        style={{
+                          width: '100%',
+                          padding: '12px 18px',
+                          borderRadius: 12,
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        <Star size={16} color="#F59E0B" fill="#F59E0B" />
+                        <span>
+                          {existingReview
+                            ? 'Sửa đánh giá món ăn / Gửi khiếu nại'
+                            : 'Đánh giá món ăn & Tài xế'}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Strict Multi-Actor Acceptance Controls */}
               {selectedOrder.status !== 'COMPLETED' && selectedOrder.status !== 'CANCELLED' && (

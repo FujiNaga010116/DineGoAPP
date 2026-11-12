@@ -3,8 +3,8 @@
 // Clean Market Modal, Star Ratings, Complaint Moderation & Feedback
 // ==============================================================================
 
-import React, { useState } from 'react';
-import { X, Star, AlertTriangle, CheckCircle2, MessageSquare, ThumbsUp } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Star, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import type { Order } from '../../types';
 
 interface ReviewModalProps {
@@ -13,6 +13,13 @@ interface ReviewModalProps {
   order: Order | null;
   onSubmitted: (reviewData: any) => void;
 }
+
+const QUICK_REVIEW_TAGS = [
+  'Món ăn nóng hổi, đậm đà',
+  'Đóng gói sạch sẽ, cẩn thận',
+  'Đúng mô tả, khẩu phần đầy đặn',
+  'Giao hàng nhanh, tài xế nhiệt tình',
+];
 
 export const ReviewModal: React.FC<ReviewModalProps> = ({
   isOpen,
@@ -23,41 +30,81 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
   const [tab, setTab] = useState<'review' | 'complaint'>('review');
   const [rating, setRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
+  const [driverRating, setDriverRating] = useState(5);
   const [comment, setComment] = useState('');
   const [issueType, setIssueType] = useState('MISSING_ITEMS');
   const [complaintDesc, setComplaintDesc] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
+  useEffect(() => {
+    if (isOpen && order) {
+      setTab('review');
+      setSubmitted(false);
+      // Pre-fill if customer already reviewed this order before
+      try {
+        const raw = localStorage.getItem('dinego_merchant_reviews');
+        if (raw) {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) {
+            const existing = list.find(
+              (r: any) => r.orderId === order.id || r.orderRef === order.orderNumber,
+            );
+            if (existing) {
+              setRating(Number(existing.rating) || 5);
+              setDriverRating(Number(existing.driverRating) || 5);
+              setComment(existing.comment || '');
+              return;
+            }
+          }
+        }
+      } catch {}
+      setRating(5);
+      setDriverRating(5);
+      setComment('');
+      setComplaintDesc('');
+    }
+  }, [isOpen, order]);
+
   if (!isOpen || !order) return null;
 
   const handleSubmitReview = () => {
-    if (!comment.trim()) return;
+    const finalComment =
+      comment.trim() ||
+      (rating >= 5
+        ? 'Món ăn rất ngon, đóng gói sạch sẽ!'
+        : rating === 4
+        ? 'Món ăn ổn, giao hàng đúng giờ.'
+        : 'Mong quán cải thiện thêm chất lượng món ăn.');
     setSubmitted(true);
+    onSubmitted({
+      type: 'REVIEW',
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      merchantId: order.merchant?.id,
+      merchantName: order.merchant?.name,
+      rating,
+      driverRating,
+      comment: finalComment,
+    });
     setTimeout(() => {
-      onSubmitted({
-        type: 'REVIEW',
-        orderId: order.id,
-        rating,
-        comment,
-      });
       setSubmitted(false);
       onClose();
-    }, 1200);
+    }, 900);
   };
 
   const handleSubmitComplaint = () => {
     if (!complaintDesc.trim()) return;
     setSubmitted(true);
+    onSubmitted({
+      type: 'COMPLAINT',
+      orderId: order.id,
+      issueType,
+      description: complaintDesc,
+    });
     setTimeout(() => {
-      onSubmitted({
-        type: 'COMPLAINT',
-        orderId: order.id,
-        issueType,
-        description: complaintDesc,
-      });
       setSubmitted(false);
       onClose();
-    }, 1200);
+    }, 900);
   };
 
   return (
@@ -182,10 +229,32 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
               </p>
             </div>
           ) : tab === 'review' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Star Rating */}
-              <div style={{ textAlign: 'center', padding: '8px 0' }}>
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Ordered dishes summary */}
+              {order.items && order.items.length > 0 && (
+                <div
+                  style={{
+                    background: '#F8FAFC',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                    fontSize: '0.8rem',
+                    color: '#334155',
+                  }}
+                >
+                  <div style={{ fontWeight: 700, color: '#0F172A', marginBottom: 2 }}>
+                    Món ăn tại quán {order.merchant?.name}:
+                  </div>
+                  <div>{order.items.map((i) => `${i.quantity}x ${i.itemName}`).join(', ')}</div>
+                </div>
+              )}
+
+              {/* Star Rating for Food & Restaurant */}
+              <div style={{ textAlign: 'center', padding: '4px 0' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748B', marginBottom: 4 }}>
+                  Chất lượng món ăn &amp; Phục vụ của quán
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 6 }}>
                   {[1, 2, 3, 4, 5].map((s) => (
                     <button
                       key={s}
@@ -212,16 +281,41 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
                 </div>
               </div>
 
+              {/* Quick suggestion tags */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {QUICK_REVIEW_TAGS.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() =>
+                      setComment((prev) => (prev.includes(tag) ? prev : prev ? `${prev}. ${tag}` : tag))
+                    }
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: 999,
+                      border: '1px solid #CBD5E1',
+                      background: comment.includes(tag) ? '#DCFCE7' : '#F8FAFC',
+                      color: comment.includes(tag) ? '#15803D' : '#475569',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    + {tag}
+                  </button>
+                ))}
+              </div>
+
               {/* Comment text */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: 6 }}>
-                  Nhận xét chi tiết:
+                  Nhận xét gửi tới chủ quán:
                 </label>
                 <textarea
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   placeholder="Hương vị món ăn như thế nào? Đồ ăn có nóng và đóng gói kỹ không?..."
-                  rows={4}
+                  rows={3}
                   style={{
                     width: '100%',
                     padding: '10px 14px',
@@ -238,11 +332,10 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
 
               <button
                 onClick={handleSubmitReview}
-                disabled={!comment.trim()}
                 className="btn btn-primary"
                 style={{ width: '100%', padding: '12px', fontSize: '0.95rem', fontWeight: 700, borderRadius: 12 }}
               >
-                Gửi đánh giá món ăn
+                Gửi đánh giá tới nhà hàng
               </button>
             </div>
           ) : (
