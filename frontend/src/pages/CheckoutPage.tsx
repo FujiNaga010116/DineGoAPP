@@ -122,6 +122,22 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
     if (addr.phone) setRecipientPhone(addr.phone);
   };
 
+  const availableAdminVouchers = (() => {
+    try {
+      const saved = localStorage.getItem('dinego_admin_vouchers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter((v: any) => v.isActive !== false && Number(v.usageCount || 0) < Number(v.maxUsage || 999999));
+        }
+      }
+    } catch {}
+    return [
+      { code: 'DINEGO30', discountType: 'FIXED_AMOUNT', discountValue: 30000, minOrder: 120000, isActive: true },
+      { code: 'FREESHIP15K', discountType: 'FIXED_AMOUNT', discountValue: 15000, minOrder: 50000, isActive: true },
+    ];
+  })();
+
   const handleApplyVoucher = (codeToApply?: string) => {
     const code = (codeToApply || voucherInput).trim();
     if (!code) return;
@@ -134,10 +150,29 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
 
   const handlePlaceOrder = () => {
     if (cart.items.length === 0) return;
+
+    try {
+      const rawSettings = localStorage.getItem('dinego_admin_settings');
+      if (rawSettings) {
+        const parsedSettings = JSON.parse(rawSettings);
+        if (parsedSettings?.maintenanceMode === true) {
+          alert('Hệ thống sàn DineGo hiện đang bật Chế độ Bảo trì khẩn cấp bởi Quản trị viên. Vui lòng thử lại sau!');
+          return;
+        }
+      }
+    } catch {}
+
     if (!currentUser) {
       onOpenAuthModal('login');
       return;
     }
+
+    const matchedMerchant = merchants?.find((m) => m.id === cart.merchantId);
+    if (matchedMerchant && (matchedMerchant.isActive === false || matchedMerchant.kycStatus === 'REJECTED')) {
+      alert(`Nhà hàng "${matchedMerchant.name}" hiện đang tạm ngưng hoạt động bởi Quản trị viên sàn.`);
+      return;
+    }
+
     if (
       !hasVerifiedCustomerAddress(currentUser) ||
       typeof deliveryLat !== 'number' ||
@@ -156,7 +191,23 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
     }
     setIsSubmitting(true);
 
-    const matchedMerchant = merchants?.find((m) => m.id === cart.merchantId);
+    if (cart.voucherCode) {
+      try {
+        const savedVouchers = localStorage.getItem('dinego_admin_vouchers');
+        if (savedVouchers) {
+          const parsed = JSON.parse(savedVouchers);
+          if (Array.isArray(parsed)) {
+            const updatedVouchers = parsed.map((v: any) =>
+              String(v.code).toUpperCase() === String(cart.voucherCode).toUpperCase()
+                ? { ...v, usageCount: Number(v.usageCount || 0) + 1 }
+                : v,
+            );
+            localStorage.setItem('dinego_admin_vouchers', JSON.stringify(updatedVouchers));
+          }
+        }
+      } catch {}
+    }
+
     const orderNumber = `DG20261103-${Math.random().toString(16).substring(2, 8).toUpperCase()}`;
     const newOrder: Order = {
       id: `ord-${Date.now()}`,
@@ -889,8 +940,30 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                   </button>
                 </div>
 
-                {/* Quick Apply Voucher Tags */}
+                {/* Quick Apply Voucher Tags (Synced with Admin Vouchers) */}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                  {availableAdminVouchers.map((v: any) => (
+                    <button
+                      key={v.code}
+                      onClick={() => handleApplyVoucher(v.code)}
+                      style={{
+                        background: 'rgba(79, 70, 229, 0.08)',
+                        border: '1px dashed #4F46E5',
+                        borderRadius: 8,
+                        padding: '4px 10px',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        color: '#4F46E5',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      🎟️ {v.code} (
+                      {v.discountType === 'PERCENTAGE'
+                        ? `Giảm ${v.discountValue}%`
+                        : `Giảm ${(Number(v.discountValue) / 1000).toFixed(0)}k`}
+                      )
+                    </button>
+                  ))}
                   <button
                     onClick={() => handleApplyVoucher('DINEGO50')}
                     style={{
@@ -919,7 +992,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                       cursor: 'pointer',
                     }}
                   >
-                    🚀 FREESHIP (Miễn ship 15k)
+                    🚀 FREESHIP (Miễn ship 25k)
                   </button>
                 </div>
 

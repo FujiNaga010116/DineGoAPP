@@ -110,6 +110,111 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
     }
   }, [cartState]);
 
+  // Read Admin System Settings & Admin Vouchers from localStorage for live cross-actor sync
+  const getLiveAdminSettings = () => {
+    try {
+      const raw = localStorage.getItem('dinego_admin_settings');
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return {
+      platformCommissionRate: 15,
+      peakHourSurgeFee: 5000,
+      minOrderForFreeShipping: 100000,
+      autoDispatchRangeKm: 3.5,
+      maintenanceMode: false,
+    };
+  };
+
+  const resolveVoucherByCode = (
+    rawCode: string,
+  ): {
+    code: string;
+    title: string;
+    discountType: 'FIXED_AMOUNT' | 'PERCENTAGE';
+    discountValue: number;
+    minOrder: number;
+    isActive: boolean;
+    usageCount: number;
+    maxUsage: number;
+  } | null => {
+    const code = rawCode.trim().toUpperCase();
+    if (!code) return null;
+
+    const defaultAdminVouchers = [
+      {
+        code: 'DINEGO30',
+        discountType: 'FIXED_AMOUNT' as const,
+        title: 'Giảm 30.000đ cho đơn từ 120.000đ',
+        discountValue: 30000,
+        minOrder: 120000,
+        usageCount: 342,
+        maxUsage: 500,
+        isActive: true,
+      },
+      {
+        code: 'FREESHIP15K',
+        discountType: 'FIXED_AMOUNT' as const,
+        title: 'Miễn phí vận chuyển 15.000đ cho đơn từ 50.000đ',
+        discountValue: 15000,
+        minOrder: 50000,
+        usageCount: 615,
+        maxUsage: 1000,
+        isActive: true,
+      },
+      {
+        code: 'TIECVIP15',
+        discountType: 'PERCENTAGE' as const,
+        title: 'Giảm 15% cho hợp đồng Đặt Tiệc từ 3.000.000đ',
+        discountValue: 15,
+        minOrder: 3000000,
+        usageCount: 18,
+        maxUsage: 100,
+        isActive: true,
+      },
+    ];
+
+    let adminVouchers = defaultAdminVouchers;
+    try {
+      const saved = localStorage.getItem('dinego_admin_vouchers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          adminVouchers = parsed;
+        }
+      }
+    } catch {}
+
+    const foundAdmin = adminVouchers.find((v) => String(v.code).toUpperCase() === code);
+    if (foundAdmin) {
+      return {
+        code: String(foundAdmin.code).toUpperCase(),
+        title: foundAdmin.title || code,
+        discountType: foundAdmin.discountType === 'PERCENTAGE' ? 'PERCENTAGE' : 'FIXED_AMOUNT',
+        discountValue: Number(foundAdmin.discountValue) || 0,
+        minOrder: Number(foundAdmin.minOrder) || 0,
+        isActive: foundAdmin.isActive !== false,
+        usageCount: Number(foundAdmin.usageCount) || 0,
+        maxUsage: Number(foundAdmin.maxUsage) || 999999,
+      };
+    }
+
+    const staticVoucher = VALID_VOUCHERS[code];
+    if (staticVoucher) {
+      return {
+        code,
+        title: staticVoucher.name,
+        discountType: 'FIXED_AMOUNT',
+        discountValue: staticVoucher.discount,
+        minOrder: staticVoucher.minOrder,
+        isActive: true,
+        usageCount: 0,
+        maxUsage: 999999,
+      };
+    }
+
+    return null;
+  };
+
   // Recalculate totals
   const recalculateCart = (
     items: CartItem[],
@@ -124,13 +229,21 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
     }
 
     const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
-    const deliveryFee = 15000;
+    const settings = getLiveAdminSettings();
+    const minFreeShip = Number(settings?.minOrderForFreeShipping ?? 100000);
+    const surgeFee = Number(settings?.peakHourSurgeFee ?? 0);
+    const deliveryFee =
+      minFreeShip > 0 && subtotal >= minFreeShip ? 0 : Math.max(0, 15000 + surgeFee);
     let discountAmount = 0;
 
-    if (voucherCode && VALID_VOUCHERS[voucherCode]) {
-      const v = VALID_VOUCHERS[voucherCode];
-      if (subtotal >= v.minOrder) {
-        discountAmount = Math.min(v.discount, subtotal);
+    if (voucherCode) {
+      const v = resolveVoucherByCode(voucherCode);
+      if (v && v.isActive && v.usageCount < v.maxUsage && subtotal >= v.minOrder) {
+        const rawDiscount =
+          v.discountType === 'PERCENTAGE'
+            ? Math.round((subtotal * v.discountValue) / 100)
+            : v.discountValue;
+        discountAmount = Math.min(rawDiscount, subtotal + deliveryFee);
       }
     }
 
@@ -217,10 +330,17 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
 
   const applyVoucher = (code: string): { success: boolean; message: string } => {
     const normalized = code.trim().toUpperCase();
-    const v = VALID_VOUCHERS[normalized];
+    const v = resolveVoucherByCode(normalized);
 
     if (!v) {
       return { success: false, message: 'Mã giảm giá không tồn tại hoặc đã hết hạn.' };
+    }
+
+    if (!v.isActive || v.usageCount >= v.maxUsage) {
+      return {
+        success: false,
+        message: `Mã "${normalized}" hiện đang tạm dừng hoặc đã hết lượt sử dụng.`,
+      };
     }
 
     if (cart.subtotal < v.minOrder) {
@@ -230,10 +350,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
       };
     }
 
-    setCart(recalculateCart(cart.items, cart.merchantId, cart.merchantName, normalized));
+    const updatedCart = recalculateCart(cart.items, cart.merchantId, cart.merchantName, normalized);
+    setCart(updatedCart);
     return {
       success: true,
-      message: `Đã áp dụng mã "${normalized}" thành công (-${v.discount.toLocaleString('vi-VN')}đ)!`,
+      message: `Đã áp dụng mã "${normalized}" thành công (-${updatedCart.discountAmount.toLocaleString('vi-VN')}đ)!`,
     };
   };
 
