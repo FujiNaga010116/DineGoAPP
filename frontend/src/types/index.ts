@@ -281,6 +281,8 @@ export interface CateringOrderDetails {
   remainingAmount: number;
   voucherCode?: string;
   customNote?: string;
+  depositConfirmedByMerchant?: boolean;
+  depositConfirmedAt?: string;
   merchantApproved?: boolean;
   finalBillIssued?: boolean;
   finalBillCode?: string;

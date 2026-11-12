@@ -12,6 +12,7 @@ import {
   LogOut,
   User as UserIcon,
   ClipboardList,
+  Receipt,
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import type { Role, User } from '../../types';
@@ -53,6 +54,7 @@ export type NavTab =
 interface HeaderProps {
   currentTab: NavTab;
   onNavigate: (tab: NavTab) => void;
+  onOpenCustomerInvoices?: () => void;
   currentUser: User | null;
   onOpenAuthModal: (mode?: 'login' | 'register', targetRole?: Role) => void;
   onLogout: () => void;
@@ -63,6 +65,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   currentTab,
   onNavigate,
+  onOpenCustomerInvoices,
   currentUser,
   onOpenAuthModal,
   onLogout,
@@ -426,6 +429,35 @@ export const Header: React.FC<HeaderProps> = ({
                       }}
                     >
                       <ClipboardList size={15} /> Đơn hàng của tôi
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setUserDropdownOpen(false);
+                        if (onOpenCustomerInvoices) {
+                          onOpenCustomerInvoices();
+                        } else {
+                          onNavigate('customer-profile');
+                        }
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: 6,
+                        background: 'transparent',
+                        textAlign: 'left',
+                        fontSize: '0.84rem',
+                        color: '#334155',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        border: 'none',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <Receipt size={15} color="#00B14F" /> Hóa đơn &amp; Giao dịch
                     </button>
 
                     <div style={{ height: 1, background: '#F1F5F9', margin: '4px 0' }} />

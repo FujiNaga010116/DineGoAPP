@@ -464,16 +464,21 @@ export const CateringPage: React.FC<CateringPageProps> = ({
       bookings.find((b) => b.id === bookingId) ||
       (activeMomoModal?.id === bookingId ? activeMomoModal : undefined);
 
-    setBookings(
-      bookings.map((b) => (b.id === bookingId ? { ...b, status: 'DEPOSIT_PAID' } : b)),
-    );
+    // Keep booking in PENDING_DEPOSIT until Store Owner verifies & confirms receipt of deposit
     try {
       const existingFeastsRaw = localStorage.getItem('dinego_feast_bookings');
       if (existingFeastsRaw) {
         const parsed = JSON.parse(existingFeastsRaw);
         if (Array.isArray(parsed)) {
           const updatedFeasts = parsed.map((fb: Record<string, unknown>) =>
-            fb.id === bookingId ? { ...fb, depositPaid: true } : fb,
+            fb.id === bookingId
+              ? {
+                  ...fb,
+                  depositPaid: false,
+                  customerSubmittedTransfer: true,
+                  transferSubmittedAt: new Date().toISOString(),
+                }
+              : fb,
           );
           localStorage.setItem('dinego_feast_bookings', JSON.stringify(updatedFeasts));
           if (typeof BroadcastChannel !== 'undefined') {
@@ -512,7 +517,7 @@ export const CateringPage: React.FC<CateringPageProps> = ({
         orderType: 'CATERING',
         customerId: currentUser?.id || 'guest',
         customerEmail: currentUser?.email,
-        status: 'CONFIRMED',
+        status: 'PENDING',
         subtotal: gross,
         discountAmount: discount,
         deliveryFee: 0,
@@ -548,11 +553,11 @@ export const CateringPage: React.FC<CateringPageProps> = ({
         payment: {
           id: `pay-${paidRecord.id}`,
           paymentMethod: 'MOMO_QR',
-          paymentStatus: 'SUCCESS',
+          paymentStatus: 'PROCESSING',
           amount: paidRecord.depositAmount,
           currency: 'VND',
-          transactionRef: `MOMO-FEAST-${paidRecord.bookingCode.slice(-6)}`,
-          paidAt: new Date().toISOString(),
+          transactionRef: `MOMO-PENDING-${paidRecord.bookingCode.slice(-6)}`,
+          paidAt: null,
         },
         cateringDetails: {
           bookingCode: paidRecord.bookingCode,
@@ -570,6 +575,7 @@ export const CateringPage: React.FC<CateringPageProps> = ({
           remainingAmount: paidRecord.remainingAmount,
           voucherCode: paidRecord.voucherCode,
           customNote: paidRecord.customNote,
+          depositConfirmedByMerchant: false,
         },
       };
 
@@ -2909,8 +2915,24 @@ export const CateringPage: React.FC<CateringPageProps> = ({
             <div style={{ fontSize: '1.45rem', fontWeight: 900, color: '#D82D8B', marginBottom: 4, fontVariantNumeric: 'tabular-nums' }}>
               {activeMomoModal.depositAmount.toLocaleString()} VND
             </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 20 }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 14 }}>
               Nội dung chuyển: <code>{activeMomoModal.bookingCode}</code>
+            </div>
+
+            <div
+              style={{
+                background: '#FFFBEB',
+                border: '1px solid #FDE68A',
+                color: '#92400E',
+                borderRadius: 10,
+                padding: '9px 12px',
+                fontSize: '0.76rem',
+                fontWeight: 600,
+                marginBottom: 14,
+                textAlign: 'left',
+              }}
+            >
+              Sau khi bạn chuyển khoản MoMo, <strong>chủ cửa hàng</strong> sẽ kiểm tra và bấm xác nhận đã nhận tiền cọc trên hệ thống.
             </div>
 
             <button
@@ -2921,12 +2943,12 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                 width: '100%',
                 padding: '12px',
                 borderRadius: 10,
-                fontSize: '0.95rem',
+                fontSize: '0.92rem',
                 fontWeight: 800,
                 marginBottom: 10,
               }}
             >
-              Tôi đã chuyển tiền cọc MoMo thành công
+              Đã chuyển cọc MoMo • Chờ cửa hàng xác nhận
             </button>
             <button
               type="button"

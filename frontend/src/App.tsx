@@ -368,6 +368,9 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
   const [isAddressSetupModalOpen, setIsAddressSetupModalOpen] = useState(false);
   const [pendingAfterAddressSetup, setPendingAfterAddressSetup] = useState<(() => void) | null>(null);
   const [selectedTrackingOrderId, setSelectedTrackingOrderId] = useState<string | null>(null);
+  const [customerProfileSection, setCustomerProfileSection] = useState<
+    'info' | 'addresses' | 'payment' | 'security' | 'invoices'
+  >('info');
   const [deliveryDisputes, setDeliveryDisputes] = useState<DeliveryDisputeReport[]>(() => {
     const saved = localStorage.getItem('dinego_delivery_disputes');
     if (saved) {
@@ -806,20 +809,58 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
   const handleSyncCateringOrderFromMerchant = (
     bookingId: string,
     bookingCode: string,
-    action: 'APPROVED' | 'REJECTED' | 'COMPLETED',
-    meta?: { finalBillCode?: string; completedAt?: string },
+    action: 'CONFIRM_DEPOSIT' | 'APPROVED' | 'REJECTED' | 'COMPLETED',
+    meta?: { finalBillCode?: string; completedAt?: string; confirmedAt?: string },
   ) => {
+    const nowIso = meta?.confirmedAt || new Date().toISOString();
     setOrders((prev) =>
       prev.map((o) => {
         const matches =
           o.orderNumber === bookingCode || o.id === `ord-catering-${bookingId}`;
         if (!matches) return o;
+        if (action === 'CONFIRM_DEPOSIT') {
+          return {
+            ...o,
+            status: o.status === 'PENDING' ? 'CONFIRMED' : o.status,
+            payment: o.payment
+              ? {
+                  ...o.payment,
+                  paymentStatus: 'SUCCESS',
+                  transactionRef:
+                    o.payment.transactionRef?.startsWith('MOMO-PENDING-')
+                      ? `MOMO-FEAST-${bookingCode.slice(-6)}`
+                      : o.payment.transactionRef || `MOMO-FEAST-${bookingCode.slice(-6)}`,
+                  paidAt: nowIso,
+                }
+              : o.payment,
+            cateringDetails: o.cateringDetails
+              ? {
+                  ...o.cateringDetails,
+                  depositConfirmedByMerchant: true,
+                  depositConfirmedAt: nowIso,
+                }
+              : o.cateringDetails,
+          };
+        }
         if (action === 'APPROVED') {
           return {
             ...o,
             status: 'CONFIRMED',
+            payment:
+              o.payment && o.payment.paymentStatus !== 'SUCCESS'
+                ? {
+                    ...o.payment,
+                    paymentStatus: 'SUCCESS',
+                    paidAt: o.payment.paidAt || nowIso,
+                  }
+                : o.payment,
             cateringDetails: o.cateringDetails
-              ? { ...o.cateringDetails, merchantApproved: true }
+              ? {
+                  ...o.cateringDetails,
+                  depositConfirmedByMerchant: true,
+                  depositConfirmedAt: o.cateringDetails.depositConfirmedAt || nowIso,
+                  merchantApproved: true,
+                }
               : o.cateringDetails,
           };
         }
@@ -833,9 +874,18 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
         return {
           ...o,
           status: 'COMPLETED',
+          payment:
+            o.payment && o.payment.paymentStatus !== 'SUCCESS'
+              ? {
+                  ...o.payment,
+                  paymentStatus: 'SUCCESS',
+                  paidAt: o.payment.paidAt || nowIso,
+                }
+              : o.payment,
           cateringDetails: o.cateringDetails
             ? {
                 ...o.cateringDetails,
+                depositConfirmedByMerchant: true,
                 merchantApproved: true,
                 finalBillIssued: true,
                 finalBillCode: meta?.finalBillCode,
@@ -859,6 +909,8 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
             ? 'COMPLETED'
             : action === 'REJECTED'
             ? 'CANCELLED'
+            : action === 'CONFIRM_DEPOSIT' || action === 'APPROVED'
+            ? 'DEPOSIT_PAID'
             : null;
         if (!nextStatus) continue;
         localStorage.setItem(
@@ -1110,7 +1162,15 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
           key={currentUser?.id || 'guest'}
           currentTab={currentTab}
           onNavigate={(tab) => {
+            if (tab === 'customer-profile') {
+              setCustomerProfileSection('info');
+            }
             setCurrentTab(tab);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onOpenCustomerInvoices={() => {
+            setCustomerProfileSection('invoices');
+            setCurrentTab('customer-profile');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           currentUser={currentUser}
@@ -1221,9 +1281,11 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
 
         {currentTab === 'customer-profile' && (
           <CustomerProfilePage
-            key={currentUser?.id || 'guest'}
+            key={`${currentUser?.id || 'guest'}-${customerProfileSection}`}
             currentUser={currentUser}
             onUpdateUser={handleUpdateUser}
+            orders={customerOrders}
+            initialSection={customerProfileSection}
           />
         )}
 
