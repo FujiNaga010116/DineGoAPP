@@ -269,6 +269,8 @@ export interface CateringOrderDetails {
   bookingCode: string;
   partyTypeTitle: string;
   packageName: string;
+  merchantRating?: number;
+  merchantReviewCount?: number;
   tableCount: number;
   guestCountPerTable: number;
   eventDate: string;

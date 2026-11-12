@@ -558,6 +558,8 @@ export const CateringPage: React.FC<CateringPageProps> = ({
           bookingCode: paidRecord.bookingCode,
           partyTypeTitle: paidRecord.partyTypeTitle || 'Đặt tiệc lưu động',
           packageName: paidRecord.packageName,
+          merchantRating: matchedPkg.rating,
+          merchantReviewCount: matchedPkg.reviewCount,
           tableCount: paidRecord.tableCount,
           guestCountPerTable: guestCount,
           eventDate: paidRecord.eventDate,
@@ -1297,38 +1299,49 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                             <div>
                               <div
                                 style={{
-                                  display: 'inline-flex',
+                                  display: 'flex',
                                   alignItems: 'center',
-                                  gap: 6,
-                                  fontSize: '0.78rem',
-                                  fontWeight: 700,
-                                  color: 'var(--primary)',
+                                  flexWrap: 'wrap',
+                                  gap: 8,
                                   marginBottom: 4,
                                 }}
                               >
-                                <UtensilsCrossed size={13} />
-                                {pkg.merchantName}
+                                <h3
+                                  style={{
+                                    fontSize: '1.16rem',
+                                    fontWeight: 900,
+                                    color: 'var(--text-main)',
+                                    margin: 0,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                  }}
+                                >
+                                  <UtensilsCrossed size={16} color="var(--primary)" />
+                                  {pkg.merchantName}
+                                </h3>
                                 <span
                                   style={{
                                     background: 'rgba(0, 177, 79, 0.1)',
-                                    padding: '2px 8px',
+                                    color: 'var(--primary)',
+                                    padding: '2px 9px',
                                     borderRadius: 999,
-                                    fontSize: '0.7rem',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 800,
                                   }}
                                 >
                                   {pkg.merchantBadge}
                                 </span>
                               </div>
-                              <h3
+                              <div
                                 style={{
-                                  fontSize: '1.12rem',
-                                  fontWeight: 800,
-                                  color: 'var(--text-main)',
-                                  margin: 0,
+                                  fontSize: '0.95rem',
+                                  fontWeight: 700,
+                                  color: 'var(--primary)',
                                 }}
                               >
-                                {pkg.name}
-                              </h3>
+                                Gói mâm: {pkg.name}
+                              </div>
                             </div>
 
                             <div style={{ textAlign: 'right' }}>
@@ -1495,12 +1508,15 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                   }}
                 />
                 <div style={{ flex: '1 1 280px' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary)', marginBottom: 4 }}>
-                    {selectedPackage.merchantName} • ★ {selectedPackage.rating.toFixed(1)} ({selectedPackage.reviewCount} đánh giá)
-                  </div>
-                  <h2 style={{ fontSize: '1.28rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 6px 0' }}>
-                    {selectedPackage.name}
+                  <h2 style={{ fontSize: '1.3rem', fontWeight: 900, color: 'var(--text-main)', margin: '0 0 4px 0' }}>
+                    {selectedPackage.merchantName}
+                    <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#D97706', marginLeft: 10 }}>
+                      ★ {selectedPackage.rating.toFixed(1)} ({selectedPackage.reviewCount} đánh giá)
+                    </span>
                   </h2>
+                  <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--primary)', marginBottom: 6 }}>
+                    {selectedPackage.name}
+                  </div>
                   <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: 0 }}>
                     {selectedPackage.description} • Tiêu chuẩn <strong>{selectedPackage.guestCountPerTable} khách/mâm</strong>
                   </p>

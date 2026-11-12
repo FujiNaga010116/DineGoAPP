@@ -451,10 +451,21 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                     boxShadow: isSelected ? '0 6px 20px rgba(0, 177, 79, 0.15)' : 'var(--shadow-sm)',
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
-                    <span style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '0.98rem' }}>
-                      #{order.orderNumber}
-                    </span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8, gap: 8 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1.02rem', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <Store size={15} color="var(--primary)" style={{ flexShrink: 0 }} />
+                        <span>{order.merchant?.name || 'Nhà hàng DineGo'}</span>
+                      </div>
+                      {isCatering && order.cateringDetails?.merchantRating && (
+                        <div style={{ fontSize: '0.76rem', fontWeight: 700, color: '#D97706', marginTop: 2 }}>
+                          ★ {order.cateringDetails.merchantRating.toFixed(1)}
+                          {order.cateringDetails.merchantReviewCount
+                            ? ` (${order.cateringDetails.merchantReviewCount} đánh giá)`
+                            : ''}
+                        </div>
+                      )}
+                    </div>
                     <span
                       style={{
                         padding: '4px 10px',
@@ -463,6 +474,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                         fontWeight: 700,
                         color: statusInfo.color,
                         background: statusInfo.bg,
+                        flexShrink: 0,
                       }}
                     >
                       {isCatering && order.status === 'CONFIRMED'
@@ -495,18 +507,17 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                     </div>
                   )}
 
-                  <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                    <Store size={14} color="var(--primary)" />
+                  <div style={{ fontSize: '0.86rem', color: 'var(--text-muted)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     <strong style={{ color: 'var(--text-main)' }}>
                       {isCatering && order.cateringDetails
                         ? order.cateringDetails.packageName
-                        : order.merchant?.name || 'Nhà hàng DineGo'}
+                        : `${order.items?.length || 1} món`}
                     </strong>
                     <span>•</span>
                     <span>
                       {isCatering && order.cateringDetails
                         ? `${order.cateringDetails.tableCount} mâm • ${order.cateringDetails.eventTime} (${order.cateringDetails.eventDate})`
-                        : `${order.items?.length || 1} món`}
+                        : `#${order.orderNumber}`}
                     </span>
                   </div>
 
@@ -565,14 +576,27 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
               }}
             >
               <div>
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                  {isCateringOrder ? 'Chi tiết đơn đặt tiệc lưu động' : 'Chi tiết đơn hàng'}
+                <div style={{ fontSize: '0.82rem', color: 'var(--primary)', fontWeight: 700 }}>
+                  {isCateringOrder ? 'Đơn đặt tiệc lưu động' : 'Đơn hàng giao món'}
                 </div>
-                <h2 style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--text-main)', margin: '4px 0' }}>
-                  #{selectedOrder.orderNumber}
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-main)', margin: '4px 0', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span>{selectedOrder.merchant?.name || 'Nhà hàng DineGo'}</span>
+                  {isCateringOrder && cateringInfo?.merchantRating && (
+                    <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#D97706' }}>
+                      • ★ {cateringInfo.merchantRating.toFixed(1)}
+                      {cateringInfo.merchantReviewCount
+                        ? ` (${cateringInfo.merchantReviewCount} đánh giá)`
+                        : ''}
+                    </span>
+                  )}
                 </h2>
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                  Đặt lúc: {new Date(selectedOrder.createdAt).toLocaleString('vi-VN')}
+                {isCateringOrder && cateringInfo && (
+                  <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: 3 }}>
+                    {cateringInfo.packageName}
+                  </div>
+                )}
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Mã đơn: #{selectedOrder.orderNumber} • Đặt lúc: {new Date(selectedOrder.createdAt).toLocaleString('vi-VN')}
                 </div>
               </div>
 
