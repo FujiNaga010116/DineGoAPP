@@ -3,6 +3,8 @@
 // Architecture: Clean Architecture / Modular Monolith
 // ==============================================================================
 
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import {
   ForbiddenException,
   Injectable,
@@ -14,12 +16,16 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface.js';
 import {
   DateRangeQueryDto,
+  UpdateDriverStatusDto,
   UpdateMerchantApprovalDto,
+  UpdateSystemSettingsDto,
   UpdateUserStatusDto,
 } from './dto/dashboard-query.dto.js';
 import type {
   AdminAuditLogEntry,
+  AdminDriverSummary,
   AdminSystemOverview,
+  AdminSystemSettings,
   MerchantReconciliation,
   RevenueSummary,
 } from './interfaces/dashboard.interface.js';
@@ -27,7 +33,21 @@ import type {
 @Injectable()
 export class DashboardService {
   private readonly logger = new Logger(DashboardService.name);
+  private readonly stateFilePath = path.resolve(process.cwd(), '.data', 'admin-state.json');
+  private readonly isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
+
   private readonly paidReconciliations = new Set<string>();
+  private readonly driverStatuses = new Map<string, 'ACTIVE' | 'SUSPENDED'>();
+  private systemSettings: AdminSystemSettings = {
+    platformCommissionRate: 15,
+    peakHourSurgeFee: 5000,
+    minOrderForFreeShipping: 100000,
+    autoDispatchRangeKm: 3.5,
+    maintenanceMode: false,
+    updatedAt: new Date('2026-11-01T08:00:00Z'),
+    updatedBy: 'admin@dinego.vn',
+  };
+
   private readonly auditLogs: AdminAuditLogEntry[] = [
     {
       id: 'aud-seed-01',
@@ -51,7 +71,74 @@ export class DashboardService {
     },
   ];
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {
+    this.loadPersistedState();
+  }
+
+  private loadPersistedState(): void {
+    if (this.isTestEnv) return;
+    try {
+      if (!fs.existsSync(this.stateFilePath)) return;
+      const raw = fs.readFileSync(this.stateFilePath, 'utf-8');
+      const parsed = JSON.parse(raw) as {
+        paidReconciliations?: string[];
+        driverStatuses?: Record<string, 'ACTIVE' | 'SUSPENDED'>;
+        systemSettings?: AdminSystemSettings;
+        auditLogs?: AdminAuditLogEntry[];
+      };
+
+      if (Array.isArray(parsed.paidReconciliations)) {
+        this.paidReconciliations.clear();
+        for (const id of parsed.paidReconciliations) {
+          this.paidReconciliations.add(id);
+        }
+      }
+      if (parsed.driverStatuses && typeof parsed.driverStatuses === 'object') {
+        this.driverStatuses.clear();
+        for (const [k, v] of Object.entries(parsed.driverStatuses)) {
+          this.driverStatuses.set(k, v);
+        }
+      }
+      if (parsed.systemSettings) {
+        this.systemSettings = {
+          ...this.systemSettings,
+          ...parsed.systemSettings,
+          updatedAt: new Date(parsed.systemSettings.updatedAt || Date.now()),
+        };
+      }
+      if (Array.isArray(parsed.auditLogs) && parsed.auditLogs.length > 0) {
+        this.auditLogs.splice(
+          0,
+          this.auditLogs.length,
+          ...parsed.auditLogs.map((entry) => ({
+            ...entry,
+            createdAt: new Date(entry.createdAt),
+          })),
+        );
+      }
+    } catch (error) {
+      this.logger.warn(`Không thể đọc trạng thái Admin lưu trữ: ${(error as Error).message}`);
+    }
+  }
+
+  private persistState(): void {
+    if (this.isTestEnv) return;
+    try {
+      const dir = path.dirname(this.stateFilePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      const data = {
+        paidReconciliations: Array.from(this.paidReconciliations),
+        driverStatuses: Object.fromEntries(this.driverStatuses.entries()),
+        systemSettings: this.systemSettings,
+        auditLogs: this.auditLogs,
+      };
+      fs.writeFileSync(this.stateFilePath, JSON.stringify(data, null, 2), 'utf-8');
+    } catch (error) {
+      this.logger.warn(`Không thể lưu trạng thái Admin xuống đĩa: ${(error as Error).message}`);
+    }
+  }
 
   // ----------------------------------------------------------------------------
   // U043: DASHBOARD BÁO CÁO DOANH THU NHÀ HÀNG (MERCHANT REPORTS)
@@ -211,7 +298,11 @@ export class DashboardService {
   // U045: ADMIN KIỂM DUYỆT QUÁN & KHÓA/MỞ TÀI KHOẢN
   // ----------------------------------------------------------------------------
 
-  async updateMerchantStatus(merchantId: string, dto: UpdateMerchantApprovalDto) {
+  async updateMerchantStatus(
+    merchantId: string,
+    dto: UpdateMerchantApprovalDto,
+    adminUser?: AuthenticatedUser,
+  ) {
     const merchant = await this.prisma.merchant.findUnique({ where: { id: merchantId } });
     if (!merchant) {
       throw new NotFoundException('Không tìm thấy nhà hàng cần kiểm duyệt');
@@ -229,15 +320,20 @@ export class DashboardService {
       targetId: merchantId,
       targetName: updated.name,
       reason: dto.reason || 'Kiểm duyệt bởi Quản trị viên',
-      performedBy: 'admin@dinego.vn',
+      performedBy: adminUser?.email || 'admin@dinego.vn',
       createdAt: new Date(),
     });
+    this.persistState();
 
     this.logger.log(`[Admin Audit] Nhà hàng "${updated.name}" (${merchantId}) chuyển trạng thái sang: ${dto.status}. Lý do: ${dto.reason || 'N/A'}`);
     return updated;
   }
 
-  async updateUserStatus(userId: string, dto: UpdateUserStatusDto) {
+  async updateUserStatus(
+    userId: string,
+    dto: UpdateUserStatusDto,
+    adminUser?: AuthenticatedUser,
+  ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('Không tìm thấy tài khoản người dùng');
@@ -255,9 +351,10 @@ export class DashboardService {
       targetId: userId,
       targetName: updated.email,
       reason: dto.reason || (dto.isActive ? 'Mở khóa tài khoản' : 'Vi phạm điều khoản nền tảng'),
-      performedBy: 'admin@dinego.vn',
+      performedBy: adminUser?.email || 'admin@dinego.vn',
       createdAt: new Date(),
     });
+    this.persistState();
 
     // Nếu khóa tài khoản, thu hồi lập tức tất cả các phiên đăng nhập đang hoạt động
     if (!dto.isActive) {
@@ -292,6 +389,126 @@ export class DashboardService {
     }));
   }
 
+  async getDrivers(): Promise<AdminDriverSummary[]> {
+    const drivers = await this.prisma.user.findMany({
+      where: {
+        roles: {
+          some: { role: Role.DRIVER },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const completedDeliveries = this.prisma.orderTracking
+      ? await this.prisma.orderTracking.findMany({
+          where: { deliveryStatus: 'DELIVERED' },
+          select: { driverId: true },
+        })
+      : [];
+
+    const tripCounts = new Map<string, number>();
+    for (const d of completedDeliveries) {
+      if (d.driverId) {
+        tripCounts.set(d.driverId, (tripCounts.get(d.driverId) || 0) + 1);
+      }
+    }
+
+    return drivers.map((u) => {
+      const override = this.driverStatuses.get(u.id);
+      const status: 'ACTIVE' | 'SUSPENDED' =
+        override || (u.isActive ? 'ACTIVE' : 'SUSPENDED');
+      return {
+        id: u.id,
+        email: u.email,
+        fullName: u.fullName,
+        phoneNumber: u.phoneNumber,
+        isActive: u.isActive,
+        status,
+        completedTrips: tripCounts.get(u.id) || 0,
+        createdAt: u.createdAt,
+      };
+    });
+  }
+
+  async updateDriverStatus(
+    driverId: string,
+    dto: UpdateDriverStatusDto,
+    adminUser?: AuthenticatedUser,
+  ) {
+    const isActive = dto.status === 'ACTIVE';
+    this.driverStatuses.set(driverId, dto.status);
+
+    let targetName = driverId;
+    const existingUser = await this.prisma.user.findUnique({ where: { id: driverId } });
+    if (existingUser) {
+      const updated = await this.prisma.user.update({
+        where: { id: driverId },
+        data: { isActive },
+      });
+      targetName = updated.fullName || updated.email;
+    }
+
+    this.auditLogs.unshift({
+      id: `aud-${Date.now()}`,
+      action: dto.status === 'SUSPENDED' ? 'DRIVER_SUSPENDED' : 'DRIVER_ACTIVATED',
+      targetType: 'DRIVER',
+      targetId: driverId,
+      targetName,
+      reason:
+        dto.reason ||
+        (dto.status === 'SUSPENDED'
+          ? 'Tạm đình chỉ nhận chuyến để rà soát vận hành'
+          : 'Khôi phục quyền nhận chuyến giao hàng'),
+      performedBy: adminUser?.email || 'admin@dinego.vn',
+      createdAt: new Date(),
+    });
+    this.persistState();
+
+    return {
+      id: driverId,
+      status: dto.status,
+      isActive,
+      updatedAt: new Date(),
+    };
+  }
+
+  getSystemSettings(): AdminSystemSettings {
+    return this.systemSettings;
+  }
+
+  updateSystemSettings(
+    dto: UpdateSystemSettingsDto,
+    adminUser?: AuthenticatedUser,
+  ): AdminSystemSettings {
+    const actor = adminUser?.email || 'admin@dinego.vn';
+    this.systemSettings = {
+      platformCommissionRate:
+        dto.platformCommissionRate ?? this.systemSettings.platformCommissionRate,
+      peakHourSurgeFee: dto.peakHourSurgeFee ?? this.systemSettings.peakHourSurgeFee,
+      minOrderForFreeShipping:
+        dto.minOrderForFreeShipping ?? this.systemSettings.minOrderForFreeShipping,
+      autoDispatchRangeKm:
+        dto.autoDispatchRangeKm ?? this.systemSettings.autoDispatchRangeKm,
+      maintenanceMode: dto.maintenanceMode ?? this.systemSettings.maintenanceMode,
+      updatedAt: new Date(),
+      updatedBy: actor,
+    };
+
+    this.auditLogs.unshift({
+      id: `aud-${Date.now()}`,
+      action: 'SYSTEM_SETTINGS_UPDATED',
+      targetType: 'SYSTEM',
+      targetId: 'system-config',
+      targetName: `Hoa hồng ${this.systemSettings.platformCommissionRate}% • Bán kính ${this.systemSettings.autoDispatchRangeKm}km`,
+      reason: dto.reason || 'Cập nhật cấu hình vận hành toàn sàn',
+      performedBy: actor,
+      createdAt: new Date(),
+    });
+    this.persistState();
+
+    return this.systemSettings;
+  }
+
   getAdminAuditLogs(): AdminAuditLogEntry[] {
     return this.auditLogs;
   }
@@ -314,7 +531,7 @@ export class DashboardService {
       },
     });
 
-    const commissionRate = 15; // 15% hoa hồng sàn DineGo theo BR-42
+    const commissionRate = this.systemSettings.platformCommissionRate; // Đồng bộ cấu hình sàn (mặc định 15% theo BR-42)
 
     return merchants.map((m) => {
       const totalGmv = m.orders.reduce((sum, o) => sum + Number(o.finalTotal), 0);
@@ -341,18 +558,23 @@ export class DashboardService {
     });
   }
 
-  confirmReconciliationPayout(reconciliationId: string): { reconciliationId: string; status: 'PAID'; paidAt: Date } {
+  confirmReconciliationPayout(
+    reconciliationId: string,
+    adminUser?: AuthenticatedUser,
+  ): { reconciliationId: string; status: 'PAID'; paidAt: Date } {
     this.paidReconciliations.add(reconciliationId);
+    const netPct = 100 - this.systemSettings.platformCommissionRate;
     this.auditLogs.unshift({
       id: `aud-${Date.now()}`,
       action: 'PAYOUT_CONFIRMED',
       targetType: 'RECONCILIATION',
       targetId: reconciliationId,
       targetName: reconciliationId,
-      reason: 'Admin xác nhận giải ngân công nợ cuối kỳ (85% Net Payout)',
-      performedBy: 'admin@dinego.vn',
+      reason: `Admin xác nhận giải ngân công nợ cuối kỳ (${netPct}% Net Payout)`,
+      performedBy: adminUser?.email || 'admin@dinego.vn',
       createdAt: new Date(),
     });
+    this.persistState();
     return {
       reconciliationId,
       status: 'PAID',
