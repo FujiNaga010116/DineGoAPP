@@ -10,10 +10,10 @@ import type { SavedAddress, User } from '../types';
 
 const RESILIENT_TILE_SOURCES = [
   {
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    subdomains: 'abcd',
+    url: 'https://mt{s}.google.com/vt/lyrs=m&hl=vi&x={x}&y={y}&z={z}',
+    subdomains: '0123',
     maxZoom: 20,
-    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+    attribution: '&copy; Google Maps',
   },
   {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
@@ -22,16 +22,16 @@ const RESILIENT_TILE_SOURCES = [
     attribution: '&copy; Esri &mdash; OpenStreetMap contributors',
   },
   {
-    url: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-    subdomains: '',
-    maxZoom: 20,
-    attribution: '&copy; Map data',
+    url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+    subdomains: 'abc',
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors, Tiles style by HOT',
   },
 ];
 
 /**
  * Attaches a street tile layer to a Leaflet map with automatic multi-provider
- * fallback when a tile server (such as tile.openstreetmap.org) is blocked/unreachable.
+ * fallback when a tile server is blocked or unreachable.
  */
 export function addResilientStreetTileLayer(map: L.Map): L.TileLayer {
   let providerIdx = 0;
@@ -50,6 +50,8 @@ export function addResilientStreetTileLayer(map: L.Map): L.TileLayer {
       providerIdx += 1;
       errorCount = 0;
       const next = RESILIENT_TILE_SOURCES[providerIdx];
+      layer.options.subdomains = next.subdomains ? next.subdomains.split('') : [];
+      layer.options.maxZoom = next.maxZoom;
       layer.setUrl(next.url);
     }
   });
