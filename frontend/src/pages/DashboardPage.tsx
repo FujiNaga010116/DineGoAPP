@@ -3,7 +3,7 @@
 // Completely separated layouts from the Customer Storefront (No shared Header/Footer)
 // ==============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Store,
   ShieldCheck,
@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import type { Role, User, Order, OrderStatus, MenuItem, Merchant, DriverProfile } from '../types';
 import type { NavTab } from '../components/common/Header';
+import { adminApi } from '../api/client';
 
 interface DashboardPageProps {
   currentUser: User | null;
@@ -59,6 +60,16 @@ interface DashboardPageProps {
   allDriversList?: DriverProfile[];
   allUsersList?: User[];
   onToggleUserStatus?: (userId: string) => void;
+  onAdminUpdateMerchantStatus?: (
+    merchantId: string,
+    nextStatus: 'APPROVED' | 'REJECTED' | 'SUSPENDED',
+    reason?: string,
+  ) => void;
+  onAdminUpdateDriverStatus?: (
+    driverId: string,
+    nextStatus: 'ACTIVE' | 'SUSPENDED',
+    reason?: string,
+  ) => void;
   onSelectMerchantForManage?: (merchant: Merchant) => void;
   onOpenMerchantRegisterModal?: () => void;
 }
@@ -81,20 +92,61 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   allDriversList = [],
   allUsersList = [],
   onToggleUserStatus,
+  onAdminUpdateMerchantStatus,
+  onAdminUpdateDriverStatus,
   onSelectMerchantForManage,
   onOpenMerchantRegisterModal,
 }) => {
-  const isAdminRole = currentUser?.roles?.includes('ADMIN') || activeTab.startsWith('admin-');
+  const isAdminRole = Boolean(currentUser?.roles?.includes('ADMIN'));
 
-  // Admin Deep System Controls
-  const [platformCommissionRate, setPlatformCommissionRate] = useState(15);
-  const [peakHourSurgeFee, setPeakHourSurgeFee] = useState(5000);
-  const [minOrderForFreeShipping, setMinOrderForFreeShipping] = useState(100000);
-  const [autoDispatchRangeKm, setAutoDispatchRangeKm] = useState(3.5);
-  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  // Admin Deep System Controls (persisted to localStorage & synced with Backend API)
+  const initialAdminSettings = (() => {
+    try {
+      const saved = localStorage.getItem('dinego_admin_settings');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return null;
+  })();
+
+  const [platformCommissionRate, setPlatformCommissionRate] = useState<number>(
+    initialAdminSettings?.platformCommissionRate ?? 15,
+  );
+  const [peakHourSurgeFee, setPeakHourSurgeFee] = useState<number>(
+    initialAdminSettings?.peakHourSurgeFee ?? 5000,
+  );
+  const [minOrderForFreeShipping, setMinOrderForFreeShipping] = useState<number>(
+    initialAdminSettings?.minOrderForFreeShipping ?? 100000,
+  );
+  const [autoDispatchRangeKm, setAutoDispatchRangeKm] = useState<number>(
+    initialAdminSettings?.autoDispatchRangeKm ?? 3.5,
+  );
+  const [maintenanceMode, setMaintenanceMode] = useState<boolean>(
+    initialAdminSettings?.maintenanceMode ?? false,
+  );
   const [userRoleFilter, setUserRoleFilter] = useState<'ALL' | 'CUSTOMER' | 'MERCHANT' | 'DRIVER' | 'ADMIN'>('ALL');
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [configSavedBanner, setConfigSavedBanner] = useState('');
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'dinego_admin_settings',
+        JSON.stringify({
+          platformCommissionRate,
+          peakHourSurgeFee,
+          minOrderForFreeShipping,
+          autoDispatchRangeKm,
+          maintenanceMode,
+        }),
+      );
+    } catch {}
+  }, [
+    platformCommissionRate,
+    peakHourSurgeFee,
+    minOrderForFreeShipping,
+    autoDispatchRangeKm,
+    maintenanceMode,
+  ]);
 
   // Merchant Active Section
   const currentMerchantTab:
@@ -369,25 +421,40 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     }));
   })();
 
-  // Admin Audit Logs State (U045)
-  const [adminAuditLogs, setAdminAuditLogs] = useState([
-    {
-      id: 'aud-01',
-      action: 'DUYỆT HỒ SƠ KYC QUÁN',
-      targetName: 'Cơm Tấm Sài Gòn 1985',
-      reason: 'Giấy phép VSATTP & GPKD hợp lệ',
-      performedBy: 'admin@dinego.vn',
-      timestamp: '03/11/2026 09:15',
-    },
-    {
-      id: 'aud-02',
-      action: 'GIẢI NGÂN ĐỐI SOÁT KỲ 10/2026',
-      targetName: 'Phở Thìn Lò Đúc 1979',
-      reason: 'Ủy nhiệm chi 85% doanh thu ròng qua Techcombank',
-      performedBy: 'admin@dinego.vn',
-      timestamp: '01/11/2026 16:40',
-    },
-  ]);
+  // Admin Audit Logs State (U045) — Persisted in localStorage & synced with Backend
+  const [adminAuditLogs, setAdminAuditLogs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dinego_admin_audit_logs');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [
+      {
+        id: 'aud-01',
+        action: 'DUYỆT HỒ SƠ KYC QUÁN',
+        targetName: 'Cơm Tấm Sài Gòn 1985',
+        reason: 'Giấy phép VSATTP & GPKD hợp lệ',
+        performedBy: 'admin@dinego.vn',
+        timestamp: '03/11/2026 09:15',
+      },
+      {
+        id: 'aud-02',
+        action: 'GIẢI NGÂN ĐỐI SOÁT KỲ 10/2026',
+        targetName: 'Phở Thìn Lò Đúc 1979',
+        reason: 'Ủy nhiệm chi 85% doanh thu ròng qua Techcombank',
+        performedBy: 'admin@dinego.vn',
+        timestamp: '01/11/2026 16:40',
+      },
+    ];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_admin_audit_logs', JSON.stringify(adminAuditLogs));
+    } catch {}
+  }, [adminAuditLogs]);
 
   const appendAuditLog = (action: string, targetName: string, reason: string) => {
     setAdminAuditLogs((prev) => [
@@ -410,7 +477,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   };
 
   // Admin Drivers Fleet derived from real allDriversList & real orders
-  const [driverStatusOverrides, setDriverStatusOverrides] = useState<Record<string, 'ACTIVE' | 'SUSPENDED'>>({});
+  const [driverStatusOverrides, setDriverStatusOverrides] = useState<Record<string, 'ACTIVE' | 'SUSPENDED'>>(() => {
+    try {
+      const saved = localStorage.getItem('dinego_admin_driver_overrides');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {};
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_admin_driver_overrides', JSON.stringify(driverStatusOverrides));
+    } catch {}
+  }, [driverStatusOverrides]);
 
   const driversList = allDriversList.map((drv, idx) => {
     const realDriverTrips = completedOrdersList.filter(
@@ -436,56 +515,76 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     const target = driversList.find((d) => d.id === drvId);
     if (!target) return;
     const nextStatus: 'ACTIVE' | 'SUSPENDED' = target.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    const reason =
+      nextStatus === 'SUSPENDED'
+        ? 'Tạm khóa nhận chuyến để rà soát vận hành'
+        : 'Khôi phục quyền nhận chuyến giao hàng';
     setDriverStatusOverrides((prev) => ({ ...prev, [drvId]: nextStatus }));
+    onAdminUpdateDriverStatus?.(drvId, nextStatus, reason);
     appendAuditLog(
       nextStatus === 'SUSPENDED' ? 'ĐÌNH CHỈ TÀI XẾ NHẬN CHUYẾN' : 'MỞ KHÓA TÀI XẾ',
       `${target.fullName} (${target.licensePlate})`,
-      nextStatus === 'SUSPENDED' ? 'Tạm khóa nhận chuyến để rà soát vận hành' : 'Khôi phục quyền nhận chuyến giao hàng',
+      reason,
     );
   };
 
-  // Admin Complaints State (U051)
-  const [complaints, setComplaints] = useState([
-    {
-      id: 'cmp-01',
-      code: 'CMP-298101',
-      orderNumber: 'DG20261103-TRK88',
-      customerName: 'Nguyễn Văn An',
-      merchantName: 'Cơm Tấm Sài Gòn 1985',
-      issueType: 'Giao thiếu 01 phần canh chua cá lóc trong đơn hàng',
-      evidenceImage: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=240&auto=format&fit=crop&q=80',
-      compensationAmount: 35000,
-      resolutionNotes: '',
-      status: 'OPEN',
-      createdAt: '03/11/2026 11:30',
-    },
-    {
-      id: 'cmp-02',
-      code: 'CMP-298099',
-      orderNumber: 'DG20261102-4D25CA',
-      customerName: 'Lê Hoàng Cường',
-      merchantName: 'Phở Thìn Lò Đúc',
-      issueType: 'Nước dùng bị đổ trong quá trình vận chuyển',
-      evidenceImage: 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=240&auto=format&fit=crop&q=80',
-      compensationAmount: 75000,
-      resolutionNotes: 'Đã xác minh ảnh chụp từ khách và hoàn ví MoMo 75.000đ.',
-      status: 'REFUNDED',
-      createdAt: '02/11/2026 19:15',
-    },
-    {
-      id: 'cmp-03',
-      code: 'CMP-298085',
-      orderNumber: 'DG20261101-9B11EF',
-      customerName: 'Trần Thị Bình',
-      merchantName: 'Bún Chả Hương Liên',
-      issueType: 'Giao nhầm phân loại món (Đặt phần đặc biệt giao phần thường)',
-      evidenceImage: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=240&auto=format&fit=crop&q=80',
-      compensationAmount: 25000,
-      resolutionNotes: '',
-      status: 'OPEN',
-      createdAt: '01/11/2026 12:40',
-    },
-  ]);
+  // Admin Complaints State (U051) — Persisted in localStorage & synced with Backend
+  const [complaints, setComplaints] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dinego_admin_complaints');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [
+      {
+        id: 'cmp-01',
+        code: 'CMP-298101',
+        orderNumber: 'DG20261103-TRK88',
+        customerName: 'Nguyễn Văn An',
+        merchantName: 'Cơm Tấm Sài Gòn 1985',
+        issueType: 'Giao thiếu 01 phần canh chua cá lóc trong đơn hàng',
+        evidenceImage: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=240&auto=format&fit=crop&q=80',
+        compensationAmount: 35000,
+        resolutionNotes: '',
+        status: 'OPEN',
+        createdAt: '03/11/2026 11:30',
+      },
+      {
+        id: 'cmp-02',
+        code: 'CMP-298099',
+        orderNumber: 'DG20261102-4D25CA',
+        customerName: 'Lê Hoàng Cường',
+        merchantName: 'Phở Thìn Lò Đúc',
+        issueType: 'Nước dùng bị đổ trong quá trình vận chuyển',
+        evidenceImage: 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=240&auto=format&fit=crop&q=80',
+        compensationAmount: 75000,
+        resolutionNotes: 'Đã xác minh ảnh chụp từ khách và hoàn ví MoMo 75.000đ.',
+        status: 'REFUNDED',
+        createdAt: '02/11/2026 19:15',
+      },
+      {
+        id: 'cmp-03',
+        code: 'CMP-298085',
+        orderNumber: 'DG20261101-9B11EF',
+        customerName: 'Trần Thị Bình',
+        merchantName: 'Bún Chả Hương Liên',
+        issueType: 'Giao nhầm phân loại món (Đặt phần đặc biệt giao phần thường)',
+        evidenceImage: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=240&auto=format&fit=crop&q=80',
+        compensationAmount: 25000,
+        resolutionNotes: '',
+        status: 'OPEN',
+        createdAt: '01/11/2026 12:40',
+      },
+    ];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_admin_complaints', JSON.stringify(complaints));
+    } catch {}
+  }, [complaints]);
 
   const [complaintNoteInputs, setComplaintNoteInputs] = useState<Record<string, string>>({});
 
@@ -496,6 +595,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       (action === 'REFUND'
         ? 'Xác nhận khiếu nại hợp lệ, duyệt hoàn tiền cho khách hàng.'
         : 'Bằng chứng chưa đủ cơ sở bồi hoàn theo quy định sàn.');
+    void adminApi.resolveComplaint(id, {
+      decision: action === 'REFUND' ? 'RESOLVED_REFUND' : 'REJECTED',
+      resolutionNotes: note,
+      compensationAmount: action === 'REFUND' ? target?.compensationAmount : 0,
+    });
     setComplaints(
       complaints.map((c) =>
         c.id === id
@@ -519,8 +623,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   // Merchant Moderation State for Admin (U045: PENDING / APPROVED / REJECTED / SUSPENDED)
   const [merchantKycStatuses, setMerchantKycStatuses] = useState<
     Record<string, 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED'>
-  >({});
+  >(() => {
+    try {
+      const saved = localStorage.getItem('dinego_admin_kyc_statuses');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {};
+  });
   const [merchantModerationReasons, setMerchantModerationReasons] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_admin_kyc_statuses', JSON.stringify(merchantKycStatuses));
+    } catch {}
+  }, [merchantKycStatuses]);
 
   const getEffectiveMerchantKycStatus = (m: Merchant): 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' => {
     if (merchantKycStatuses[m.id]) return merchantKycStatuses[m.id];
@@ -542,12 +658,25 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         ? 'Hồ sơ GPKD/VSATTP chưa hợp lệ'
         : 'Tạm khóa do vi phạm vận hành');
     setMerchantKycStatuses((prev) => ({ ...prev, [m.id]: nextStatus }));
+    onAdminUpdateMerchantStatus?.(m.id, nextStatus, reason);
     appendAuditLog(`CẬP NHẬT TRẠNG THÁI QUÁN → ${nextStatus}`, m.name, reason);
   };
 
   // Admin Monthly Reconciliation Calculated Dynamically from Real Orders & Merchants (U046)
   const [reconciliationPeriodFilter, setReconciliationPeriodFilter] = useState('ALL');
-  const [paidReconciliationMap, setPaidReconciliationMap] = useState<Record<string, boolean>>({});
+  const [paidReconciliationMap, setPaidReconciliationMap] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('dinego_admin_paid_reconciliations');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {};
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_admin_paid_reconciliations', JSON.stringify(paidReconciliationMap));
+    } catch {}
+  }, [paidReconciliationMap]);
 
   const formatOrderPeriod = (dateStr?: string) => {
     const d = dateStr ? new Date(dateStr) : new Date();
@@ -610,6 +739,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   const handleConfirmPayout = (recId: string) => {
     const target = reconciliationList.find((r) => r.id === recId);
+    void adminApi.confirmReconciliationPayout(recId);
     setPaidReconciliationMap((prev) => ({ ...prev, [recId]: true }));
     if (target) {
       appendAuditLog(
@@ -638,45 +768,60 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     document.body.removeChild(link);
   };
 
-  // Admin Platform Vouchers State (U052)
-  const [vouchers, setVouchers] = useState([
-    {
-      id: 'v-01',
-      code: 'DINEGO30',
-      discountType: 'FIXED_AMOUNT' as 'FIXED_AMOUNT' | 'PERCENTAGE',
-      title: 'Giảm 30.000đ cho đơn từ 120.000đ',
-      discountValue: 30000,
-      minOrder: 120000,
-      usageCount: 342,
-      maxUsage: 500,
-      endDate: '2026-12-31',
-      isActive: true,
-    },
-    {
-      id: 'v-02',
-      code: 'FREESHIP15K',
-      discountType: 'FIXED_AMOUNT' as 'FIXED_AMOUNT' | 'PERCENTAGE',
-      title: 'Miễn phí vận chuyển 15.000đ cho đơn từ 50.000đ',
-      discountValue: 15000,
-      minOrder: 50000,
-      usageCount: 615,
-      maxUsage: 1000,
-      endDate: '2026-12-15',
-      isActive: true,
-    },
-    {
-      id: 'v-03',
-      code: 'TIECVIP15',
-      discountType: 'PERCENTAGE' as 'FIXED_AMOUNT' | 'PERCENTAGE',
-      title: 'Giảm 15% cho hợp đồng Đặt Tiệc từ 3.000.000đ',
-      discountValue: 15,
-      minOrder: 3000000,
-      usageCount: 18,
-      maxUsage: 100,
-      endDate: '2027-01-15',
-      isActive: true,
-    },
-  ]);
+  // Admin Platform Vouchers State (U052) — Persisted in localStorage
+  const [vouchers, setVouchers] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dinego_admin_vouchers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [
+      {
+        id: 'v-01',
+        code: 'DINEGO30',
+        discountType: 'FIXED_AMOUNT' as 'FIXED_AMOUNT' | 'PERCENTAGE',
+        title: 'Giảm 30.000đ cho đơn từ 120.000đ',
+        discountValue: 30000,
+        minOrder: 120000,
+        usageCount: 342,
+        maxUsage: 500,
+        endDate: '2026-12-31',
+        isActive: true,
+      },
+      {
+        id: 'v-02',
+        code: 'FREESHIP15K',
+        discountType: 'FIXED_AMOUNT' as 'FIXED_AMOUNT' | 'PERCENTAGE',
+        title: 'Miễn phí vận chuyển 15.000đ cho đơn từ 50.000đ',
+        discountValue: 15000,
+        minOrder: 50000,
+        usageCount: 615,
+        maxUsage: 1000,
+        endDate: '2026-12-15',
+        isActive: true,
+      },
+      {
+        id: 'v-03',
+        code: 'TIECVIP15',
+        discountType: 'PERCENTAGE' as 'FIXED_AMOUNT' | 'PERCENTAGE',
+        title: 'Giảm 15% cho hợp đồng Đặt Tiệc từ 3.000.000đ',
+        discountValue: 15,
+        minOrder: 3000000,
+        usageCount: 18,
+        maxUsage: 100,
+        endDate: '2027-01-15',
+        isActive: true,
+      },
+    ];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_admin_vouchers', JSON.stringify(vouchers));
+    } catch {}
+  }, [vouchers]);
 
   const [newVoucherCode, setNewVoucherCode] = useState('');
   const [newVoucherType, setNewVoucherType] = useState<'FIXED_AMOUNT' | 'PERCENTAGE'>('FIXED_AMOUNT');
@@ -2434,6 +2579,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
                       <button
                         onClick={() => {
+                          void adminApi.updateSystemSettings({
+                            platformCommissionRate,
+                            peakHourSurgeFee,
+                            minOrderForFreeShipping,
+                            autoDispatchRangeKm,
+                            maintenanceMode,
+                            reason: 'Lưu cấu hình can thiệp hệ thống từ bảng điều khiển Admin',
+                          });
+                          appendAuditLog(
+                            'LƯU CẤU HÌNH HỆ THỐNG SÀN',
+                            `Hoa hồng ${platformCommissionRate}% • Bán kính ${autoDispatchRangeKm}km`,
+                            `Phụ phí ${peakHourSurgeFee.toLocaleString('vi-VN')}đ • Freeship từ ${minOrderForFreeShipping.toLocaleString('vi-VN')}đ • Bảo trì: ${maintenanceMode ? 'BẬT' : 'TẮT'}`,
+                          );
                           setConfigSavedBanner('Đã lưu cấu hình can thiệp sâu toàn hệ thống sàn.');
                           setTimeout(() => setConfigSavedBanner(''), 3000);
                         }}

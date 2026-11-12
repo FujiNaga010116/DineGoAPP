@@ -25,7 +25,9 @@ import { RolesGuard } from '../../common/guards/roles.guard.js';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface.js';
 import {
   DateRangeQueryDto,
+  UpdateDriverStatusDto,
   UpdateMerchantApprovalDto,
+  UpdateSystemSettingsDto,
   UpdateUserStatusDto,
 } from './dto/dashboard-query.dto.js';
 import { DashboardService } from './dashboard.service.js';
@@ -75,8 +77,9 @@ export class DashboardController {
   updateMerchantStatus(
     @Param('id') id: string,
     @Body() dto: UpdateMerchantApprovalDto,
+    @CurrentUser() adminUser: AuthenticatedUser,
   ) {
-    return this.dashboardService.updateMerchantStatus(id, dto);
+    return this.dashboardService.updateMerchantStatus(id, dto, adminUser);
   }
 
   @Patch('admin/users/:id/status')
@@ -90,8 +93,9 @@ export class DashboardController {
   updateUserStatus(
     @Param('id') id: string,
     @Body() dto: UpdateUserStatusDto,
+    @CurrentUser() adminUser: AuthenticatedUser,
   ) {
-    return this.dashboardService.updateUserStatus(id, dto);
+    return this.dashboardService.updateUserStatus(id, dto, adminUser);
   }
 
   @Get('admin/users')
@@ -103,6 +107,58 @@ export class DashboardController {
   })
   getAllUsers() {
     return this.dashboardService.getAllUsers();
+  }
+
+  @Get('admin/drivers')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'U045: Admin lấy danh sách đội ngũ tài xế giao hàng và số chuyến hoàn tất',
+  })
+  getDrivers() {
+    return this.dashboardService.getDrivers();
+  }
+
+  @Patch('admin/drivers/:id/status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'U045: Admin đình chỉ hoặc mở khóa quyền nhận chuyến của tài xế',
+  })
+  @ApiParam({ name: 'id', description: 'ID tài khoản tài xế' })
+  updateDriverStatus(
+    @Param('id') id: string,
+    @Body() dto: UpdateDriverStatusDto,
+    @CurrentUser() adminUser: AuthenticatedUser,
+  ) {
+    return this.dashboardService.updateDriverStatus(id, dto, adminUser);
+  }
+
+  @Get('admin/settings')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'U045: Admin xem cấu hình vận hành toàn sàn (hoa hồng, phụ phí, bán kính ghép đơn, bảo trì)',
+  })
+  getSystemSettings() {
+    return this.dashboardService.getSystemSettings();
+  }
+
+  @Patch('admin/settings')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'U045: Admin cập nhật cấu hình vận hành toàn sàn và đồng bộ tỷ lệ hoa hồng',
+  })
+  updateSystemSettings(
+    @Body() dto: UpdateSystemSettingsDto,
+    @CurrentUser() adminUser: AuthenticatedUser,
+  ) {
+    return this.dashboardService.updateSystemSettings(dto, adminUser);
   }
 
   @Get('admin/audit-logs')
@@ -122,7 +178,7 @@ export class DashboardController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'U046: Bảng đối soát doanh thu cuối tháng và tính hoa hồng (BR-42)',
-    description: 'Tính toán hoa hồng sàn giữ lại (15%), doanh thu GMV và số tiền thực chuyển (Net Payout).',
+    description: 'Tính toán hoa hồng sàn giữ lại, doanh thu GMV và số tiền thực chuyển (Net Payout).',
   })
   getMonthlyReconciliation(
     @Query('merchantId') merchantId?: string,
@@ -139,8 +195,11 @@ export class DashboardController {
     summary: 'U046: Admin xác nhận giải ngân công nợ cuối kỳ cho nhà hàng',
   })
   @ApiParam({ name: 'id', description: 'Mã kỳ đối soát (reconciliationId)' })
-  confirmReconciliationPayout(@Param('id') id: string) {
-    return this.dashboardService.confirmReconciliationPayout(id);
+  confirmReconciliationPayout(
+    @Param('id') id: string,
+    @CurrentUser() adminUser: AuthenticatedUser,
+  ) {
+    return this.dashboardService.confirmReconciliationPayout(id, adminUser);
   }
 }
 

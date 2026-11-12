@@ -30,8 +30,12 @@ describe('DashboardService (Sprint 5 — U043, U044, U045, U046)', () => {
       },
       user: {
         findUnique: vi.fn(),
+        findMany: vi.fn(),
         count: vi.fn(),
         update: vi.fn(),
+      },
+      orderTracking: {
+        findMany: vi.fn().mockResolvedValue([]),
       },
       userRole: {
         count: vi.fn().mockResolvedValue(12),
@@ -187,6 +191,63 @@ describe('DashboardService (Sprint 5 — U043, U044, U045, U046)', () => {
       expect(list[0].platformCommissionRate).toBe(15);
       expect(list[0].platformFee).toBe(150000);
       expect(list[0].netPayoutToMerchant).toBe(850000);
+    });
+
+    it('should synchronize commission rate with system settings updates and record audit log', async () => {
+      service.updateSystemSettings(
+        { platformCommissionRate: 12, autoDispatchRangeKm: 4.5, reason: 'Ưu đãi tháng 11' },
+        { id: 'admin-1', email: 'superadmin@dinego.vn', fullName: 'Super Admin', isActive: true, roles: [Role.ADMIN] },
+      );
+
+      mockPrisma.merchant.findMany.mockResolvedValue([
+        {
+          id: 'm-1',
+          name: 'Phở Gia Truyền',
+          slug: 'pho-gia-truyen',
+          orders: [{ id: 'o-1', finalTotal: 1000000, deliveryFee: 30000 }],
+        },
+      ]);
+
+      const list = await service.getMonthlyReconciliation(undefined, '2026-11');
+      expect(list[0].platformCommissionRate).toBe(12);
+      expect(list[0].platformFee).toBe(120000);
+      expect(list[0].netPayoutToMerchant).toBe(880000);
+      expect(service.getAdminAuditLogs()[0].performedBy).toBe('superadmin@dinego.vn');
+    });
+
+    it('should list and suspend/activate drivers with audit log', async () => {
+      mockPrisma.user.findMany.mockResolvedValue([
+        {
+          id: 'drv-1',
+          email: 'driver1@dinego.vn',
+          fullName: 'Tài Xế Một',
+          phoneNumber: '0909111222',
+          isActive: true,
+          createdAt: new Date(),
+        },
+      ]);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'drv-1',
+        email: 'driver1@dinego.vn',
+        fullName: 'Tài Xế Một',
+      });
+      mockPrisma.user.update.mockResolvedValue({
+        id: 'drv-1',
+        email: 'driver1@dinego.vn',
+        fullName: 'Tài Xế Một',
+        isActive: false,
+      });
+
+      const updated = await service.updateDriverStatus('drv-1', {
+        status: 'SUSPENDED',
+        reason: 'Kiểm tra định kỳ',
+      });
+      expect(updated.status).toBe('SUSPENDED');
+      expect(updated.isActive).toBe(false);
+
+      const drivers = await service.getDrivers();
+      expect(drivers.length).toBe(1);
+      expect(drivers[0].status).toBe('SUSPENDED');
     });
   });
 });

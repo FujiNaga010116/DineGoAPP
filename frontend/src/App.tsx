@@ -25,7 +25,7 @@ import { ReviewModal } from './components/common/ReviewModal';
 import { MerchantRegistrationModal } from './components/common/MerchantRegistrationModal';
 import { AddressSetupModal } from './components/common/AddressSetupModal';
 import { CartProvider } from './context/CartContext';
-import { MOCK_MERCHANTS, MOCK_MENU_ITEMS, MOCK_DRIVERS, MOCK_USERS } from './api/client';
+import { MOCK_MERCHANTS, MOCK_MENU_ITEMS, MOCK_DRIVERS, MOCK_USERS, adminApi } from './api/client';
 import type { DriverProfile, Merchant, MenuItem, Order, OrderStatus, Role, SavedAddress, User } from './types';
 import { QrCode, CheckCircle2 } from 'lucide-react';
 
@@ -381,7 +381,60 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
   // Admin toggles user account active / suspended
   const handleToggleUserStatus = (userId: string) => {
     setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, isActive: u.isActive === false ? true : false } : u)),
+      prev.map((u) => {
+        if (u.id !== userId) return u;
+        const nextActive = u.isActive === false ? true : false;
+        void adminApi.updateUserStatus(
+          userId,
+          nextActive,
+          nextActive ? 'Mở khóa tài khoản bởi Admin' : 'Tạm khóa tài khoản bởi Admin',
+        );
+        return { ...u, isActive: nextActive };
+      }),
+    );
+  };
+
+  // Admin updates merchant KYC & operating status
+  const handleAdminUpdateMerchantStatus = (
+    merchantId: string,
+    nextStatus: 'APPROVED' | 'REJECTED' | 'SUSPENDED',
+    reason?: string,
+  ) => {
+    void adminApi.updateMerchantStatus(merchantId, nextStatus, reason);
+    setMerchants((prev) =>
+      prev.map((m) => {
+        if (m.id !== merchantId) return m;
+        return {
+          ...m,
+          kycStatus:
+            nextStatus === 'APPROVED'
+              ? 'VERIFIED'
+              : nextStatus === 'REJECTED'
+              ? 'REJECTED'
+              : m.kycStatus,
+          isActive: nextStatus === 'APPROVED',
+          verifiedAt:
+            nextStatus === 'APPROVED'
+              ? new Date().toISOString().slice(0, 10)
+              : m.verifiedAt,
+        };
+      }),
+    );
+  };
+
+  // Admin updates driver active / suspended status
+  const handleAdminUpdateDriverStatus = (
+    driverId: string,
+    nextStatus: 'ACTIVE' | 'SUSPENDED',
+    reason?: string,
+  ) => {
+    void adminApi.updateDriverStatus(driverId, nextStatus, reason);
+    setDrivers((prev) =>
+      prev.map((d) =>
+        d.id === driverId
+          ? { ...d, status: nextStatus === 'ACTIVE' ? 'ONLINE' : 'SUSPENDED' }
+          : d,
+      ),
     );
   };
 
@@ -650,6 +703,8 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
             allDriversList={drivers}
             allUsersList={users}
             onToggleUserStatus={handleToggleUserStatus}
+            onAdminUpdateMerchantStatus={handleAdminUpdateMerchantStatus}
+            onAdminUpdateDriverStatus={handleAdminUpdateDriverStatus}
             onOpenMerchantRegisterModal={() => setIsMerchantRegisterModalOpen(true)}
           />
         )}

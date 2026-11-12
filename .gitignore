@@ -55,3 +55,7 @@ coverage/
 # Vite cache
 .vite/
 
+# Runtime persisted state
+.data/
+backend/.data/
+
