@@ -36,6 +36,7 @@ export type NavTab =
   // Driver Portal Tabs
   | 'driver-orders'
   | 'driver-map'
+  | 'driver-history'
   | 'driver-earnings'
   | 'driver-profile'
   // Admin Portal Tabs

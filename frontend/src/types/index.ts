@@ -142,6 +142,35 @@ export interface DriverProfile {
   joinedAt: string;
 }
 
+export interface DriverShiftTrip {
+  orderId: string;
+  orderNumber: string;
+  merchantName: string;
+  deliveryAddress: string;
+  recipientName: string;
+  deliveryFee: number;
+  netEarning: number;
+  completedAt: string;
+}
+
+export interface DriverShift {
+  id: string;
+  shiftCode: string;
+  driverId: string;
+  driverName: string;
+  operatingZone: string;
+  vehicleType: string;
+  licensePlate: string;
+  startedAt: string;
+  endedAt: string | null;
+  status: 'ACTIVE' | 'ENDED';
+  endReason?: 'MANUAL_OFFLINE' | 'LOGOUT';
+  tripsCount: number;
+  grossShippingEarned: number;
+  netIncomeEarned: number;
+  trips: DriverShiftTrip[];
+}
+
 export interface CartItemTopping {
   id: string;
   toppingId: string;
@@ -197,6 +226,44 @@ export interface PaymentSummary {
   paidAt: string | null;
 }
 
+export type DeliveryDisputeReason =
+  | 'NO_ANSWER'
+  | 'REFUSED_ORDER'
+  | 'WRONG_ADDRESS'
+  | 'UNABLE_COLLECT';
+
+export interface DeliveryDisputeReport {
+  id: string;
+  reportCode: string;
+  orderId: string;
+  orderNumber: string;
+  driverId: string;
+  driverName: string;
+  driverPhone: string;
+  customerId?: string;
+  customerName: string;
+  customerPhone: string;
+  deliveryAddress: string;
+  merchantName: string;
+  orderTotal: number;
+  compensationAmount: number;
+  paymentMethod: string;
+  reason: DeliveryDisputeReason;
+  reasonLabel: string;
+  description: string;
+  callAttemptsCount: number;
+  waitMinutes: number;
+  evidenceImages: string[];
+  gpsSnapshot?: {
+    lat: number;
+    lng: number;
+    distanceToCustomerKm: number;
+  };
+  status: 'PENDING_REVIEW' | 'COMPENSATED_DRIVER' | 'REJECTED';
+  adminNote?: string;
+  createdAt: string;
+}
+
 export interface Order {
   id: string;
   orderNumber: string;
@@ -217,6 +284,13 @@ export interface Order {
   cancelledBy?: string | null;
   assignedDriverId?: string | null;
   assignedDriverName?: string | null;
+  driverArrivedAtStore?: boolean;
+  driverArrivedAtStoreAt?: string | null;
+  merchantConfirmedPickup?: boolean;
+  merchantConfirmedPickupAt?: string | null;
+  customerConfirmedReceipt?: boolean;
+  customerConfirmedAt?: string | null;
+  deliveryDispute?: DeliveryDisputeReport | null;
   createdAt: string;
   merchant: {
     id: string;

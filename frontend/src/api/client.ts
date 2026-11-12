@@ -628,6 +628,27 @@ export const VALID_VOUCHERS: Record<string, { code: string; name: string; discou
   },
 };
 
+/**
+ * Checks whether a Driver account has completed mandatory personal KYC,
+ * vehicle registration, operating zone, and bank payout details.
+ */
+export function isDriverProfileVerified(driver?: DriverProfile | null): boolean {
+  if (!driver || driver.kycStatus !== 'VERIFIED') return false;
+  return Boolean(
+    driver.fullName?.trim() &&
+      driver.phoneNumber?.trim() &&
+      driver.email?.trim() &&
+      driver.nationalId?.trim() &&
+      driver.driverLicenseNumber?.trim() &&
+      driver.vehicleType?.trim() &&
+      driver.licensePlate?.trim() &&
+      driver.operatingZone?.trim() &&
+      driver.bankName?.trim() &&
+      driver.bankAccountNumber?.trim() &&
+      driver.bankAccountHolder?.trim(),
+  );
+}
+
 function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
