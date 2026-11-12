@@ -4,7 +4,7 @@
 // payment bank accounts, and account password
 // ==============================================================================
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   User as UserIcon,
   MapPin,
@@ -16,24 +16,116 @@ import {
   Lock,
   Save,
   AlertTriangle,
+  Receipt,
+  Printer,
+  Clock,
+  UtensilsCrossed,
+  ShoppingBag,
+  X,
 } from 'lucide-react';
-import type { SavedAddress, User } from '../types';
+import type { Order, SavedAddress, User } from '../types';
 import {
   AddressMapPicker,
   type AddressPickerValue,
 } from '../components/common/AddressMapPicker';
+import {
+  CateringFinalBillModal,
+  type CateringBillData,
+} from '../components/common/CateringFinalBillModal';
+
+type ProfileSection = 'info' | 'addresses' | 'payment' | 'security' | 'invoices';
+type InvoiceFilter = 'ALL' | 'CATERING' | 'FOOD' | 'PENDING_DEPOSIT' | 'COMPLETED';
 
 interface CustomerProfilePageProps {
   currentUser: User | null;
   onUpdateUser: (updatedUser: User) => void;
+  orders?: Order[];
+  initialSection?: ProfileSection;
 }
 
 export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
   currentUser,
   onUpdateUser,
+  orders = [],
+  initialSection = 'info',
 }) => {
-  const [activeSection, setActiveSection] = useState<'info' | 'addresses' | 'payment' | 'security'>('info');
+  const [activeSection, setActiveSection] = useState<ProfileSection>(initialSection);
   const [savedNotice, setSavedNotice] = useState('');
+  const [invoiceFilter, setInvoiceFilter] = useState<InvoiceFilter>('ALL');
+  const [selectedCateringBill, setSelectedCateringBill] = useState<CateringBillData | null>(null);
+  const [selectedFoodInvoice, setSelectedFoodInvoice] = useState<Order | null>(null);
+
+  const invoiceStats = useMemo(() => {
+    let totalPaidAmount = 0;
+    let pendingDepositAmount = 0;
+    let pendingDepositCount = 0;
+
+    orders.forEach((order) => {
+      if (order.status === 'CANCELLED') return;
+      const isCatering = order.orderType === 'CATERING' || Boolean(order.cateringDetails);
+      if (isCatering && order.cateringDetails) {
+        if (order.status === 'COMPLETED') {
+          totalPaidAmount += order.finalTotal || 0;
+        } else if (order.payment?.paymentStatus === 'SUCCESS') {
+          totalPaidAmount += order.cateringDetails.depositAmount || 0;
+        } else {
+          pendingDepositAmount += order.cateringDetails.depositAmount || 0;
+          pendingDepositCount += 1;
+        }
+      } else if (order.payment?.paymentStatus === 'SUCCESS' || order.status === 'COMPLETED') {
+        totalPaidAmount += order.finalTotal || 0;
+      }
+    });
+
+    return {
+      totalPaidAmount,
+      pendingDepositAmount,
+      pendingDepositCount,
+      totalTransactions: orders.length,
+    };
+  }, [orders]);
+
+  const filteredInvoices = useMemo(() => {
+    return orders.filter((order) => {
+      const isCatering = order.orderType === 'CATERING' || Boolean(order.cateringDetails);
+      if (invoiceFilter === 'CATERING') return isCatering;
+      if (invoiceFilter === 'FOOD') return !isCatering;
+      if (invoiceFilter === 'PENDING_DEPOSIT') {
+        return isCatering && order.status !== 'CANCELLED' && order.payment?.paymentStatus !== 'SUCCESS';
+      }
+      if (invoiceFilter === 'COMPLETED') return order.status === 'COMPLETED';
+      return true;
+    });
+  }, [orders, invoiceFilter]);
+
+  const buildBillDataFromOrder = (order: Order): CateringBillData | null => {
+    if (!order.cateringDetails) return null;
+    const c = order.cateringDetails;
+    return {
+      billCode: c.finalBillCode || `BILL-${order.orderNumber}`,
+      bookingCode: order.orderNumber,
+      merchantName: order.merchant?.name || 'DineGo Catering Kitchen',
+      customerName: currentUser?.fullName || 'Quý khách',
+      customerPhone: order.recipientPhone || currentUser?.phoneNumber || '—',
+      eventAddress: order.deliveryAddress || 'Tại điểm tổ chức tiệc',
+      partyTypeTitle: c.partyTypeTitle,
+      packageName: c.packageName,
+      tableCount: c.tableCount,
+      guestCountPerTable: c.guestCountPerTable,
+      eventDate: c.eventDate,
+      eventTime: c.eventTime,
+      dishes: c.dishes,
+      customNote: c.customNote,
+      subtotal: order.subtotal || order.finalTotal + (order.discountAmount || 0),
+      discountAmount: order.discountAmount || 0,
+      totalAmount: order.finalTotal,
+      depositPercent: c.depositPercent,
+      depositAmount: c.depositAmount,
+      remainingAmount: c.remainingAmount,
+      completedAt: c.completedAt || order.createdAt,
+      issuedFor: 'CUSTOMER',
+    };
+  };
 
   // Personal Info Form
   const [fullName, setFullName] = useState(currentUser?.fullName || '');
@@ -373,6 +465,7 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
             {[
               { id: 'info' as const, label: 'Thông tin cá nhân', icon: <UserIcon size={16} /> },
               { id: 'addresses' as const, label: `Sổ địa chỉ nhận hàng (${addresses.length})`, icon: <MapPin size={16} /> },
+              { id: 'invoices' as const, label: `Hóa đơn & Giao dịch (${orders.length})`, icon: <Receipt size={16} /> },
               { id: 'payment' as const, label: 'Tài khoản ngân hàng & Ví', icon: <CreditCard size={16} /> },
               { id: 'security' as const, label: 'Đổi mật khẩu & Bảo mật', icon: <Lock size={16} /> },
             ].map((item) => {
@@ -896,8 +989,402 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
               </button>
             </form>
           )}
+
+          {/* SECTION 5: INVOICES & TRANSACTION HISTORY */}
+          {activeSection === 'invoices' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+                <div>
+                  <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0F172A', marginBottom: 4 }}>
+                    Hóa Đơn &amp; Lịch Sử Giao Dịch
+                  </h2>
+                  <p style={{ fontSize: '0.84rem', color: '#64748B' }}>
+                    Theo dõi tiền cọc tiệc MoMo, trạng thái chủ cửa hàng xác nhận và hóa đơn hoàn tất đơn hàng
+                  </p>
+                </div>
+              </div>
+
+              {/* KPI Summary Cards */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: 14,
+                  marginBottom: 20,
+                }}
+              >
+                <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12, padding: '14px 16px' }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#166534' }}>Đã thanh toán / Đã nhận cọc</div>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#00B14F', marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
+                    {invoiceStats.totalPaidAmount.toLocaleString('vi-VN')}đ
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: '#15803D', marginTop: 2 }}>
+                    Các khoản đã được đối soát thành công
+                  </div>
+                </div>
+
+                <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12, padding: '14px 16px' }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#92400E' }}>Cọc MoMo chờ cửa hàng xác nhận</div>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#D97706', marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
+                    {invoiceStats.pendingDepositAmount.toLocaleString('vi-VN')}đ
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: '#B45309', marginTop: 2 }}>
+                    {invoiceStats.pendingDepositCount} đơn đặt tiệc đang chờ chủ quán duyệt cọc
+                  </div>
+                </div>
+
+                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 16px' }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#475569' }}>Tổng số giao dịch &amp; hóa đơn</div>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#0F172A', marginTop: 4 }}>
+                    {invoiceStats.totalTransactions} giao dịch
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 2 }}>
+                    Bao gồm đặt món giao nhanh &amp; đặt tiệc lưu động
+                  </div>
+                </div>
+              </div>
+
+              {/* Filter Pills */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
+                {[
+                  { id: 'ALL' as const, label: `Tất cả (${orders.length})` },
+                  { id: 'CATERING' as const, label: 'Đặt tiệc & Cọc MoMo' },
+                  { id: 'FOOD' as const, label: 'Đặt món giao hàng' },
+                  { id: 'PENDING_DEPOSIT' as const, label: `Chờ quán xác nhận cọc (${invoiceStats.pendingDepositCount})` },
+                  { id: 'COMPLETED' as const, label: 'Đã có hóa đơn hoàn tất' },
+                ].map((tab) => {
+                  const active = invoiceFilter === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setInvoiceFilter(tab.id)}
+                      style={{
+                        padding: '7px 14px',
+                        borderRadius: 999,
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        border: active ? '1px solid #00B14F' : '1px solid #CBD5E1',
+                        background: active ? '#ECFDF5' : '#FFFFFF',
+                        color: active ? '#00B14F' : '#475569',
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Transactions List */}
+              {filteredInvoices.length === 0 ? (
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: '44px 20px',
+                    background: '#F8FAFC',
+                    borderRadius: 12,
+                    border: '1px dashed #CBD5E1',
+                    color: '#64748B',
+                  }}
+                >
+                  <Receipt size={36} style={{ margin: '0 auto 10px', opacity: 0.45 }} />
+                  <div style={{ fontWeight: 700, fontSize: '0.96rem', color: '#334155' }}>
+                    Chưa có giao dịch hoặc hóa đơn nào phù hợp
+                  </div>
+                  <div style={{ fontSize: '0.82rem', marginTop: 4 }}>
+                    Khi bạn đặt món hoặc chuyển tiền cọc tiệc MoMo, lịch sử giao dịch sẽ hiển thị đầy đủ tại đây.
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {filteredInvoices.map((order) => {
+                    const isCatering = order.orderType === 'CATERING' || Boolean(order.cateringDetails);
+                    const c = order.cateringDetails;
+                    const depositConfirmed = order.payment?.paymentStatus === 'SUCCESS';
+                    const isCancelled = order.status === 'CANCELLED';
+                    const isCompleted = order.status === 'COMPLETED';
+                    const billData = isCatering ? buildBillDataFromOrder(order) : null;
+
+                    return (
+                      <div
+                        key={order.id}
+                        style={{
+                          border: '1px solid #E2E8F0',
+                          borderRadius: 12,
+                          padding: '16px 18px',
+                          background: '#FFFFFF',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          flexWrap: 'wrap',
+                          gap: 14,
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, minWidth: 260, flex: 1 }}>
+                          <div
+                            style={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: 10,
+                              background: isCatering ? '#ECFDF5' : '#EFF6FF',
+                              color: isCatering ? '#00B14F' : '#2563EB',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {isCatering ? <UtensilsCrossed size={18} /> : <ShoppingBag size={18} />}
+                          </div>
+
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                              <span style={{ fontWeight: 800, fontSize: '0.94rem', color: '#0F172A' }}>
+                                {order.merchant?.name || 'Cửa hàng DineGo'}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: 999,
+                                  background: isCatering ? '#D1FAE5' : '#DBEAFE',
+                                  color: isCatering ? '#065F46' : '#1E40AF',
+                                }}
+                              >
+                                {isCatering ? 'Đặt tiệc lưu động' : 'Giao đồ ăn'}
+                              </span>
+                              {isCancelled ? (
+                                <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: '#FEE2E2', color: '#DC2626' }}>
+                                  Đã hủy
+                                </span>
+                              ) : isCatering && !depositConfirmed ? (
+                                <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: '#FEF3C7', color: '#B45309', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  <Clock size={11} /> Chờ cửa hàng xác nhận cọc
+                                </span>
+                              ) : isCompleted ? (
+                                <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: '#DCFCE7', color: '#15803D', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  <CheckCircle2 size={11} /> {isCatering ? 'Đã tất toán • Có Bill tổng' : 'Đã hoàn tất thanh toán'}
+                                </span>
+                              ) : depositConfirmed ? (
+                                <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: '#D1FAE5', color: '#059669', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  <CheckCircle2 size={11} /> {isCatering ? 'Chủ quán đã xác nhận cọc' : 'Đã thanh toán'}
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: '#FEF3C7', color: '#D97706' }}>
+                                  Thanh toán khi nhận (COD)
+                                </span>
+                              )}
+                            </div>
+
+                            <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: 4 }}>
+                              Mã đơn: <strong>#{order.orderNumber}</strong>
+                              {order.payment?.transactionRef ? ` • Mã GD: ${order.payment.transactionRef}` : ''}
+                              {` • ${new Date(order.createdAt).toLocaleString('vi-VN')}`}
+                            </div>
+
+                            {isCatering && c ? (
+                              <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: 3 }}>
+                                {c.packageName} ({c.tableCount} mâm) • Tổng đơn: <strong>{order.finalTotal.toLocaleString('vi-VN')}đ</strong> • Cọc {c.depositPercent}%: <strong style={{ color: depositConfirmed ? '#00B14F' : '#D97706' }}>{c.depositAmount.toLocaleString('vi-VN')}đ</strong>
+                                {!isCompleted && ` • Còn lại sau tiệc: ${c.remainingAmount.toLocaleString('vi-VN')}đ`}
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: 3 }}>
+                                {order.items.length} món • Phương thức: {order.payment?.paymentMethod === 'MOMO_QR' ? 'Ví MoMo QR' : 'Tiền mặt (COD)'}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>
+                              {isCatering
+                                ? isCompleted
+                                  ? 'Tổng giá trị bill'
+                                  : depositConfirmed
+                                  ? 'Tiền cọc đã xác nhận'
+                                  : 'Tiền cọc chờ duyệt'
+                                : 'Tổng thanh toán'}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: '1.08rem',
+                                fontWeight: 900,
+                                color: isCatering && !depositConfirmed && !isCompleted ? '#D97706' : '#00B14F',
+                                fontVariantNumeric: 'tabular-nums',
+                              }}
+                            >
+                              {(isCatering && !isCompleted && c ? c.depositAmount : order.finalTotal).toLocaleString('vi-VN')}đ
+                            </div>
+                          </div>
+
+                          {isCatering && isCompleted && billData ? (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedCateringBill(billData)}
+                              style={{
+                                padding: '7px 12px',
+                                borderRadius: 8,
+                                background: '#0F172A',
+                                color: '#FFFFFF',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                              }}
+                            >
+                              <Printer size={14} /> Xem &amp; In Bill tổng
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedFoodInvoice(order)}
+                              style={{
+                                padding: '7px 12px',
+                                borderRadius: 8,
+                                background: '#F8FAFC',
+                                color: '#0F172A',
+                                border: '1px solid #CBD5E1',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                              }}
+                            >
+                              <Receipt size={14} /> Chi tiết biên lai
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Catering Final Settlement Bill Modal */}
+      <CateringFinalBillModal
+        bill={selectedCateringBill}
+        onClose={() => setSelectedCateringBill(null)}
+      />
+
+      {/* General Order / Deposit Receipt Modal */}
+      {selectedFoodInvoice && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.58)',
+            zIndex: 1300,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+          onClick={() => setSelectedFoodInvoice(null)}
+        >
+          <div
+            style={{
+              background: '#FFFFFF',
+              borderRadius: 16,
+              width: '100%',
+              maxWidth: 500,
+              padding: 24,
+              boxShadow: '0 24px 48px rgba(15, 23, 42, 0.25)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dashed #CBD5E1', paddingBottom: 14, marginBottom: 16 }}>
+              <div>
+                <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#00B14F', textTransform: 'uppercase' }}>
+                  Biên lai giao dịch DineGo
+                </div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0F172A', margin: '2px 0 0' }}>
+                  #{selectedFoodInvoice.orderNumber}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedFoodInvoice(null)}
+                style={{ width: 32, height: 32, borderRadius: 8, background: '#F1F5F9', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ fontSize: '0.84rem', color: '#334155', display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+              <div><strong>Cửa hàng:</strong> {selectedFoodInvoice.merchant?.name}</div>
+              <div><strong>Thời gian đặt:</strong> {new Date(selectedFoodInvoice.createdAt).toLocaleString('vi-VN')}</div>
+              <div><strong>Địa chỉ:</strong> {selectedFoodInvoice.deliveryAddress}</div>
+              <div>
+                <strong>Phương thức:</strong>{' '}
+                {selectedFoodInvoice.payment?.paymentMethod === 'MOMO_QR' ? 'Ví MoMo QR' : 'Tiền mặt (COD)'}
+                {selectedFoodInvoice.payment?.transactionRef ? ` (${selectedFoodInvoice.payment.transactionRef})` : ''}
+              </div>
+            </div>
+
+            <div style={{ borderTop: '1px solid #E2E8F0', borderBottom: '1px solid #E2E8F0', padding: '12px 0', marginBottom: 14 }}>
+              {selectedFoodInvoice.items.map((item) => (
+                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', padding: '4px 0', color: '#0F172A' }}>
+                  <span>{item.quantity}x {item.itemName}</span>
+                  <span style={{ fontWeight: 700 }}>{(item.subtotal || item.basePrice * item.quantity).toLocaleString('vi-VN')}đ</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.84rem', marginBottom: 18 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748B' }}>
+                <span>Phí giao hàng / phục vụ</span>
+                <span>{(selectedFoodInvoice.deliveryFee || 0).toLocaleString('vi-VN')}đ</span>
+              </div>
+              {(selectedFoodInvoice.discountAmount || 0) > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#00B14F' }}>
+                  <span>Giảm giá / Ưu đãi</span>
+                  <span>-{selectedFoodInvoice.discountAmount.toLocaleString('vi-VN')}đ</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.05rem', fontWeight: 900, color: '#0F172A', paddingTop: 6, borderTop: '1px dashed #CBD5E1' }}>
+                <span>Tổng giá trị đơn</span>
+                <span style={{ color: '#00B14F' }}>{selectedFoodInvoice.finalTotal.toLocaleString('vi-VN')}đ</span>
+              </div>
+              {selectedFoodInvoice.cateringDetails && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.86rem', fontWeight: 800, color: selectedFoodInvoice.payment?.paymentStatus === 'SUCCESS' ? '#059669' : '#D97706' }}>
+                  <span>
+                    {selectedFoodInvoice.payment?.paymentStatus === 'SUCCESS'
+                      ? `Đã xác nhận tiền cọc (${selectedFoodInvoice.cateringDetails.depositPercent}%)`
+                      : `Tiền cọc chờ chủ quán xác nhận (${selectedFoodInvoice.cateringDetails.depositPercent}%)`}
+                  </span>
+                  <span>{selectedFoodInvoice.cateringDetails.depositAmount.toLocaleString('vi-VN')}đ</span>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="btn btn-primary"
+                style={{ padding: '9px 16px', borderRadius: 8, fontSize: '0.84rem' }}
+              >
+                <Printer size={15} /> In biên lai
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedFoodInvoice(null)}
+                style={{ padding: '9px 16px', borderRadius: 8, background: '#F1F5F9', color: '#334155', fontWeight: 700, fontSize: '0.84rem' }}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

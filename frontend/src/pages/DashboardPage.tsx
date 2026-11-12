@@ -97,8 +97,8 @@ interface DashboardPageProps {
   onSyncCateringOrderFromMerchant?: (
     bookingId: string,
     bookingCode: string,
-    action: 'APPROVED' | 'REJECTED' | 'COMPLETED',
-    meta?: { finalBillCode?: string; completedAt?: string },
+    action: 'CONFIRM_DEPOSIT' | 'APPROVED' | 'REJECTED' | 'COMPLETED',
+    meta?: { finalBillCode?: string; completedAt?: string; confirmedAt?: string },
   ) => void;
 }
 
@@ -4488,12 +4488,73 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                           </td>
                           <td style={{ padding: '14px 18px' }}>
                             <div style={{ fontWeight: 700, color: '#0F172A' }}>Tổng: {fb.totalAmount.toLocaleString('vi-VN')}đ</div>
-                            <div style={{ fontSize: '0.76rem', color: '#059669', fontWeight: 700 }}>
-                              Đã cọc: {fb.depositAmount.toLocaleString('vi-VN')}đ
+                            <div
+                              style={{
+                                fontSize: '0.76rem',
+                                color: fb.depositPaid ? '#059669' : '#D97706',
+                                fontWeight: 700,
+                                marginTop: 2,
+                              }}
+                            >
+                              {fb.depositPaid
+                                ? `✓ Đã nhận cọc (${fb.depositPercent || 30}%): ${fb.depositAmount.toLocaleString('vi-VN')}đ`
+                                : `⏳ Chờ xác nhận cọc (${fb.depositPercent || 30}%): ${fb.depositAmount.toLocaleString('vi-VN')}đ`}
                             </div>
                           </td>
                           <td style={{ padding: '14px 18px', textAlign: 'right' }}>
-                            {fb.status === 'PENDING_APPROVAL' ? (
+                            {fb.status === 'PENDING_APPROVAL' && !fb.depositPaid ? (
+                              <div style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const confirmedAt = new Date().toISOString();
+                                    setFeastBookings((prev) =>
+                                      prev.map((item) =>
+                                        item.id === fb.id
+                                          ? { ...item, depositPaid: true, depositConfirmedAt: confirmedAt }
+                                          : item,
+                                      ),
+                                    );
+                                    onSyncCateringOrderFromMerchant?.(
+                                      fb.id,
+                                      fb.bookingCode,
+                                      'CONFIRM_DEPOSIT',
+                                      { confirmedAt },
+                                    );
+                                  }}
+                                  style={{
+                                    padding: '6px 12px',
+                                    borderRadius: 6,
+                                    background: '#D97706',
+                                    color: '#FFFFFF',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  Xác nhận đã nhận tiền cọc
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setFeastBookings((prev) =>
+                                      prev.map((item) => (item.id === fb.id ? { ...item, status: 'REJECTED' } : item)),
+                                    );
+                                    onSyncCateringOrderFromMerchant?.(fb.id, fb.bookingCode, 'REJECTED');
+                                  }}
+                                  style={{
+                                    padding: '6px 12px',
+                                    borderRadius: 6,
+                                    border: '1px solid #FCA5A5',
+                                    background: '#FFFFFF',
+                                    color: '#DC2626',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  Từ chối
+                                </button>
+                              </div>
+                            ) : fb.status === 'PENDING_APPROVAL' ? (
                               <div style={{ display: 'inline-flex', gap: 6 }}>
                                 <button
                                   onClick={() => {

@@ -464,16 +464,21 @@ export const CateringPage: React.FC<CateringPageProps> = ({
       bookings.find((b) => b.id === bookingId) ||
       (activeMomoModal?.id === bookingId ? activeMomoModal : undefined);
 
-    setBookings(
-      bookings.map((b) => (b.id === bookingId ? { ...b, status: 'DEPOSIT_PAID' } : b)),
-    );
+    // Keep booking in PENDING_DEPOSIT until Store Owner verifies & confirms receipt of deposit
     try {
       const existingFeastsRaw = localStorage.getItem('dinego_feast_bookings');
       if (existingFeastsRaw) {
         const parsed = JSON.parse(existingFeastsRaw);
         if (Array.isArray(parsed)) {
           const updatedFeasts = parsed.map((fb: Record<string, unknown>) =>
-            fb.id === bookingId ? { ...fb, depositPaid: true } : fb,
+            fb.id === bookingId
+              ? {
+                  ...fb,
+                  depositPaid: false,
+                  customerSubmittedTransfer: true,
+                  transferSubmittedAt: new Date().toISOString(),
+                }
+              : fb,
           );
           localStorage.setItem('dinego_feast_bookings', JSON.stringify(updatedFeasts));
           if (typeof BroadcastChannel !== 'undefined') {
@@ -512,7 +517,7 @@ export const CateringPage: React.FC<CateringPageProps> = ({
         orderType: 'CATERING',
         customerId: currentUser?.id || 'guest',
         customerEmail: currentUser?.email,
-        status: 'CONFIRMED',
+        status: 'PENDING',
         subtotal: gross,
         discountAmount: discount,
         deliveryFee: 0,
@@ -548,16 +553,18 @@ export const CateringPage: React.FC<CateringPageProps> = ({
         payment: {
           id: `pay-${paidRecord.id}`,
           paymentMethod: 'MOMO_QR',
-          paymentStatus: 'SUCCESS',
+          paymentStatus: 'PROCESSING',
           amount: paidRecord.depositAmount,
           currency: 'VND',
-          transactionRef: `MOMO-FEAST-${paidRecord.bookingCode.slice(-6)}`,
-          paidAt: new Date().toISOString(),
+          transactionRef: `MOMO-PENDING-${paidRecord.bookingCode.slice(-6)}`,
+          paidAt: null,
         },
         cateringDetails: {
           bookingCode: paidRecord.bookingCode,
           partyTypeTitle: paidRecord.partyTypeTitle || 'Đặt tiệc lưu động',
           packageName: paidRecord.packageName,
+          merchantRating: matchedPkg.rating,
+          merchantReviewCount: matchedPkg.reviewCount,
           tableCount: paidRecord.tableCount,
           guestCountPerTable: guestCount,
           eventDate: paidRecord.eventDate,
@@ -568,6 +575,7 @@ export const CateringPage: React.FC<CateringPageProps> = ({
           remainingAmount: paidRecord.remainingAmount,
           voucherCode: paidRecord.voucherCode,
           customNote: paidRecord.customNote,
+          depositConfirmedByMerchant: false,
         },
       };
 
@@ -1297,38 +1305,49 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                             <div>
                               <div
                                 style={{
-                                  display: 'inline-flex',
+                                  display: 'flex',
                                   alignItems: 'center',
-                                  gap: 6,
-                                  fontSize: '0.78rem',
-                                  fontWeight: 700,
-                                  color: 'var(--primary)',
+                                  flexWrap: 'wrap',
+                                  gap: 8,
                                   marginBottom: 4,
                                 }}
                               >
-                                <UtensilsCrossed size={13} />
-                                {pkg.merchantName}
+                                <h3
+                                  style={{
+                                    fontSize: '1.16rem',
+                                    fontWeight: 900,
+                                    color: 'var(--text-main)',
+                                    margin: 0,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                  }}
+                                >
+                                  <UtensilsCrossed size={16} color="var(--primary)" />
+                                  {pkg.merchantName}
+                                </h3>
                                 <span
                                   style={{
                                     background: 'rgba(0, 177, 79, 0.1)',
-                                    padding: '2px 8px',
+                                    color: 'var(--primary)',
+                                    padding: '2px 9px',
                                     borderRadius: 999,
-                                    fontSize: '0.7rem',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 800,
                                   }}
                                 >
                                   {pkg.merchantBadge}
                                 </span>
                               </div>
-                              <h3
+                              <div
                                 style={{
-                                  fontSize: '1.12rem',
-                                  fontWeight: 800,
-                                  color: 'var(--text-main)',
-                                  margin: 0,
+                                  fontSize: '0.95rem',
+                                  fontWeight: 700,
+                                  color: 'var(--primary)',
                                 }}
                               >
-                                {pkg.name}
-                              </h3>
+                                Gói mâm: {pkg.name}
+                              </div>
                             </div>
 
                             <div style={{ textAlign: 'right' }}>
@@ -1495,12 +1514,15 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                   }}
                 />
                 <div style={{ flex: '1 1 280px' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary)', marginBottom: 4 }}>
-                    {selectedPackage.merchantName} • ★ {selectedPackage.rating.toFixed(1)} ({selectedPackage.reviewCount} đánh giá)
-                  </div>
-                  <h2 style={{ fontSize: '1.28rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 6px 0' }}>
-                    {selectedPackage.name}
+                  <h2 style={{ fontSize: '1.3rem', fontWeight: 900, color: 'var(--text-main)', margin: '0 0 4px 0' }}>
+                    {selectedPackage.merchantName}
+                    <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#D97706', marginLeft: 10 }}>
+                      ★ {selectedPackage.rating.toFixed(1)} ({selectedPackage.reviewCount} đánh giá)
+                    </span>
                   </h2>
+                  <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--primary)', marginBottom: 6 }}>
+                    {selectedPackage.name}
+                  </div>
                   <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: 0 }}>
                     {selectedPackage.description} • Tiêu chuẩn <strong>{selectedPackage.guestCountPerTable} khách/mâm</strong>
                   </p>
@@ -2893,8 +2915,24 @@ export const CateringPage: React.FC<CateringPageProps> = ({
             <div style={{ fontSize: '1.45rem', fontWeight: 900, color: '#D82D8B', marginBottom: 4, fontVariantNumeric: 'tabular-nums' }}>
               {activeMomoModal.depositAmount.toLocaleString()} VND
             </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 20 }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 14 }}>
               Nội dung chuyển: <code>{activeMomoModal.bookingCode}</code>
+            </div>
+
+            <div
+              style={{
+                background: '#FFFBEB',
+                border: '1px solid #FDE68A',
+                color: '#92400E',
+                borderRadius: 10,
+                padding: '9px 12px',
+                fontSize: '0.76rem',
+                fontWeight: 600,
+                marginBottom: 14,
+                textAlign: 'left',
+              }}
+            >
+              Sau khi bạn chuyển khoản MoMo, <strong>chủ cửa hàng</strong> sẽ kiểm tra và bấm xác nhận đã nhận tiền cọc trên hệ thống.
             </div>
 
             <button
@@ -2905,12 +2943,12 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                 width: '100%',
                 padding: '12px',
                 borderRadius: 10,
-                fontSize: '0.95rem',
+                fontSize: '0.92rem',
                 fontWeight: 800,
                 marginBottom: 10,
               }}
             >
-              Tôi đã chuyển tiền cọc MoMo thành công
+              Đã chuyển cọc MoMo • Chờ cửa hàng xác nhận
             </button>
             <button
               type="button"

@@ -4,8 +4,58 @@
 // and BroadcastChannel + localStorage synchronization between Driver & Customer
 // ==============================================================================
 
+import L from 'leaflet';
 import { API_BASE_URL } from '../api/client';
 import type { SavedAddress, User } from '../types';
+
+const RESILIENT_TILE_SOURCES = [
+  {
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    subdomains: 'abcd',
+    maxZoom: 20,
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+  },
+  {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    subdomains: '',
+    maxZoom: 19,
+    attribution: '&copy; Esri &mdash; OpenStreetMap contributors',
+  },
+  {
+    url: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+    subdomains: '',
+    maxZoom: 20,
+    attribution: '&copy; Map data',
+  },
+];
+
+/**
+ * Attaches a street tile layer to a Leaflet map with automatic multi-provider
+ * fallback when a tile server (such as tile.openstreetmap.org) is blocked/unreachable.
+ */
+export function addResilientStreetTileLayer(map: L.Map): L.TileLayer {
+  let providerIdx = 0;
+  let errorCount = 0;
+  const primary = RESILIENT_TILE_SOURCES[0];
+
+  const layer = L.tileLayer(primary.url, {
+    subdomains: primary.subdomains,
+    maxZoom: primary.maxZoom,
+    attribution: primary.attribution,
+  }).addTo(map);
+
+  layer.on('tileerror', () => {
+    errorCount += 1;
+    if (errorCount >= 3 && providerIdx < RESILIENT_TILE_SOURCES.length - 1) {
+      providerIdx += 1;
+      errorCount = 0;
+      const next = RESILIENT_TILE_SOURCES[providerIdx];
+      layer.setUrl(next.url);
+    }
+  });
+
+  return layer;
+}
 
 export interface LatLngPoint {
   lat: number;
@@ -660,6 +710,7 @@ export async function searchAddressNominatim(
         `https://photon.komoot.io/api/?q=${encodeURIComponent(
           variant,
         )}&bbox=102.1,8.1,109.5,23.4&limit=5`,
+        2200,
       ),
     ]);
 

@@ -451,10 +451,21 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                     boxShadow: isSelected ? '0 6px 20px rgba(0, 177, 79, 0.15)' : 'var(--shadow-sm)',
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
-                    <span style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '0.98rem' }}>
-                      #{order.orderNumber}
-                    </span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8, gap: 8 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1.02rem', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <Store size={15} color="var(--primary)" style={{ flexShrink: 0 }} />
+                        <span>{order.merchant?.name || 'Nhà hàng DineGo'}</span>
+                      </div>
+                      {isCatering && order.cateringDetails?.merchantRating && (
+                        <div style={{ fontSize: '0.76rem', fontWeight: 700, color: '#D97706', marginTop: 2 }}>
+                          ★ {order.cateringDetails.merchantRating.toFixed(1)}
+                          {order.cateringDetails.merchantReviewCount
+                            ? ` (${order.cateringDetails.merchantReviewCount} đánh giá)`
+                            : ''}
+                        </div>
+                      )}
+                    </div>
                     <span
                       style={{
                         padding: '4px 10px',
@@ -463,9 +474,12 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                         fontWeight: 700,
                         color: statusInfo.color,
                         background: statusInfo.bg,
+                        flexShrink: 0,
                       }}
                     >
-                      {isCatering && order.status === 'CONFIRMED'
+                      {isCatering && order.status === 'PENDING' && order.payment?.paymentStatus !== 'SUCCESS'
+                        ? 'Chờ chủ quán xác nhận cọc'
+                        : isCatering && order.status === 'CONFIRMED'
                         ? order.cateringDetails?.merchantApproved
                           ? 'Đã xác nhận lịch • Chờ tiệc'
                           : 'Đã cọc • Chờ phục vụ'
@@ -495,18 +509,17 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                     </div>
                   )}
 
-                  <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                    <Store size={14} color="var(--primary)" />
+                  <div style={{ fontSize: '0.86rem', color: 'var(--text-muted)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     <strong style={{ color: 'var(--text-main)' }}>
                       {isCatering && order.cateringDetails
                         ? order.cateringDetails.packageName
-                        : order.merchant?.name || 'Nhà hàng DineGo'}
+                        : `${order.items?.length || 1} món`}
                     </strong>
                     <span>•</span>
                     <span>
                       {isCatering && order.cateringDetails
                         ? `${order.cateringDetails.tableCount} mâm • ${order.cateringDetails.eventTime} (${order.cateringDetails.eventDate})`
-                        : `${order.items?.length || 1} món`}
+                        : `#${order.orderNumber}`}
                     </span>
                   </div>
 
@@ -516,9 +529,15 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem' }}>
                       {isCatering && order.cateringDetails ? (
-                        <span style={{ color: '#059669', background: '#D1FAE5', padding: '3px 8px', borderRadius: 6, fontWeight: 800 }}>
-                          ✓ Đã cọc MoMo: {order.cateringDetails.depositAmount.toLocaleString('vi-VN')}đ ({order.cateringDetails.depositPercent}%)
-                        </span>
+                        order.payment?.paymentStatus === 'SUCCESS' ? (
+                          <span style={{ color: '#059669', background: '#D1FAE5', padding: '3px 8px', borderRadius: 6, fontWeight: 800 }}>
+                            ✓ Đã nhận cọc MoMo: {order.cateringDetails.depositAmount.toLocaleString('vi-VN')}đ ({order.cateringDetails.depositPercent}%)
+                          </span>
+                        ) : (
+                          <span style={{ color: '#D97706', background: '#FEF3C7', padding: '3px 8px', borderRadius: 6, fontWeight: 800 }}>
+                            ⏳ Chờ chủ quán xác nhận cọc: {order.cateringDetails.depositAmount.toLocaleString('vi-VN')}đ
+                          </span>
+                        )
                       ) : isMoMoSuccess ? (
                         <span style={{ color: '#059669', background: '#D1FAE5', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
                           ✓ Đã trả qua MoMo
@@ -565,14 +584,27 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
               }}
             >
               <div>
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                  {isCateringOrder ? 'Chi tiết đơn đặt tiệc lưu động' : 'Chi tiết đơn hàng'}
+                <div style={{ fontSize: '0.82rem', color: 'var(--primary)', fontWeight: 700 }}>
+                  {isCateringOrder ? 'Đơn đặt tiệc lưu động' : 'Đơn hàng giao món'}
                 </div>
-                <h2 style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--text-main)', margin: '4px 0' }}>
-                  #{selectedOrder.orderNumber}
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-main)', margin: '4px 0', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span>{selectedOrder.merchant?.name || 'Nhà hàng DineGo'}</span>
+                  {isCateringOrder && cateringInfo?.merchantRating && (
+                    <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#D97706' }}>
+                      • ★ {cateringInfo.merchantRating.toFixed(1)}
+                      {cateringInfo.merchantReviewCount
+                        ? ` (${cateringInfo.merchantReviewCount} đánh giá)`
+                        : ''}
+                    </span>
+                  )}
                 </h2>
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                  Đặt lúc: {new Date(selectedOrder.createdAt).toLocaleString('vi-VN')}
+                {isCateringOrder && cateringInfo && (
+                  <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: 3 }}>
+                    {cateringInfo.packageName}
+                  </div>
+                )}
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Mã đơn: #{selectedOrder.orderNumber} • Đặt lúc: {new Date(selectedOrder.createdAt).toLocaleString('vi-VN')}
                 </div>
               </div>
 
@@ -587,8 +619,10 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                     background: STATUS_LABELS[selectedOrder.status]?.bg || '#F1F5F9',
                   }}
                 >
-                  {isCateringOrder && selectedOrder.status === 'CONFIRMED'
-                    ? `Đã cọc ${cateringInfo?.depositPercent || 30}% • Chờ phục vụ`
+                  {isCateringOrder && selectedOrder.status === 'PENDING' && selectedOrder.payment?.paymentStatus !== 'SUCCESS'
+                    ? `Đã chuyển cọc ${cateringInfo?.depositPercent || 30}% • Chờ cửa hàng xác nhận`
+                    : isCateringOrder && selectedOrder.status === 'CONFIRMED'
+                    ? `Đã nhận cọc ${cateringInfo?.depositPercent || 30}% • Chờ phục vụ`
                     : STATUS_LABELS[selectedOrder.status]?.text || selectedOrder.status}
                 </span>
 
@@ -649,28 +683,30 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
             )}
 
             {/* Catering Summary & Deposit Card */}
-            {isCateringOrder && cateringInfo && (
+            {isCateringOrder && cateringInfo && (() => {
+              const depositConfirmed = selectedOrder.payment?.paymentStatus === 'SUCCESS';
+              return (
               <div
                 style={{
-                  background: '#ECFDF5',
-                  border: '1.5px solid #A7F3D0',
+                  background: depositConfirmed ? '#ECFDF5' : '#FFFBEB',
+                  border: `1.5px solid ${depositConfirmed ? '#A7F3D0' : '#FDE68A'}`,
                   borderRadius: 16,
                   padding: '18px 20px',
                   marginBottom: 20,
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, color: '#065F46', fontSize: '0.96rem' }}>
-                    <UtensilsCrossed size={18} color="#00B14F" />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, color: depositConfirmed ? '#065F46' : '#92400E', fontSize: '0.96rem' }}>
+                    <UtensilsCrossed size={18} color={depositConfirmed ? '#00B14F' : '#D97706'} />
                     <span>Thông tin Đặt Tiệc &amp; Tiền Cọc MoMo</span>
                   </div>
-                  <span style={{ fontSize: '0.76rem', fontWeight: 800, color: '#047857', background: '#FFFFFF', padding: '4px 10px', borderRadius: 999, border: '1px solid #A7F3D0' }}>
+                  <span style={{ fontSize: '0.76rem', fontWeight: 800, color: depositConfirmed ? '#047857' : '#B45309', background: '#FFFFFF', padding: '4px 10px', borderRadius: 999, border: `1px solid ${depositConfirmed ? '#A7F3D0' : '#FDE68A'}` }}>
                     {cateringInfo.partyTypeTitle}
                   </span>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
-                  <div style={{ background: '#FFFFFF', borderRadius: 12, padding: '12px 14px', border: '1px solid #D1FAE5' }}>
+                  <div style={{ background: '#FFFFFF', borderRadius: 12, padding: '12px 14px', border: `1px solid ${depositConfirmed ? '#D1FAE5' : '#FDE68A'}` }}>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Gói thực đơn đã đặt</div>
                     <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-main)', marginTop: 2 }}>
                       {cateringInfo.packageName}
@@ -680,17 +716,21 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                     </div>
                   </div>
 
-                  <div style={{ background: '#FFFFFF', borderRadius: 12, padding: '12px 14px', border: '1px solid #D1FAE5' }}>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Đã đặt cọc qua MoMo ({cateringInfo.depositPercent}%)</div>
-                    <div style={{ fontSize: '1.15rem', fontWeight: 900, color: '#00B14F', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
+                  <div style={{ background: '#FFFFFF', borderRadius: 12, padding: '12px 14px', border: `1px solid ${depositConfirmed ? '#D1FAE5' : '#FDE68A'}` }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                      {depositConfirmed ? `Đã đặt cọc qua MoMo (${cateringInfo.depositPercent}%)` : `Tiền cọc MoMo (${cateringInfo.depositPercent}%)`}
+                    </div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 900, color: depositConfirmed ? '#00B14F' : '#D97706', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
                       {cateringInfo.depositAmount.toLocaleString('vi-VN')}đ
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 700, marginTop: 2 }}>
-                      ✓ Đã xác nhận giao dịch MoMo
+                    <div style={{ fontSize: '0.75rem', color: depositConfirmed ? '#059669' : '#B45309', fontWeight: 700, marginTop: 2 }}>
+                      {depositConfirmed
+                        ? '✓ Chủ cửa hàng đã xác nhận nhận cọc'
+                        : '⏳ Chờ chủ cửa hàng xác nhận đã chuyển cọc'}
                     </div>
                   </div>
 
-                  <div style={{ background: '#FFFFFF', borderRadius: 12, padding: '12px 14px', border: '1px solid #D1FAE5' }}>
+                  <div style={{ background: '#FFFFFF', borderRadius: 12, padding: '12px 14px', border: `1px solid ${depositConfirmed ? '#D1FAE5' : '#FDE68A'}` }}>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Còn lại tất toán sau tiệc</div>
                     <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
                       {cateringInfo.remainingAmount.toLocaleString('vi-VN')}đ
@@ -708,21 +748,22 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                       borderRadius: 10,
                       padding: '10px 12px',
                       fontSize: '0.82rem',
-                      color: '#065F46',
-                      border: '1px solid #D1FAE5',
+                      color: depositConfirmed ? '#065F46' : '#92400E',
+                      border: `1px solid ${depositConfirmed ? '#D1FAE5' : '#FDE68A'}`,
                       display: 'flex',
                       alignItems: 'flex-start',
                       gap: 8,
                     }}
                   >
-                    <MessageSquare size={15} color="#00B14F" style={{ marginTop: 2, flexShrink: 0 }} />
+                    <MessageSquare size={15} color={depositConfirmed ? '#00B14F' : '#D97706'} style={{ marginTop: 2, flexShrink: 0 }} />
                     <div>
                       <strong>Ghi chú cho nhà hàng:</strong> {cateringInfo.customNote}
                     </div>
                   </div>
                 )}
               </div>
-            )}
+              );
+            })()}
 
             {/* Interactive Leaflet Map for Catering Venue & Kitchen Location */}
             {isCateringOrder && cateringInfo && (() => {
@@ -1219,8 +1260,20 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
 
               {isCateringOrder && cateringInfo && (
                 <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.92rem', fontWeight: 800, color: '#00B14F' }}>
-                    <span>Đã đặt cọc qua MoMo ({cateringInfo.depositPercent}%)</span>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: '0.92rem',
+                      fontWeight: 800,
+                      color: selectedOrder.payment?.paymentStatus === 'SUCCESS' ? '#00B14F' : '#D97706',
+                    }}
+                  >
+                    <span>
+                      {selectedOrder.payment?.paymentStatus === 'SUCCESS'
+                        ? `Đã xác nhận tiền cọc qua MoMo (${cateringInfo.depositPercent}%)`
+                        : `Đã chuyển cọc MoMo (${cateringInfo.depositPercent}%) • Chờ cửa hàng xác nhận`}
+                    </span>
                     <span>-{cateringInfo.depositAmount.toLocaleString('vi-VN')}đ</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)' }}>
@@ -1294,7 +1347,9 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                     }}
                   >
                     <AlertCircle size={13} />
-                    Chờ thanh toán
+                    {isCateringOrder
+                      ? 'Chờ chủ cửa hàng xác nhận cọc'
+                      : 'Chờ thanh toán'}
                   </span>
                 )}
               </div>
@@ -1384,8 +1439,8 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
 
             {/* Multi-Actor Handshake Action Center (Tác vụ tương ứng của từng Actor) */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {/* Payment CTA for MoMo */}
-              {selectedOrder.status === 'PENDING' && selectedOrder.payment?.paymentMethod?.includes('MOMO') && (
+              {/* Payment CTA for MoMo (Food delivery only; Catering awaits merchant deposit confirmation) */}
+              {!isCateringOrder && selectedOrder.status === 'PENDING' && selectedOrder.payment?.paymentMethod?.includes('MOMO') && (
                 <button
                   onClick={() => onPayMoMo(selectedOrder)}
                   className="btn-momo"
