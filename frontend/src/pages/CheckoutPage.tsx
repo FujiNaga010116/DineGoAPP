@@ -29,9 +29,12 @@ import {
   hasVerifiedCustomerAddress,
 } from '../utils/routing';
 import {
+  ADMIN_VOUCHERS_KEY,
+  fetchRemoteAdminVouchers,
   loadAdminVouchers,
   loadUserClaimedCodes,
   saveAdminVouchers,
+  type ManagedVoucher,
 } from '../utils/vouchers';
 import type { Merchant, Order, PaymentMethod, SavedAddress, User } from '../types';
 
@@ -127,14 +130,61 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
     if (addr.phone) setRecipientPhone(addr.phone);
   };
 
+  const [liveVouchers, setLiveVouchers] = useState<ManagedVoucher[]>(() => loadAdminVouchers());
   const claimedVoucherCodes = loadUserClaimedCodes(currentUser?.id);
 
-  const availableAdminVouchers = loadAdminVouchers().filter(
+  useEffect(() => {
+    let active = true;
+    const syncVouchers = async () => {
+      if (active) setLiveVouchers(loadAdminVouchers());
+      const remote = await fetchRemoteAdminVouchers();
+      if (active && remote) setLiveVouchers(remote);
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === ADMIN_VOUCHERS_KEY) setLiveVouchers(loadAdminVouchers());
+    };
+    const handleCustom = () => setLiveVouchers(loadAdminVouchers());
+    const ch =
+      typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('dinego_vouchers_sync') : null;
+    if (ch) {
+      ch.onmessage = () => setLiveVouchers(loadAdminVouchers());
+    }
+    void syncVouchers();
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('dinego_vouchers_updated', handleCustom);
+    return () => {
+      active = false;
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('dinego_vouchers_updated', handleCustom);
+      ch?.close();
+    };
+  }, []);
+
+  const availableAdminVouchers = liveVouchers.filter(
     (v) =>
       v.isActive !== false &&
       Number(v.usageCount || 0) < Number(v.maxUsage || 999999) &&
       (!v.merchantId || v.merchantId === 'ALL' || !cart.merchantId || v.merchantId === cart.merchantId),
   );
+
+  const shopVouchersForCart = availableAdminVouchers.filter(
+    (v) => v.merchantId && v.merchantId !== 'ALL' && v.merchantId === cart.merchantId,
+  );
+  const platformVouchersForCart = availableAdminVouchers.filter(
+    (v) => !v.merchantId || v.merchantId === 'ALL',
+  );
+
+  const estimateVoucherSavings = (v: (typeof availableAdminVouchers)[number]) => {
+    if (cart.subtotal < v.minOrder) return 0;
+    let raw =
+      v.discountType === 'PERCENTAGE'
+        ? Math.round((cart.subtotal * v.discountValue) / 100)
+        : Number(v.discountValue);
+    if (v.discountType === 'PERCENTAGE' && v.maxDiscountAmount) {
+      raw = Math.min(raw, Number(v.maxDiscountAmount));
+    }
+    return Math.min(raw, cart.subtotal + cart.deliveryFee);
+  };
 
   const handleApplyVoucher = (codeToApply?: string) => {
     const code = (codeToApply || voucherInput).trim();
@@ -857,14 +907,30 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
               boxShadow: 'var(--shadow-sm)',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <Tag size={18} color="var(--primary)" />
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-                Mã ưu đãi (Voucher)
-              </h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Tag size={18} color="var(--primary)" />
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                  Mã ưu đãi Quán &amp; Sàn (Voucher)
+                </h3>
+              </div>
+              {shopVouchersForCart.length > 0 && (
+                <span
+                  style={{
+                    padding: '3px 10px',
+                    borderRadius: 999,
+                    background: '#FEF3C7',
+                    color: '#B45309',
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                  }}
+                >
+                  🏪 {shopVouchersForCart.length} mã của quán
+                </span>
+              )}
             </div>
 
-            {cart.voucherCode ? (
+            {cart.voucherCode && (
               <div
                 style={{
                   display: 'flex',
@@ -874,142 +940,281 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                   border: '1.5px solid var(--primary)',
                   padding: '12px 16px',
                   borderRadius: 14,
+                  marginBottom: 14,
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.98rem' }}>
-                    🎉 {cart.voucherCode}
+                  <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.96rem', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span>🎉 Đang áp dụng: {cart.voucherCode}</span>
+                    {shopVouchersForCart.some((sv) => sv.code.toUpperCase() === cart.voucherCode?.toUpperCase()) && (
+                      <span
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: 6,
+                          background: '#FEF3C7',
+                          color: '#B45309',
+                          fontSize: '0.7rem',
+                          fontWeight: 800,
+                        }}
+                      >
+                        🏪 Voucher của Quán
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                    Đã giảm trừ thành công -{cart.discountAmount.toLocaleString('vi-VN')}đ
+                    Đã giảm trừ thành công <strong>-{cart.discountAmount.toLocaleString('vi-VN')}đ</strong>
                   </div>
                 </div>
                 <button
                   onClick={removeVoucher}
                   style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#EF4444',
+                    background: '#FEE2E2',
+                    border: '1px solid #FECACA',
+                    color: '#DC2626',
                     fontWeight: 700,
-                    fontSize: '0.85rem',
+                    fontSize: '0.78rem',
+                    padding: '6px 12px',
+                    borderRadius: 8,
                     cursor: 'pointer',
                   }}
                 >
-                  Gỡ bỏ
+                  Gỡ mã
                 </button>
               </div>
-            ) : (
-              <div>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                  <input
-                    type="text"
-                    placeholder="Nhập mã ưu đãi..."
-                    value={voucherInput}
-                    onChange={(e) => setVoucherInput(e.target.value.toUpperCase())}
-                    style={{
-                      flexGrow: 1,
-                      padding: '10px 14px',
-                      borderRadius: 12,
-                      background: 'var(--bg-main)',
-                      border: '1px solid var(--border)',
-                      color: 'var(--text-main)',
-                      fontSize: '0.9rem',
-                      fontWeight: 700,
-                      outline: 'none',
-                    }}
-                  />
-                  <button
-                    onClick={() => handleApplyVoucher()}
-                    className="btn btn-primary"
-                    style={{
-                      padding: '10px 18px',
-                      borderRadius: 12,
-                      fontWeight: 700,
-                      fontSize: '0.88rem',
-                    }}
-                  >
-                    Áp dụng
-                  </button>
-                </div>
+            )}
 
-                {/* Quick Apply Voucher Tags (Synced with Admin Event/Store Vouchers & Claimed Wallet) */}
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-                  {availableAdminVouchers.map((v) => {
-                    const isClaimedByMe = claimedVoucherCodes.includes(v.code.toUpperCase());
-                    return (
-                      <button
-                        key={v.code}
-                        onClick={() => handleApplyVoucher(v.code)}
-                        style={{
-                          background: isClaimedByMe ? 'rgba(0, 177, 79, 0.1)' : 'rgba(79, 70, 229, 0.08)',
-                          border: `1px dashed ${isClaimedByMe ? '#00B14F' : '#4F46E5'}`,
-                          borderRadius: 8,
-                          padding: '5px 10px',
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          color: isClaimedByMe ? '#047857' : '#4F46E5',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {isClaimedByMe ? '✅ Đã săn • ' : '🎟️ '}
-                        {v.code} (
-                        {v.discountType === 'PERCENTAGE'
-                          ? `Giảm ${v.discountValue}%`
-                          : `Giảm ${(Number(v.discountValue) / 1000).toFixed(0)}k`}
-                        )
-                        {v.merchantId && v.merchantId !== 'ALL' ? ` • ${v.merchantName}` : ''}
-                      </button>
-                    );
-                  })}
-                  <button
-                    onClick={() => handleApplyVoucher('DINEGO50')}
-                    style={{
-                      background: 'rgba(0, 177, 79, 0.08)',
-                      border: '1px dashed var(--primary)',
-                      borderRadius: 8,
-                      padding: '4px 10px',
-                      fontSize: '0.78rem',
-                      fontWeight: 700,
-                      color: 'var(--primary)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    🏷️ DINEGO50 (Giảm 50k)
-                  </button>
-                  <button
-                    onClick={() => handleApplyVoucher('FREESHIP')}
-                    style={{
-                      background: 'rgba(255, 87, 34, 0.08)',
-                      border: '1px dashed var(--secondary)',
-                      borderRadius: 8,
-                      padding: '4px 10px',
-                      fontSize: '0.78rem',
-                      fontWeight: 700,
-                      color: 'var(--secondary)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    🚀 FREESHIP (Miễn ship 25k)
-                  </button>
-                </div>
+            <div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <input
+                  type="text"
+                  placeholder="Nhập mã voucher quán hoặc mã sàn..."
+                  value={voucherInput}
+                  onChange={(e) => setVoucherInput(e.target.value.toUpperCase())}
+                  style={{
+                    flexGrow: 1,
+                    padding: '10px 14px',
+                    borderRadius: 12,
+                    background: 'var(--bg-main)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-main)',
+                    fontSize: '0.9rem',
+                    fontWeight: 700,
+                    outline: 'none',
+                  }}
+                />
+                <button
+                  onClick={() => handleApplyVoucher()}
+                  className="btn btn-primary"
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: 12,
+                    fontWeight: 700,
+                    fontSize: '0.88rem',
+                  }}
+                >
+                  Áp dụng
+                </button>
+              </div>
 
-                {voucherMsg && (
+              {voucherMsg && (
+                <div
+                  style={{
+                    fontSize: '0.84rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    color: voucherMsg.isError ? '#EF4444' : 'var(--primary)',
+                    fontWeight: 600,
+                    marginBottom: 12,
+                    padding: '8px 12px',
+                    borderRadius: 10,
+                    background: voucherMsg.isError ? '#FEF2F2' : '#F0FDF4',
+                  }}
+                >
+                  {voucherMsg.isError ? <AlertCircle size={15} /> : <CheckCircle2 size={15} />}
+                  <span>{voucherMsg.text}</span>
+                </div>
+              )}
+
+              {/* Shop Vouchers Section (Mã Ưu Đãi Của Quán) */}
+              {shopVouchersForCart.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
                   <div
                     style={{
-                      fontSize: '0.85rem',
+                      fontSize: '0.78rem',
+                      fontWeight: 800,
+                      color: '#B45309',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.4,
+                      marginBottom: 8,
                       display: 'flex',
                       alignItems: 'center',
                       gap: 6,
-                      color: voucherMsg.isError ? '#EF4444' : 'var(--primary)',
-                      fontWeight: 600,
                     }}
                   >
-                    {voucherMsg.isError ? <AlertCircle size={15} /> : <CheckCircle2 size={15} />}
-                    <span>{voucherMsg.text}</span>
+                    <span>🏪 Voucher Độc Quyền Của Quán ({cart.merchantName})</span>
                   </div>
-                )}
-              </div>
-            )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {shopVouchersForCart.map((v) => {
+                      const isCurrent =
+                        Boolean(cart.voucherCode) &&
+                        cart.voucherCode!.toUpperCase() === v.code.toUpperCase();
+                      const isEligible = cart.subtotal >= v.minOrder;
+                      const savings = estimateVoucherSavings(v);
+                      const isClaimedByMe = claimedVoucherCodes.includes(v.code.toUpperCase());
+
+                      return (
+                        <div
+                          key={v.id}
+                          style={{
+                            padding: '10px 12px',
+                            borderRadius: 12,
+                            background: isCurrent
+                              ? '#F0FDF4'
+                              : isEligible
+                              ? '#FFFBEB'
+                              : '#F8FAFC',
+                            border: isCurrent
+                              ? '1.5px solid #00B14F'
+                              : isEligible
+                              ? '1px dashed #D97706'
+                              : '1px solid #E2E8F0',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 10,
+                          }}
+                        >
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: 900, fontSize: '0.86rem', color: '#92400E' }}>
+                                {v.code}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: '0.74rem',
+                                  fontWeight: 800,
+                                  color: '#D97706',
+                                }}
+                              >
+                                •{' '}
+                                {v.discountType === 'PERCENTAGE'
+                                  ? `Giảm ${v.discountValue}%${v.maxDiscountAmount ? ` (tối đa ${(v.maxDiscountAmount / 1000).toFixed(0)}k)` : ''}`
+                                  : `Giảm ${Number(v.discountValue).toLocaleString('vi-VN')}đ`}
+                              </span>
+                              {isClaimedByMe && (
+                                <span style={{ fontSize: '0.68rem', color: '#059669', fontWeight: 700 }}>
+                                  (Đã lưu ví)
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: '0.74rem', color: isEligible ? '#047857' : '#64748B', marginTop: 2, fontWeight: isEligible ? 700 : 500 }}>
+                              {isEligible
+                                ? `Đủ điều kiện • Tiết kiệm ngay -${savings.toLocaleString('vi-VN')}đ`
+                                : `Đơn tối thiểu ${v.minOrder.toLocaleString('vi-VN')}đ (Mua thêm ${(v.minOrder - cart.subtotal).toLocaleString('vi-VN')}đ)`}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => (isCurrent ? removeVoucher() : handleApplyVoucher(v.code))}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: 8,
+                              background: isCurrent
+                                ? '#DCFCE7'
+                                : isEligible
+                                ? '#D97706'
+                                : '#E2E8F0',
+                              color: isCurrent
+                                ? '#15803D'
+                                : isEligible
+                                ? '#FFFFFF'
+                                : '#64748B',
+                              border: 'none',
+                              fontSize: '0.76rem',
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {isCurrent ? '✓ Đang dùng' : 'Áp mã quán'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Platform Vouchers Quick Apply */}
+              {platformVouchersForCart.length > 0 && (
+                <div>
+                  <div
+                    style={{
+                      fontSize: '0.76rem',
+                      fontWeight: 800,
+                      color: '#475569',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.4,
+                      marginBottom: 8,
+                    }}
+                  >
+                    🌐 Voucher Toàn Sàn DineGo
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {platformVouchersForCart.map((v) => {
+                      const isClaimedByMe = claimedVoucherCodes.includes(v.code.toUpperCase());
+                      const isCurrent =
+                        Boolean(cart.voucherCode) &&
+                        cart.voucherCode!.toUpperCase() === v.code.toUpperCase();
+                      return (
+                        <button
+                          key={v.code}
+                          onClick={() => handleApplyVoucher(v.code)}
+                          style={{
+                            background: isCurrent
+                              ? '#DCFCE7'
+                              : isClaimedByMe
+                              ? 'rgba(0, 177, 79, 0.1)'
+                              : 'rgba(79, 70, 229, 0.08)',
+                            border: `1px dashed ${isCurrent || isClaimedByMe ? '#00B14F' : '#4F46E5'}`,
+                            borderRadius: 8,
+                            padding: '5px 10px',
+                            fontSize: '0.76rem',
+                            fontWeight: 700,
+                            color: isCurrent || isClaimedByMe ? '#047857' : '#4F46E5',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {isCurrent ? '✓ Đang dùng • ' : isClaimedByMe ? '✅ Đã săn • ' : '🎟️ '}
+                          {v.code} (
+                          {v.discountType === 'PERCENTAGE'
+                            ? `Giảm ${v.discountValue}%`
+                            : `Giảm ${(Number(v.discountValue) / 1000).toFixed(0)}k`}
+                          )
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {shopVouchersForCart.length === 0 && platformVouchersForCart.length === 0 && (
+                <div
+                  style={{
+                    fontSize: '0.8rem',
+                    color: '#64748B',
+                    background: '#F8FAFC',
+                    border: '1px dashed #CBD5E1',
+                    borderRadius: 10,
+                    padding: '10px 14px',
+                  }}
+                >
+                  Hiện tại quán <strong>{cart.merchantName}</strong> chưa phát hành mã ưu đãi riêng nào. Khi cửa hàng tạo mã voucher mới, mã sẽ hiển thị tại đây để bạn chọn áp dụng.
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Payment Method Selector */}

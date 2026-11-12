@@ -102,10 +102,19 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
     const handleFocus = () => {
       void syncAll();
     };
+    const handleCustom = () => {
+      setVouchers(loadAdminVouchers());
+    };
+    const ch =
+      typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('dinego_vouchers_sync') : null;
+    if (ch) {
+      ch.onmessage = () => setVouchers(loadAdminVouchers());
+    }
 
     void syncAll();
     window.addEventListener('storage', handleStorage);
     window.addEventListener('focus', handleFocus);
+    window.addEventListener('dinego_vouchers_updated', handleCustom);
     const interval = window.setInterval(() => {
       void syncAll();
     }, 3000);
@@ -114,6 +123,8 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
       active = false;
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('dinego_vouchers_updated', handleCustom);
+      ch?.close();
       window.clearInterval(interval);
     };
   }, [currentUser?.id]);

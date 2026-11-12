@@ -3,7 +3,7 @@
 // Verified Partner Badge, Cover Banner, Category Filters, Dish Cards, Customizer Modal
 // ==============================================================================
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ArrowLeft,
   Star,
@@ -19,10 +19,20 @@ import {
   Search,
   ThumbsUp,
   Share2,
+  Ticket,
+  Store,
 } from 'lucide-react';
 import { MOCK_MENU_ITEMS } from '../api/client';
 import { useCart } from '../context/CartContext';
 import { hasVerifiedCustomerAddress } from '../utils/routing';
+import {
+  ADMIN_VOUCHERS_KEY,
+  claimVoucherForAccount,
+  fetchRemoteAdminVouchers,
+  loadAdminVouchers,
+  loadUserClaimedCodes,
+  type ManagedVoucher,
+} from '../utils/vouchers';
 import type {
   CartItemTopping,
   MenuItem,
@@ -48,7 +58,7 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
   currentUser,
   onRequireAddressSetup,
 }) => {
-  const { addItem, cartCount, cart } = useCart();
+  const { addItem, cartCount, cart, applyVoucher, removeVoucher } = useCart();
   const [selectedDish, setSelectedDish] = useState<MenuItem | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [selectedToppings, setSelectedToppings] = useState<CartItemTopping[]>([]);
@@ -56,6 +66,161 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('all');
+
+  const [allVouchers, setAllVouchers] = useState<ManagedVoucher[]>(() => loadAdminVouchers());
+  const [restaurantReviews, setRestaurantReviews] = useState<any[]>(() => {
+    try {
+      const raw = localStorage.getItem('dinego_merchant_reviews');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    const reloadReviews = () => {
+      try {
+        const raw = localStorage.getItem('dinego_merchant_reviews');
+        if (raw) setRestaurantReviews(JSON.parse(raw));
+      } catch {}
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'dinego_merchant_reviews') reloadReviews();
+    };
+    const ch =
+      typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('dinego_reviews_sync') : null;
+    if (ch) {
+      ch.onmessage = () => reloadReviews();
+    }
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('dinego_reviews_updated', reloadReviews);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('dinego_reviews_updated', reloadReviews);
+      ch?.close();
+    };
+  }, []);
+
+  const matchedReviews = useMemo(() => {
+    const mNameNorm = (merchant.name || '').trim().toLowerCase();
+    return restaurantReviews.filter((r) => {
+      if (r.merchantId && r.merchantId === merchant.id) return true;
+      if (r.merchantName && String(r.merchantName).trim().toLowerCase() === mNameNorm) return true;
+      return false;
+    });
+  }, [restaurantReviews, merchant.id, merchant.name]);
+  const [claimedCodes, setClaimedCodes] = useState<string[]>(() =>
+    loadUserClaimedCodes(currentUser?.id),
+  );
+  const [preselectedCode, setPreselectedCode] = useState<string | null>(() => {
+    try {
+      const raw = localStorage.getItem('dinego_preselected_voucher');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (!parsed.merchantId || parsed.merchantId === 'ALL' || parsed.merchantId === merchant.id) {
+          return String(parsed.code || '').toUpperCase() || null;
+        }
+      }
+    } catch {}
+    return null;
+  });
+
+  useEffect(() => {
+    let active = true;
+    const syncVouchers = async () => {
+      if (active) {
+        setAllVouchers(loadAdminVouchers());
+        setClaimedCodes(loadUserClaimedCodes(currentUser?.id));
+      }
+      const remote = await fetchRemoteAdminVouchers();
+      if (active && remote) {
+        setAllVouchers(remote);
+      }
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === ADMIN_VOUCHERS_KEY) {
+        setAllVouchers(loadAdminVouchers());
+      }
+    };
+    const handleVoucherEvent = () => {
+      setAllVouchers(loadAdminVouchers());
+    };
+    const ch =
+      typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('dinego_vouchers_sync') : null;
+    if (ch) {
+      ch.onmessage = () => setAllVouchers(loadAdminVouchers());
+    }
+    void syncVouchers();
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('dinego_vouchers_updated', handleVoucherEvent);
+    return () => {
+      active = false;
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('dinego_vouchers_updated', handleVoucherEvent);
+      ch?.close();
+    };
+  }, [currentUser?.id, merchant.id]);
+
+  // Active Shop Vouchers belonging exclusively to this restaurant
+  const shopVouchers = useMemo(
+    () =>
+      allVouchers.filter(
+        (v) =>
+          v.isActive !== false &&
+          v.merchantId === merchant.id &&
+          Number(v.usageCount || 0) < Number(v.maxUsage || 999999),
+      ),
+    [allVouchers, merchant.id],
+  );
+
+  // Active Platform Vouchers usable at any restaurant
+  const platformVouchers = useMemo(
+    () =>
+      allVouchers.filter(
+        (v) =>
+          v.isActive !== false &&
+          (!v.merchantId || v.merchantId === 'ALL') &&
+          Number(v.usageCount || 0) < Number(v.maxUsage || 999999),
+      ),
+    [allVouchers],
+  );
+
+  const handleSelectStoreVoucher = async (v: ManagedVoucher) => {
+    const codeUpper = v.code.toUpperCase();
+    // Claim to user wallet if logged in and not yet claimed
+    if (currentUser?.id && !claimedCodes.includes(codeUpper)) {
+      const { claimedCodes: nextClaimed, updatedVouchers } = await claimVoucherForAccount(
+        currentUser.id,
+        codeUpper,
+      );
+      setClaimedCodes(nextClaimed);
+      setAllVouchers(updatedVouchers);
+    }
+
+    // If cart currently belongs to this merchant and meets minOrder, apply immediately
+    if (cart.merchantId === merchant.id && cart.subtotal >= v.minOrder) {
+      const res = applyVoucher(codeUpper);
+      if (res.success) {
+        setPreselectedCode(null);
+        setToastMessage(`🎉 Đã áp mã "${codeUpper}" của quán thành công! (${res.message})`);
+        setTimeout(() => setToastMessage(null), 3200);
+        return;
+      }
+    }
+
+    // Otherwise preselect so as soon as user adds items >= minOrder, it auto-applies
+    try {
+      localStorage.setItem(
+        'dinego_preselected_voucher',
+        JSON.stringify({ code: codeUpper, merchantId: v.merchantId || 'ALL' }),
+      );
+    } catch {}
+    setPreselectedCode(codeUpper);
+    setToastMessage(
+      `✅ Đã lưu & chọn mã "${codeUpper}"! Mã sẽ tự động giảm giá ngay khi giỏ hàng tại quán đạt từ ${v.minOrder.toLocaleString('vi-VN')}đ.`,
+    );
+    setTimeout(() => setToastMessage(null), 3500);
+  };
 
   const rawMenuItems = (menuItems && menuItems[merchant.id]) || MOCK_MENU_ITEMS[merchant.id] || [];
 
@@ -399,51 +564,77 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
                 )}
               </div>
 
-              {/* Promo Vouchers Ribbon */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  marginTop: 16,
-                  flexWrap: 'wrap',
-                }}
-              >
+              {/* Promo Vouchers Ribbon (Only shows real vouchers created by Shop or Admin) */}
+              {(shopVouchers.length > 0 || platformVouchers.length > 0) && (
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 6,
-                    background: 'rgba(255, 87, 34, 0.08)',
-                    border: '1px dashed var(--secondary)',
-                    padding: '6px 14px',
-                    borderRadius: 10,
-                    color: 'var(--secondary)',
-                    fontSize: '0.82rem',
-                    fontWeight: 700,
+                    gap: 10,
+                    marginTop: 16,
+                    flexWrap: 'wrap',
                   }}
                 >
-                  <Tag size={14} />
-                  <span>Mã DINEGO50: Giảm 50k đơn từ 150k</span>
+                  {shopVouchers.slice(0, 3).map((sv) => (
+                    <button
+                      key={sv.id}
+                      type="button"
+                      onClick={() => handleSelectStoreVoucher(sv)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        background: 'rgba(217, 119, 6, 0.1)',
+                        border: '1px dashed #D97706',
+                        padding: '6px 14px',
+                        borderRadius: 10,
+                        color: '#B45309',
+                        fontSize: '0.82rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Store size={14} />
+                      <span>
+                        Voucher Quán {sv.code}:{' '}
+                        {sv.discountType === 'PERCENTAGE'
+                          ? `Giảm ${sv.discountValue}%${sv.maxDiscountAmount ? ` (tối đa ${(sv.maxDiscountAmount / 1000).toFixed(0)}k)` : ''}`
+                          : `Giảm ${(sv.discountValue / 1000).toFixed(0)}k`}{' '}
+                        đơn từ {(sv.minOrder / 1000).toFixed(0)}k
+                      </span>
+                    </button>
+                  ))}
+                  {platformVouchers.slice(0, 2).map((pv) => (
+                    <button
+                      key={pv.id}
+                      type="button"
+                      onClick={() => handleSelectStoreVoucher(pv)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        background: 'rgba(0, 177, 79, 0.08)',
+                        border: '1px dashed var(--primary)',
+                        padding: '6px 14px',
+                        borderRadius: 10,
+                        color: 'var(--primary)',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Tag size={14} />
+                      <span>
+                        Mã Sàn {pv.code}:{' '}
+                        {pv.discountType === 'PERCENTAGE'
+                          ? `Giảm ${pv.discountValue}%`
+                          : `Giảm ${(pv.discountValue / 1000).toFixed(0)}k`}{' '}
+                        đơn từ {(pv.minOrder / 1000).toFixed(0)}k
+                      </span>
+                    </button>
+                  ))}
                 </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    background: 'rgba(0, 177, 79, 0.08)',
-                    border: '1px dashed var(--primary)',
-                    padding: '6px 14px',
-                    borderRadius: 10,
-                    color: 'var(--primary)',
-                    fontSize: '0.82rem',
-                    fontWeight: 700,
-                  }}
-                >
-                  <Tag size={14} />
-                  <span>FREESHIP: Miễn phí vận chuyển 15k</span>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Quick Cart Summary Pill if items in cart for this merchant */}
@@ -480,6 +671,183 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Storefront Exclusive Shop Vouchers & Platform Vouchers Section */}
+      {(shopVouchers.length > 0 || platformVouchers.length > 0) && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #FFFBEB 0%, #FFFFFF 65%, #F0FDF4 100%)',
+            borderRadius: 18,
+            padding: '18px 22px',
+            border: '1.5px solid #FDE68A',
+            boxShadow: 'var(--shadow-sm)',
+            marginBottom: 24,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 10,
+              marginBottom: 14,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  background: '#FEF3C7',
+                  color: '#D97706',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Ticket size={20} />
+              </div>
+              <div>
+                <div style={{ fontSize: '1.02rem', fontWeight: 800, color: '#0F172A' }}>
+                  Mã Ưu Đãi Của Quán &amp; Khuyến Mãi Áp Dụng Tại {merchant.name}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#64748B' }}>
+                  Bấm <strong>"Lưu &amp; Áp mã"</strong> để áp dụng trực tiếp vào đơn hàng của bạn tại quán
+                </div>
+              </div>
+            </div>
+            <span
+              style={{
+                padding: '4px 12px',
+                borderRadius: 999,
+                background: '#FEF3C7',
+                color: '#B45309',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+              }}
+            >
+              {shopVouchers.length} mã của quán • {platformVouchers.length} mã toàn sàn
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))',
+              gap: 12,
+            }}
+          >
+            {[...shopVouchers, ...platformVouchers.slice(0, 3)].map((v) => {
+              const isShopVoucher = v.merchantId && v.merchantId !== 'ALL';
+              const codeUpper = v.code.toUpperCase();
+              const isAppliedNow =
+                cart.merchantId === merchant.id &&
+                cart.voucherCode &&
+                cart.voucherCode.toUpperCase() === codeUpper;
+              const isPreselected = !isAppliedNow && preselectedCode === codeUpper;
+              const isClaimed = claimedCodes.includes(codeUpper);
+              const remaining = Math.max(0, Number(v.maxUsage || 200) - Number(v.usageCount || 0));
+
+              return (
+                <div
+                  key={v.id}
+                  style={{
+                    background: '#FFFFFF',
+                    borderRadius: 14,
+                    border: isAppliedNow
+                      ? '2px solid #00B14F'
+                      : isShopVoucher
+                      ? '1.5px solid #F59E0B'
+                      : '1px solid #E2E8F0',
+                    padding: '12px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+                      <span
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: 6,
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          background: isShopVoucher ? '#FEF3C7' : '#EEF2FF',
+                          color: isShopVoucher ? '#B45309' : '#4F46E5',
+                        }}
+                      >
+                        {isShopVoucher ? '🏪 Voucher Quán' : '🌐 Toàn sàn'}
+                      </span>
+                      <span style={{ fontWeight: 900, fontSize: '0.9rem', color: '#0F172A' }}>{v.code}</span>
+                      {isClaimed && (
+                        <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#059669' }}>
+                          • Đã lưu ví
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontWeight: 800, fontSize: '0.88rem', color: isShopVoucher ? '#D97706' : '#00B14F' }}>
+                      {v.discountType === 'PERCENTAGE'
+                        ? `Giảm ${v.discountValue}%${v.maxDiscountAmount ? ` (Tối đa ${(v.maxDiscountAmount / 1000).toFixed(0)}k)` : ''}`
+                        : `Giảm ${Number(v.discountValue).toLocaleString('vi-VN')}đ`}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: 2 }}>
+                      Đơn tối thiểu {Number(v.minOrder).toLocaleString('vi-VN')}đ • Còn {remaining} lượt
+                    </div>
+                  </div>
+
+                  {isAppliedNow ? (
+                    <button
+                      type="button"
+                      onClick={() => removeVoucher()}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: 10,
+                        background: '#DCFCE7',
+                        color: '#15803D',
+                        border: '1px solid #86EFAC',
+                        fontSize: '0.76rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      ✓ Đang áp dụng
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectStoreVoucher(v)}
+                      style={{
+                        padding: '8px 14px',
+                        borderRadius: 10,
+                        background: isPreselected
+                          ? '#FEF3C7'
+                          : isShopVoucher
+                          ? '#D97706'
+                          : 'var(--primary)',
+                        color: isPreselected ? '#B45309' : '#FFFFFF',
+                        border: isPreselected ? '1px solid #F59E0B' : 'none',
+                        fontSize: '0.78rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        boxShadow: isPreselected ? 'none' : '0 4px 10px rgba(217, 119, 6, 0.2)',
+                      }}
+                    >
+                      {isPreselected ? '⏳ Đã chọn mã' : 'Lưu & Áp mã'}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Menu Categories Bar & Search Filter */}
       <div
@@ -724,6 +1092,171 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
                     </div>
                   )}
                 </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Customer Reviews & Merchant Replies Section */}
+      <div
+        style={{
+          marginTop: 28,
+          background: '#FFFFFF',
+          borderRadius: 20,
+          padding: '24px 28px',
+          border: '1px solid var(--border)',
+          boxShadow: 'var(--shadow-sm)',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+            marginBottom: 18,
+            paddingBottom: 14,
+            borderBottom: '1px solid var(--border)',
+          }}
+        >
+          <div>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 4px 0' }}>
+              ⭐ Đánh giá từ Thực khách & Phản hồi của Quán ({matchedReviews.length})
+            </h3>
+            <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0 }}>
+              Mọi đánh giá từ đơn hàng đã hoàn tất và phản hồi trực tiếp từ chủ quán {merchant.name}
+            </p>
+          </div>
+          {matchedReviews.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: '#FFFBEB',
+                border: '1px solid #FDE68A',
+                padding: '8px 14px',
+                borderRadius: 12,
+              }}
+            >
+              <span style={{ fontSize: '1.2rem', fontWeight: 900, color: '#D97706' }}>
+                {(
+                  matchedReviews.reduce((s, r) => s + Number(r.rating || 5), 0) / matchedReviews.length
+                ).toFixed(1)}{' '}
+                ★
+              </span>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#92400E' }}>
+                ({matchedReviews.length} lượt đánh giá)
+              </span>
+            </div>
+          )}
+        </div>
+
+        {matchedReviews.length === 0 ? (
+          <div
+            style={{
+              padding: '24px',
+              textAlign: 'center',
+              background: '#F8FAFC',
+              borderRadius: 14,
+              border: '1px dashed #CBD5E1',
+              color: '#64748B',
+              fontSize: '0.88rem',
+            }}
+          >
+            Chưa có đánh giá nào cho quán <strong>{merchant.name}</strong>. Hãy đặt món và trở thành thực khách đầu tiên đánh giá nhé!
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {matchedReviews.map((rev) => (
+              <div
+                key={rev.id}
+                style={{
+                  padding: '16px 18px',
+                  borderRadius: 14,
+                  background: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    marginBottom: 8,
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 800, fontSize: '0.92rem', color: '#0F172A' }}>
+                        👤 {rev.customerName || 'Khách hàng'}
+                      </span>
+                      {rev.orderRef && (
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: 6,
+                            background: '#EFF6FF',
+                            color: '#1D4ED8',
+                            border: '1px solid #BFDBFE',
+                          }}
+                        >
+                          Đơn #{rev.orderRef}
+                        </span>
+                      )}
+                      {rev.itemsSummary && (
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: 6,
+                            background: '#ECFDF5',
+                            color: '#047857',
+                            border: '1px solid #A7F3D0',
+                          }}
+                        >
+                          🍽️ {rev.itemsSummary}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 2 }}>
+                      🕒 {rev.date || 'Vừa xong'}
+                    </div>
+                  </div>
+                  <div style={{ color: '#F59E0B', fontWeight: 900, fontSize: '0.95rem' }}>
+                    {'★'.repeat(Number(rev.rating || 5))}
+                    {'☆'.repeat(Math.max(0, 5 - Number(rev.rating || 5)))}
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '0.88rem', color: '#1E293B', lineHeight: 1.5 }}>
+                  “{rev.comment}”
+                </div>
+
+                {rev.reply && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: '10px 14px',
+                      borderRadius: 10,
+                      background: '#F0FDF4',
+                      borderLeft: '3px solid #10B981',
+                      fontSize: '0.82rem',
+                      color: '#065F46',
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, marginBottom: 3, color: '#047857' }}>
+                      💬 Phản hồi từ quán {merchant.name}:
+                    </div>
+                    <div>{rev.reply}</div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

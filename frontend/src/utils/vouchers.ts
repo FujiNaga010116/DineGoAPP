@@ -84,152 +84,43 @@ export const EVENT_THEME_OPTIONS: {
 export const getEventThemeStyle = (theme?: VoucherEventTheme) =>
   EVENT_THEME_OPTIONS.find((t) => t.value === theme) || EVENT_THEME_OPTIONS[5];
 
-export const DEFAULT_ADMIN_VOUCHERS: ManagedVoucher[] = [
-  {
-    id: 'v-01',
-    code: 'COMTAM40K',
-    discountType: 'FIXED_AMOUNT',
-    title: 'Giảm 40.000đ cho đơn Cơm Tấm từ 120.000đ',
-    discountValue: 40000,
-    minOrder: 120000,
-    usageCount: 84,
-    claimedCount: 145,
-    maxUsage: 200,
-    endDate: '2026-12-31',
-    isActive: true,
-    eventTheme: 'FLASH_SALE',
-    eventTag: 'Flash Sale Bữa Trưa Quán Chuẩn',
-    merchantId: 'merchant-com-tam',
-    merchantName: 'Cơm Tấm Sài Gòn 1985',
-    isFlashHunt: true,
-  },
-  {
-    id: 'v-02',
-    code: 'PHOTHIN25',
-    discountType: 'PERCENTAGE',
-    title: 'Giảm 25% (tối đa 45k) mừng Lễ Hội Ẩm Thực',
-    discountValue: 25,
-    maxDiscountAmount: 45000,
-    minOrder: 90000,
-    usageCount: 52,
-    claimedCount: 112,
-    maxUsage: 150,
-    endDate: '2026-12-25',
-    isActive: true,
-    eventTheme: 'GIANG_SINH',
-    eventTag: 'Ưu Đãi Mùa Lễ Giáng Sinh',
-    merchantId: 'merchant-pho-thin',
-    merchantName: 'Phở Thìn Lò Đúc 1979',
-    isFlashHunt: true,
-  },
-  {
-    id: 'v-03',
-    code: 'GONGCHAXMAS',
-    discountType: 'FIXED_AMOUNT',
-    title: 'Giảm 35.000đ hóa đơn Trà Sữa từ 100.000đ',
-    discountValue: 35000,
-    minOrder: 100000,
-    usageCount: 168,
-    claimedCount: 240,
-    maxUsage: 300,
-    endDate: '2026-12-26',
-    isActive: true,
-    eventTheme: 'GIANG_SINH',
-    eventTag: 'Noel Ngọt Ngào • Quán Tặng Deal',
-    merchantId: 'merchant-gongcha',
-    merchantName: 'Trà Sữa Gong Cha Premium',
-    isFlashHunt: true,
-  },
-  {
-    id: 'v-04',
-    code: 'PIZZAFEST30',
-    discountType: 'PERCENTAGE',
-    title: 'Giảm 30% (tối đa 80k) cho tiệc Pizza & Pasta dịp Lễ',
-    discountValue: 30,
-    maxDiscountAmount: 80000,
-    minOrder: 220000,
-    usageCount: 39,
-    claimedCount: 88,
-    maxUsage: 120,
-    endDate: '2026-12-31',
-    isActive: true,
-    eventTheme: 'LE_30_4',
-    eventTag: 'Đại Tiệc Lễ Hội • Giảm Sâu 30%',
-    merchantId: 'merchant-pizza',
-    merchantName: 'Pizza Artisan & Pasta',
-    isFlashHunt: true,
-  },
-  {
-    id: 'v-05',
-    code: 'DINEGO30',
-    discountType: 'FIXED_AMOUNT',
-    title: 'Giảm 30.000đ cho đơn toàn sàn từ 120.000đ',
-    discountValue: 30000,
-    minOrder: 120000,
-    usageCount: 342,
-    claimedCount: 390,
-    maxUsage: 500,
-    endDate: '2026-12-31',
-    isActive: true,
-    eventTheme: 'TET_NGUYEN_DAN',
-    eventTag: 'Lì Xì Đầu Năm Toàn Sàn',
-    merchantId: 'ALL',
-    merchantName: 'Toàn sàn DineGo',
-    isFlashHunt: true,
-  },
-  {
-    id: 'v-06',
-    code: 'FREESHIP15K',
-    discountType: 'FIXED_AMOUNT',
-    title: 'Miễn phí vận chuyển 15.000đ cho đơn từ 50.000đ',
-    discountValue: 15000,
-    minOrder: 50000,
-    usageCount: 615,
-    claimedCount: 720,
-    maxUsage: 1000,
-    endDate: '2026-12-15',
-    isActive: true,
-    eventTheme: 'ALL_PLATFORM',
-    eventTag: 'Freeship Mọi Đơn Hàng',
-    merchantId: 'ALL',
-    merchantName: 'Toàn sàn DineGo',
-    isFlashHunt: true,
-  },
-  {
-    id: 'v-07',
-    code: 'TIECVIP15',
-    discountType: 'PERCENTAGE',
-    title: 'Giảm 15% cho hợp đồng Đặt Tiệc từ 3.000.000đ',
-    discountValue: 15,
-    minOrder: 3000000,
-    usageCount: 18,
-    claimedCount: 35,
-    maxUsage: 100,
-    endDate: '2027-01-15',
-    isActive: true,
-    eventTheme: 'TRUNG_THU',
-    eventTag: 'Ưu Đãi Đặt Tiệc Lễ Hội',
-    merchantId: 'ALL',
-    merchantName: 'Toàn sàn DineGo',
-    isFlashHunt: false,
-  },
-];
+// Legacy demo IDs that should be stripped so only real Merchant/Admin created vouchers exist
+const LEGACY_SEED_VOUCHER_IDS = new Set([
+  'v-01',
+  'v-02',
+  'v-03',
+  'v-04',
+  'v-05',
+  'v-06',
+  'v-07',
+]);
+
+export const DEFAULT_ADMIN_VOUCHERS: ManagedVoucher[] = [];
+
+const sanitizeVoucherList = (list: ManagedVoucher[]): ManagedVoucher[] =>
+  list
+    .filter((v) => v && v.id && !LEGACY_SEED_VOUCHER_IDS.has(String(v.id)))
+    .map((v: ManagedVoucher) => ({
+      ...v,
+      merchantId: v.merchantId || 'ALL',
+      merchantName: v.merchantName || 'Toàn sàn DineGo',
+      eventTheme: v.eventTheme || 'ALL_PLATFORM',
+      eventTag: v.eventTag || 'Ưu đãi toàn sàn',
+      claimedCount: v.claimedCount ?? v.usageCount ?? 0,
+      isFlashHunt: v.isFlashHunt !== false,
+    }));
 
 export const loadAdminVouchers = (): ManagedVoucher[] => {
   try {
     const saved = localStorage.getItem(ADMIN_VOUCHERS_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map((v: ManagedVoucher) => ({
-          ...v,
-          merchantId: v.merchantId || 'ALL',
-          merchantName: v.merchantName || 'Toàn sàn DineGo',
-          eventTheme: v.eventTheme || 'ALL_PLATFORM',
-          eventTag: v.eventTag || 'Ưu đãi toàn sàn',
-          claimedCount: v.claimedCount ?? v.usageCount ?? 0,
-          isFlashHunt: v.isFlashHunt !== false,
-        }));
+      if (Array.isArray(parsed)) {
+        const cleaned = sanitizeVoucherList(parsed);
+        if (cleaned.length !== parsed.length) {
+          localStorage.setItem(ADMIN_VOUCHERS_KEY, JSON.stringify(cleaned));
+        }
+        return cleaned;
       }
     }
   } catch {
@@ -242,8 +133,16 @@ export const saveAdminVouchers = (
   vouchers: ManagedVoucher[],
   syncBackend = true,
 ) => {
+  const cleaned = sanitizeVoucherList(vouchers);
+  const serialized = JSON.stringify(cleaned);
   try {
-    localStorage.setItem(ADMIN_VOUCHERS_KEY, JSON.stringify(vouchers));
+    localStorage.setItem(ADMIN_VOUCHERS_KEY, serialized);
+    window.dispatchEvent(new CustomEvent('dinego_vouchers_updated'));
+    if (typeof BroadcastChannel !== 'undefined') {
+      const ch = new BroadcastChannel('dinego_vouchers_sync');
+      ch.postMessage(serialized);
+      ch.close();
+    }
   } catch {
     // Ignore storage errors
   }
@@ -251,7 +150,7 @@ export const saveAdminVouchers = (
     void fetch(`${API_BASE_URL}/promotions/live/sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ vouchers }),
+      body: JSON.stringify({ vouchers: cleaned }),
     }).catch(() => {});
   }
 };
@@ -261,9 +160,15 @@ export const fetchRemoteAdminVouchers = async (): Promise<ManagedVoucher[] | nul
     const res = await fetch(`${API_BASE_URL}/promotions/live`);
     if (!res.ok) return null;
     const data = (await res.json()) as { vouchers: ManagedVoucher[] | null };
-    if (Array.isArray(data?.vouchers) && data.vouchers.length > 0) {
-      saveAdminVouchers(data.vouchers, false);
-      return data.vouchers;
+    if (Array.isArray(data?.vouchers)) {
+      const cleaned = sanitizeVoucherList(data.vouchers);
+      // If backend still had legacy seed vouchers, push the cleaned list back to backend
+      if (cleaned.length !== data.vouchers.length) {
+        saveAdminVouchers(cleaned, true);
+      } else {
+        saveAdminVouchers(cleaned, false);
+      }
+      return cleaned;
     }
   } catch {
     // Offline fallback

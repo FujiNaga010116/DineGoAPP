@@ -24,6 +24,7 @@ import { CustomerProfilePage } from './pages/CustomerProfilePage';
 import { AuthModal } from './components/common/AuthModal';
 import { ReviewModal } from './components/common/ReviewModal';
 import { MerchantRegistrationModal } from './components/common/MerchantRegistrationModal';
+import { MerchantSetupScreen } from './components/common/MerchantSetupScreen';
 import { AddressSetupModal } from './components/common/AddressSetupModal';
 import { CartProvider } from './context/CartContext';
 import { API_BASE_URL, MOCK_MERCHANTS, MOCK_MENU_ITEMS, MOCK_DRIVERS, MOCK_USERS, isDriverProfileVerified, adminApi } from './api/client';
@@ -69,7 +70,13 @@ interface AppContentProps {
   setCurrentUser: React.Dispatch<React.SetStateAction<User | null>>;
 }
 
-function hydrateSeedCustomerCoords(user: User): User {
+function hydrateSeedCustomerCoords(rawUser: User): User {
+  const normalizedRoles: Role[] = Array.isArray(rawUser?.roles)
+    ? rawUser.roles
+    : (rawUser as any)?.role
+    ? [(rawUser as any).role as Role]
+    : ['CUSTOMER'];
+  const user: User = { ...rawUser, roles: normalizedRoles };
   const seedMatch = MOCK_USERS.find((m) => m.id === user.id);
   if (!seedMatch || user.addressLat != null) return user;
   if (seedMatch.addressLat != null && seedMatch.address === user.address) {
@@ -205,11 +212,17 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     return MOCK_MERCHANTS;
   });
 
-  // Current merchant profile for the logged in merchant user
-  const selectedMerchant =
-    currentUser?.merchantId
-      ? merchants.find((m) => m.id === currentUser.merchantId) || merchants[0]
-      : merchants[0];
+  // Current merchant profile for the logged in merchant user (null if not set up yet)
+  const ownedMerchant = currentUser?.roles?.includes('MERCHANT')
+    ? merchants.find(
+        (m) =>
+          (currentUser.merchantId && m.id === currentUser.merchantId) ||
+          m.ownerUserId === currentUser.id,
+      ) || null
+    : null;
+
+  const selectedMerchant = ownedMerchant || merchants[0];
+  const needsMerchantSetup = Boolean(currentUser?.roles?.includes('MERCHANT') && !ownedMerchant);
 
   // Current driver profile for the logged in driver user
   const currentDriverProfile =
@@ -602,14 +615,30 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     }));
   };
 
-  // Register a new independent Merchant
+  // Step 1: Register a new Merchant user account (Store setup happens inside the app at Step 2)
+  const handleMerchantAccountCreated = (newOwnerUser: User) => {
+    setUsers((prev) => [newOwnerUser, ...prev]);
+    setCurrentUser(newOwnerUser);
+    localStorage.setItem('dinego_user', JSON.stringify(newOwnerUser));
+    setActiveMomoPaymentOrder(null);
+    setReviewModalOrder(null);
+    setCurrentTab('merchant-orders');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Step 2: Complete Restaurant Setup inside the app (or via full registration)
   const handleMerchantRegistered = (
     newMerchant: Merchant,
     newOwnerUser: User,
     initialDishes: MenuItem[] = [],
   ) => {
     setMerchants((prev) => [newMerchant, ...prev]);
-    setUsers((prev) => [newOwnerUser, ...prev]);
+    setUsers((prev) => {
+      const exists = prev.some((u) => u.id === newOwnerUser.id);
+      return exists
+        ? prev.map((u) => (u.id === newOwnerUser.id ? newOwnerUser : u))
+        : [newOwnerUser, ...prev];
+    });
     setAllMenuItems((prev) => ({
       ...prev,
       [newMerchant.id]: initialDishes,
@@ -681,6 +710,18 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
       const callback = pendingAfterAddressSetup;
       setPendingAfterAddressSetup(null);
       callback();
+    }
+  };
+
+  // Update Merchant profile & store settings
+  const handleUpdateMerchantProfile = (updatedMerchant: Merchant, updatedUser?: User) => {
+    setMerchants((prev) =>
+      prev.map((m) => (m.id === updatedMerchant.id ? updatedMerchant : m)),
+    );
+    if (updatedUser) {
+      setCurrentUser(updatedUser);
+      localStorage.setItem('dinego_user', JSON.stringify(updatedUser));
+      setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
     }
   };
 
@@ -1096,6 +1137,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     currentTab === 'dashboard' ||
     currentTab === 'merchant-orders' ||
     currentTab === 'merchant-menu' ||
+    currentTab === 'merchant-vouchers' ||
     currentTab === 'merchant-catering' ||
     currentTab === 'merchant-analytics' ||
     currentTab === 'merchant-kyc';
@@ -1176,7 +1218,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
           currentUser={currentUser}
           onOpenAuthModal={handleOpenAuthModal}
           onLogout={handleLogout}
-          onOpenMerchantRegisterModal={() => setIsMerchantRegisterModalOpen(true)}
+          onOpenMerchantRegisterModal={() => handleOpenAuthModal('register', 'MERCHANT')}
           activeOrdersCount={activeCustomerOrdersCount}
         />
       )}
@@ -1188,7 +1230,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
             onSelectMerchant={handleSelectMerchant}
             onNavigate={(tab: any) => setCurrentTab(tab)}
             merchants={merchants}
-            onOpenMerchantRegisterModal={() => setIsMerchantRegisterModalOpen(true)}
+            onOpenMerchantRegisterModal={() => handleOpenAuthModal('register', 'MERCHANT')}
           />
         )}
 
@@ -1337,37 +1379,46 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
         )}
 
         {/* 3. MERCHANT SELLER CENTER SHELL & 4. ENTERPRISE ADMIN BACKOFFICE SHELL */}
-        {(isMerchantPortalTab || isAdminPortalTab) && (
-          <DashboardPage
-            key={isAdminPortalTab ? 'admin' : selectedMerchant.id}
+        {isMerchantPortalTab && needsMerchantSetup && currentUser ? (
+          <MerchantSetupScreen
             currentUser={currentUser}
-            activeTab={currentTab}
-            onNavigate={(tab) => {
-              setCurrentTab(tab);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            onOpenAuthModal={handleOpenAuthModal}
+            onCompleteSetup={handleMerchantRegistered}
             onLogout={handleLogout}
-            orders={isAdminPortalTab ? orders : merchantOrders}
-            onUpdateOrderStatus={handleUpdateOrderStatus}
-            merchantDishes={allMenuItems[selectedMerchant.id] || MOCK_MENU_ITEMS[selectedMerchant.id] || []}
-            onToggleDishAvailability={handleToggleDishAvailability}
-            onAddDish={handleAddDish}
-            onUpdateDish={handleUpdateDish}
-            onDeleteDish={handleDeleteDish}
-            currentMerchant={selectedMerchant}
-            allMerchants={merchants}
-            allDriversList={drivers}
-            allUsersList={users}
-            onToggleUserStatus={handleToggleUserStatus}
-            deliveryDisputes={deliveryDisputes}
-            onResolveDeliveryDispute={handleResolveDeliveryDispute}
-            onConfirmMerchantPickup={handleConfirmMerchantPickup}
-            onAdminUpdateMerchantStatus={handleAdminUpdateMerchantStatus}
-            onAdminUpdateDriverStatus={handleAdminUpdateDriverStatus}
-            onOpenMerchantRegisterModal={() => setIsMerchantRegisterModalOpen(true)}
-            onSyncCateringOrderFromMerchant={handleSyncCateringOrderFromMerchant}
           />
+        ) : (
+          (isMerchantPortalTab || isAdminPortalTab) && (
+            <DashboardPage
+              key={isAdminPortalTab ? 'admin' : selectedMerchant.id}
+              currentUser={currentUser}
+              activeTab={currentTab}
+              onNavigate={(tab) => {
+                setCurrentTab(tab);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              onOpenAuthModal={handleOpenAuthModal}
+              onLogout={handleLogout}
+              orders={isAdminPortalTab ? orders : merchantOrders}
+              onUpdateOrderStatus={handleUpdateOrderStatus}
+              merchantDishes={allMenuItems[selectedMerchant.id] || MOCK_MENU_ITEMS[selectedMerchant.id] || []}
+              onToggleDishAvailability={handleToggleDishAvailability}
+              onAddDish={handleAddDish}
+              onUpdateDish={handleUpdateDish}
+              onDeleteDish={handleDeleteDish}
+              currentMerchant={selectedMerchant}
+              onUpdateMerchantProfile={handleUpdateMerchantProfile}
+              allMerchants={merchants}
+              allDriversList={drivers}
+              allUsersList={users}
+              onToggleUserStatus={handleToggleUserStatus}
+              deliveryDisputes={deliveryDisputes}
+              onResolveDeliveryDispute={handleResolveDeliveryDispute}
+              onConfirmMerchantPickup={handleConfirmMerchantPickup}
+              onAdminUpdateMerchantStatus={handleAdminUpdateMerchantStatus}
+              onAdminUpdateDriverStatus={handleAdminUpdateDriverStatus}
+              onOpenMerchantRegisterModal={() => handleOpenAuthModal('register', 'MERCHANT')}
+              onSyncCateringOrderFromMerchant={handleSyncCateringOrderFromMerchant}
+            />
+          )
         )}
       </main>
 
@@ -1378,7 +1429,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           onOpenAuthModal={handleOpenAuthModal}
-          onOpenMerchantRegisterModal={() => setIsMerchantRegisterModalOpen(true)}
+          onOpenMerchantRegisterModal={() => handleOpenAuthModal('register', 'MERCHANT')}
         />
       )}
 
@@ -1398,7 +1449,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
         allUsers={users}
         allMerchants={merchants}
         allDrivers={drivers}
-        onRegisterMerchantAccount={handleMerchantRegistered}
+        onRegisterMerchantAccount={handleMerchantAccountCreated}
         onRegisterDriverAccount={handleDriverRegistered}
         onRegisterCustomerAccount={handleCustomerRegistered}
         onLoginSuccess={(user) => {
@@ -1479,28 +1530,96 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
                 status: 'OPEN',
                 createdAt: nowStr,
               };
-              localStorage.setItem(
-                'dinego_admin_complaints',
-                JSON.stringify([newComplaint, ...(Array.isArray(currentList) ? currentList : [])]),
-              );
+              const nextComplaints = [
+                newComplaint,
+                ...(Array.isArray(currentList) ? currentList : []),
+              ];
+              const serializedComplaints = JSON.stringify(nextComplaints);
+              localStorage.setItem('dinego_admin_complaints', serializedComplaints);
+              window.dispatchEvent(new CustomEvent('dinego_complaints_updated'));
+              if (typeof BroadcastChannel !== 'undefined') {
+                const ch = new BroadcastChannel('dinego_complaints_sync');
+                ch.postMessage(serializedComplaints);
+                ch.close();
+              }
             } catch {}
           } else if (data.type === 'REVIEW') {
             try {
               const saved = localStorage.getItem('dinego_merchant_reviews');
-              const currentList = saved ? JSON.parse(saved) : [];
-              const newReview = {
-                id: `rev-${Date.now()}`,
-                customerName: currentUser?.fullName || reviewModalOrder.recipientName || 'Khách hàng',
-                orderRef: reviewModalOrder.orderNumber,
-                rating: Number(data.rating) || 5,
-                comment: data.comment || '',
-                reply: null,
-                date: new Date().toLocaleDateString('vi-VN'),
-              };
-              localStorage.setItem(
-                'dinego_merchant_reviews',
-                JSON.stringify([newReview, ...(Array.isArray(currentList) ? currentList : [])]),
+              const parsed = saved ? JSON.parse(saved) : [];
+              const currentList: any[] = Array.isArray(parsed) ? parsed : [];
+              const targetMerchantId = reviewModalOrder.merchant?.id || '';
+              const targetMerchantName = reviewModalOrder.merchant?.name || 'Nhà hàng DineGo';
+              const itemsSummary = (reviewModalOrder.items || [])
+                .map((i) => `${i.quantity}x ${i.itemName}`)
+                .join(', ');
+
+              const existingIdx = currentList.findIndex(
+                (r) =>
+                  (r.orderId && r.orderId === reviewModalOrder.id) ||
+                  (r.orderRef && r.orderRef === reviewModalOrder.orderNumber),
               );
+
+              const newReview = {
+                id: existingIdx >= 0 ? currentList[existingIdx].id : `rev-${Date.now()}`,
+                orderId: reviewModalOrder.id,
+                orderRef: reviewModalOrder.orderNumber,
+                merchantId: targetMerchantId,
+                merchantName: targetMerchantName,
+                customerId: currentUser?.id || '',
+                customerName:
+                  currentUser?.fullName || reviewModalOrder.recipientName || 'Khách hàng',
+                itemsSummary,
+                rating: Number(data.rating) || 5,
+                driverRating: Number(data.driverRating) || 5,
+                comment: data.comment || '',
+                reply: existingIdx >= 0 ? currentList[existingIdx].reply : null,
+                repliedAt: existingIdx >= 0 ? currentList[existingIdx].repliedAt : null,
+                date: nowStr,
+              };
+
+              const nextList =
+                existingIdx >= 0
+                  ? currentList.map((r, i) => (i === existingIdx ? newReview : r))
+                  : [newReview, ...currentList];
+
+              const serialized = JSON.stringify(nextList);
+              localStorage.setItem('dinego_merchant_reviews', serialized);
+              window.dispatchEvent(new CustomEvent('dinego_reviews_updated'));
+              if (typeof BroadcastChannel !== 'undefined') {
+                const ch = new BroadcastChannel('dinego_reviews_sync');
+                ch.postMessage(serialized);
+                ch.close();
+              }
+
+              // Update merchant rating & review count
+              if (targetMerchantId) {
+                const mReviews = nextList.filter(
+                  (r) =>
+                    r.merchantId === targetMerchantId ||
+                    (r.merchantName &&
+                      r.merchantName.toLowerCase() === targetMerchantName.toLowerCase()),
+                );
+                if (mReviews.length > 0) {
+                  const avg =
+                    Math.round(
+                      (mReviews.reduce((s, r) => s + (Number(r.rating) || 5), 0) /
+                        mReviews.length) *
+                        10,
+                    ) / 10;
+                  setMerchants((prev) =>
+                    prev.map((m) =>
+                      m.id === targetMerchantId
+                        ? {
+                            ...m,
+                            rating: avg,
+                            reviewCount: Math.max(Number(m.reviewCount || 0), mReviews.length),
+                          }
+                        : m,
+                    ),
+                  );
+                }
+              }
             } catch {}
           }
         }}

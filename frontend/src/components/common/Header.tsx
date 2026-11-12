@@ -32,6 +32,7 @@ export type NavTab =
   // Merchant Portal Tabs
   | 'merchant-orders'
   | 'merchant-menu'
+  | 'merchant-vouchers'
   | 'merchant-catering'
   | 'merchant-analytics'
   | 'merchant-kyc'
