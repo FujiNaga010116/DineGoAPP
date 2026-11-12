@@ -8,7 +8,7 @@ import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { LocateFixed, Navigation, Route } from 'lucide-react';
-import type { LatLngPoint } from '../../utils/routing';
+import { addResilientStreetTileLayer, type LatLngPoint } from '../../utils/routing';
 
 export interface DeliveryMapProps {
   store: LatLngPoint & { name: string; address: string };
@@ -185,10 +185,7 @@ export const DeliveryMap: React.FC<DeliveryMapProps> = ({
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors',
-    }).addTo(map);
+    addResilientStreetTileLayer(map);
 
     routeCasingRef.current = L.polyline([], {
       color: '#FFFFFF',

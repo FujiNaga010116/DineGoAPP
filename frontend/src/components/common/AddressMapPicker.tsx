@@ -16,6 +16,7 @@ import {
   Search,
 } from 'lucide-react';
 import {
+  addResilientStreetTileLayer,
   isAddressConsistentWithMap,
   reverseGeocodeNominatim,
   searchAddressNominatim,
@@ -201,10 +202,7 @@ export const AddressMapPicker: React.FC<AddressMapPickerProps> = ({
     });
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors',
-    }).addTo(map);
+    addResilientStreetTileLayer(map);
 
     mapRef.current = map;
 
