@@ -23,7 +23,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
+import { Roles } from '../../common/decorators/roles.decorator.js';
+import { Role } from '../../common/enums/index.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
+import { RolesGuard } from '../../common/guards/roles.guard.js';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface.js';
 import { CreateComplaintDto, ResolveComplaintDto } from './dto/create-complaint.dto.js';
 import { CreateReviewDto, ReplyReviewDto } from './dto/create-review.dto.js';
@@ -106,7 +109,8 @@ export class FeedbackController {
   }
 
   @Patch('complaints/:id/resolve')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   @ApiBearerAuth('JWT-auth')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'U051: Admin xử lý khiếu nại (Hoàn tiền, bồi thường hoặc từ chối)' })

@@ -369,54 +369,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     }));
   })();
 
-  // Admin Drivers Fleet State
-  const [driversList, setDriversList] = useState([
-    {
-      id: 'drv-01',
-      code: 'TX-SG-0019',
-      fullName: 'Nguyễn Quốc Tuấn',
-      phone: '0909888999',
-      licensePlate: '59-B1 888.26',
-      vehicle: 'Honda Wave Alpha',
-      area: 'Quận 1, Quận 3, Bình Thạnh',
-      completedTrips: 412,
-      rating: 4.9,
-      status: 'ACTIVE' as 'ACTIVE' | 'SUSPENDED',
-    },
-    {
-      id: 'drv-02',
-      code: 'TX-SG-0042',
-      fullName: 'Lê Minh Hải',
-      phone: '0903445566',
-      licensePlate: '59-X3 412.09',
-      vehicle: 'Honda AirBlade 125',
-      area: 'Quận 1, Quận 4, Quận 7',
-      completedTrips: 298,
-      rating: 4.8,
-      status: 'ACTIVE' as 'ACTIVE' | 'SUSPENDED',
-    },
-    {
-      id: 'drv-03',
-      code: 'TX-SG-0087',
-      fullName: 'Phạm Hồng Sơn',
-      phone: '0918776655',
-      licensePlate: '59-T2 198.54',
-      vehicle: 'Yamaha Sirius FI',
-      area: 'Phú Nhuận, Tân Bình',
-      completedTrips: 164,
-      rating: 4.7,
-      status: 'ACTIVE' as 'ACTIVE' | 'SUSPENDED',
-    },
-  ]);
-
-  const toggleDriverStatus = (drvId: string) => {
-    setDriversList((prev) =>
-      prev.map((d) =>
-        d.id === drvId ? { ...d, status: d.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' } : d,
-      ),
-    );
-  };
-
   // Admin Audit Logs State (U045)
   const [adminAuditLogs, setAdminAuditLogs] = useState([
     {
@@ -455,6 +407,41 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       },
       ...prev,
     ]);
+  };
+
+  // Admin Drivers Fleet derived from real allDriversList & real orders
+  const [driverStatusOverrides, setDriverStatusOverrides] = useState<Record<string, 'ACTIVE' | 'SUSPENDED'>>({});
+
+  const driversList = allDriversList.map((drv, idx) => {
+    const realDriverTrips = completedOrdersList.filter(
+      (o) => o.assignedDriverId === drv.id || o.assignedDriverName === drv.fullName,
+    ).length;
+    const baseStatus: 'ACTIVE' | 'SUSPENDED' = drv.status === 'SUSPENDED' ? 'SUSPENDED' : 'ACTIVE';
+    const effectiveStatus = driverStatusOverrides[drv.id] || baseStatus;
+    return {
+      id: drv.id,
+      code: `TX-SG-${String(idx + 1).padStart(4, '0')}`,
+      fullName: drv.fullName,
+      phone: drv.phoneNumber,
+      licensePlate: drv.licensePlate,
+      vehicle: drv.vehicleType,
+      area: drv.operatingZone,
+      completedTrips: (drv.completedTrips || 0) + realDriverTrips,
+      rating: drv.rating || 5.0,
+      status: effectiveStatus,
+    };
+  });
+
+  const toggleDriverStatus = (drvId: string) => {
+    const target = driversList.find((d) => d.id === drvId);
+    if (!target) return;
+    const nextStatus: 'ACTIVE' | 'SUSPENDED' = target.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    setDriverStatusOverrides((prev) => ({ ...prev, [drvId]: nextStatus }));
+    appendAuditLog(
+      nextStatus === 'SUSPENDED' ? 'ĐÌNH CHỈ TÀI XẾ NHẬN CHUYẾN' : 'MỞ KHÓA TÀI XẾ',
+      `${target.fullName} (${target.licensePlate})`,
+      nextStatus === 'SUSPENDED' ? 'Tạm khóa nhận chuyến để rà soát vận hành' : 'Khôi phục quyền nhận chuyến giao hàng',
+    );
   };
 
   // Admin Complaints State (U051)
@@ -532,14 +519,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   // Merchant Moderation State for Admin (U045: PENDING / APPROVED / REJECTED / SUSPENDED)
   const [merchantKycStatuses, setMerchantKycStatuses] = useState<
     Record<string, 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED'>
-  >(() => {
-    const init: Record<string, 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED'> = {};
-    allMerchants.forEach((m, idx) => {
-      init[m.id] = idx === allMerchants.length - 1 && allMerchants.length > 2 ? 'PENDING' : 'APPROVED';
-    });
-    return init;
-  });
+  >({});
   const [merchantModerationReasons, setMerchantModerationReasons] = useState<Record<string, string>>({});
+
+  const getEffectiveMerchantKycStatus = (m: Merchant): 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' => {
+    if (merchantKycStatuses[m.id]) return merchantKycStatuses[m.id];
+    if (m.kycStatus === 'PENDING_APPROVAL') return 'PENDING';
+    if (m.kycStatus === 'REJECTED') return 'REJECTED';
+    if (m.isActive === false) return 'SUSPENDED';
+    return 'APPROVED';
+  };
 
   const handleUpdateMerchantKyc = (
     m: Merchant,
@@ -823,7 +812,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 id: 'admin-merchants' as NavTab,
                 label: 'Đối tác Quán & KYC',
                 icon: <Store size={17} />,
-                badge: Object.values(merchantKycStatuses).filter((s) => s === 'PENDING').length || undefined,
+                badge: allMerchants.filter((m) => getEffectiveMerchantKycStatus(m) === 'PENDING').length || undefined,
               },
               { id: 'admin-drivers' as NavTab, label: 'Đội ngũ Tài xế', icon: <Bike size={17} /> },
               { id: 'admin-users' as NavTab, label: 'Người dùng & Phân quyền', icon: <UsersIcon size={17} /> },
@@ -1276,7 +1265,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                           <th style={{ padding: '12px 20px' }}>Nhà hàng</th>
                           <th style={{ padding: '12px 20px' }}>Khách nhận món</th>
                           <th style={{ padding: '12px 20px' }}>Tổng thanh toán</th>
-                          <th style={{ padding: '12px 20px' }}>Phí sàn (15%)</th>
+                          <th style={{ padding: '12px 20px' }}>Phí sàn ({platformCommissionRate}%)</th>
                           <th style={{ padding: '12px 20px' }}>Phương thức</th>
                           <th style={{ padding: '12px 20px' }}>Trạng thái</th>
                         </tr>
@@ -1293,7 +1282,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                               {o.finalTotal.toLocaleString('vi-VN')}đ
                             </td>
                             <td style={{ padding: '14px 20px', fontWeight: 700, color: '#4F46E5' }}>
-                              +{Math.round(o.subtotal * 0.15).toLocaleString('vi-VN')}đ
+                              +{Math.round(o.subtotal * commissionRateDecimal).toLocaleString('vi-VN')}đ
                             </td>
                             <td style={{ padding: '14px 20px', color: '#475569' }}>
                               {o.payment?.paymentMethod === 'COD' ? 'Tiền mặt (COD)' : 'Ví MoMo QR'}
@@ -1336,10 +1325,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#D97706', background: '#FEF3C7', padding: '5px 12px', borderRadius: 6 }}>
-                        {allMerchants.filter((m) => (merchantKycStatuses[m.id] || 'APPROVED') === 'PENDING').length} chờ duyệt KYC
+                        {allMerchants.filter((m) => getEffectiveMerchantKycStatus(m) === 'PENDING').length} chờ duyệt KYC
                       </span>
                       <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#15803D', background: '#DCFCE7', padding: '5px 12px', borderRadius: 6 }}>
-                        {allMerchants.filter((m) => (merchantKycStatuses[m.id] || 'APPROVED') === 'APPROVED').length} đang hoạt động
+                        {allMerchants.filter((m) => getEffectiveMerchantKycStatus(m) === 'APPROVED').length} đang hoạt động
                       </span>
                     </div>
                   </div>
@@ -1358,7 +1347,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       </thead>
                       <tbody>
                         {allMerchants.map((m) => {
-                          const kycStatus = merchantKycStatuses[m.id] || 'APPROVED';
+                          const kycStatus = getEffectiveMerchantKycStatus(m);
                           return (
                             <tr
                               key={m.id}
@@ -1851,7 +1840,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                           <th style={{ padding: '12px 18px' }}>Đối tác Nhà hàng</th>
                           <th style={{ padding: '12px 18px' }}>Số đơn</th>
                           <th style={{ padding: '12px 18px' }}>Doanh thu gộp</th>
-                          <th style={{ padding: '12px 18px' }}>Phí sàn (15%)</th>
+                          <th style={{ padding: '12px 18px' }}>Phí sàn ({platformCommissionRate}%)</th>
                           <th style={{ padding: '12px 18px' }}>Phí ship / Hoàn tiền</th>
                           <th style={{ padding: '12px 18px' }}>Thực nhận ròng</th>
                           <th style={{ padding: '12px 18px' }}>Tài khoản thụ hưởng</th>
@@ -2278,7 +2267,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                               <td style={{ padding: '14px 18px', textAlign: 'right' }}>
                                 {!u.roles.includes('ADMIN') && onToggleUserStatus && (
                                   <button
-                                    onClick={() => onToggleUserStatus(u.id)}
+                                    onClick={() => {
+                                      onToggleUserStatus(u.id);
+                                      appendAuditLog(
+                                        isLocked ? 'MỞ KHÓA TÀI KHOẢN NGƯỜI DÙNG' : 'KHÓA TÀI KHOẢN NGƯỜI DÙNG',
+                                        `${u.fullName} (${u.email})`,
+                                        isLocked
+                                          ? 'Khôi phục quyền đăng nhập vào hệ thống'
+                                          : 'Khóa tài khoản và thu hồi phiên đăng nhập theo quyết định quản trị',
+                                      );
+                                    }}
                                     style={{
                                       padding: '6px 14px',
                                       borderRadius: 6,
