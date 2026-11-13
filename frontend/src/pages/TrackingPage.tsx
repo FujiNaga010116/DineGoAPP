@@ -404,6 +404,36 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
       localStorage.setItem('dinego_driver_withdrawals', JSON.stringify(driverWithdrawals));
     } catch {}
   }, [driverWithdrawals]);
+
+  const [adminComplaints, setAdminComplaints] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('dinego_admin_complaints');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+
+  useEffect(() => {
+    const handleSync = () => {
+      try {
+        const saved = localStorage.getItem('dinego_admin_complaints');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setAdminComplaints(parsed);
+        }
+      } catch {}
+    };
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('dinego_complaints_updated', handleSync);
+    return () => {
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('dinego_complaints_updated', handleSync);
+    };
+  }, []);
+
   const [profileSavedNotice, setProfileSavedNotice] = useState('');
   const [profileErrorNotice, setProfileErrorNotice] = useState('');
 
@@ -1374,7 +1404,25 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
   const approvedWithdrawnTotal = driverWithdrawals
     .filter((w) => w.driverId === currentDriver.id && w.status === 'APPROVED')
     .reduce((s, w) => s + w.amount, 0);
-  const driverWalletBalance = Math.max(0, driverNetIncome - approvedWithdrawnTotal);
+
+  const driverPenaltiesList = adminComplaints.filter(
+    (c) =>
+      c.status === 'REFUNDED' &&
+      c.faultParty === 'DRIVER' &&
+      (c.driverId === currentDriver.id ||
+        c.driverName === currentDriver.fullName ||
+        completedDriverOrders.some((o) => o.orderNumber === c.orderNumber) ||
+        allOrders.some((o) => o.orderNumber === c.orderNumber && o.assignedDriverId === currentDriver.id) ||
+        !c.driverId),
+  );
+  const driverPenaltiesTotal = driverPenaltiesList.reduce(
+    (s, c) => s + (Number(c.compensationAmount) || 0),
+    0,
+  );
+  const driverWalletBalance = Math.max(
+    0,
+    driverNetIncome - approvedWithdrawnTotal - driverPenaltiesTotal,
+  );
 
   // ============================================================================
   // 1. STANDALONE DRIVER PARTNER PORTAL (DARK SIDEBAR + OPERATIONAL WORKSPACE)
@@ -3624,6 +3672,11 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                     </div>
                     <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: 4 }}>
                       Tổng thu nhập: {driverNetIncome.toLocaleString('vi-VN')}đ • Đã rút: {approvedWithdrawnTotal.toLocaleString('vi-VN')}đ
+                      {driverPenaltiesTotal > 0 && (
+                        <div style={{ color: '#DC2626', fontWeight: 700, marginTop: 2 }}>
+                          • Phạt trừ sự cố giao hàng: -{driverPenaltiesTotal.toLocaleString('vi-VN')}đ
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -3640,7 +3693,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                         .filter((w) => w.status === 'APPROVED')
                         .reduce((s, w) => s + w.amount, 0);
                       const pendingReq = myWithdrawals.find((w) => w.status === 'PENDING');
-                      const availableToWithdraw = Math.max(0, driverNetIncome - approvedTotal);
+                      const availableToWithdraw = Math.max(0, driverNetIncome - approvedTotal - driverPenaltiesTotal);
                       const canWithdraw = availableToWithdraw > 0 && !pendingReq;
 
                       return (
@@ -3821,6 +3874,64 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                             </span>
                           </div>
                         ))}
+                    </div>
+                  </div>
+                )}
+
+                {driverPenaltiesList.length > 0 && (
+                  <div style={{ background: '#FFF1F2', borderRadius: 12, border: '1px solid #FECDD3', padding: 20, marginBottom: 20 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#BE123C', fontWeight: 800, fontSize: '0.92rem', marginBottom: 12 }}>
+                      <AlertTriangle size={18} />
+                      <span>Biên Bản Khấu Trừ &amp; Xử Phạt Sự Cố Vận Chuyển ({driverPenaltiesList.length})</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {driverPenaltiesList.map((p) => (
+                        <div
+                          key={p.id}
+                          style={{
+                            background: '#FFFFFF',
+                            border: '1px solid #FEE2E2',
+                            borderRadius: 8,
+                            padding: '12px 16px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0F172A' }}>
+                              Đơn hàng #{p.orderNumber} ({p.code})
+                            </div>
+                            <div style={{ fontSize: '0.78rem', color: '#991B1B', marginTop: 2 }}>
+                              Lý do sự cố: <strong>{p.issueType}</strong>
+                            </div>
+                            {p.resolutionNotes && (
+                              <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 2 }}>
+                                Quyết định Admin: {p.resolutionNotes}
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#DC2626' }}>
+                              -{(Number(p.compensationAmount) || 0).toLocaleString('vi-VN')}đ
+                            </div>
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                marginTop: 3,
+                                fontSize: '0.7rem',
+                                color: '#991B1B',
+                                fontWeight: 700,
+                                background: '#FEE2E2',
+                                padding: '2px 8px',
+                                borderRadius: 4,
+                              }}
+                            >
+                              Đã khấu trừ ví
+                            </span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}

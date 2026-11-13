@@ -232,6 +232,7 @@ export class FeedbackService {
     complaint.status = dto.decision;
     complaint.adminResolutionNotes = dto.resolutionNotes.trim();
     complaint.compensationAmount = dto.compensationAmount ?? 0;
+    complaint.faultParty = dto.faultParty || 'MERCHANT';
     complaint.resolvedAt = new Date();
 
     this.logger.log(`[Complaint Resolved] Admin ${adminUser.email} đã giải quyết khiếu nại ${complaint.complaintCode}: ${dto.decision}`);

@@ -1033,6 +1033,7 @@ export const adminApi = {
       decision: 'RESOLVED_REFUND' | 'RESOLVED_COMPENSATE' | 'REJECTED';
       resolutionNotes: string;
       compensationAmount?: number;
+      faultParty?: 'MERCHANT' | 'DRIVER' | 'PLATFORM';
     },
   ) =>
     safeRequest(`/complaints/${encodeURIComponent(complaintId)}/resolve`, {

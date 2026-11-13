@@ -662,6 +662,133 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     );
   };
 
+  // Admin Complaints State (U051) — Persisted in localStorage & synced with Backend
+  const [complaints, setComplaints] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dinego_admin_complaints');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [
+      {
+        id: 'cmp-01',
+        code: 'CMP-298101',
+        orderNumber: 'DG20261103-TRK88',
+        customerName: 'Nguyễn Văn An',
+        merchantName: 'Cơm Tấm Sài Gòn 1985',
+        driverName: 'Trần Văn Nam',
+        issueType: 'Giao thiếu 01 phần canh chua cá lóc trong đơn hàng',
+        evidenceImage: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=240&auto=format&fit=crop&q=80',
+        compensationAmount: 35000,
+        resolutionNotes: '',
+        status: 'OPEN',
+        createdAt: '03/11/2026 11:30',
+      },
+      {
+        id: 'cmp-02',
+        code: 'CMP-298099',
+        orderNumber: 'DG20261102-4D25CA',
+        customerName: 'Lê Hoàng Cường',
+        merchantName: 'Phở Thìn Lò Đúc',
+        driverName: 'Trần Văn Nam',
+        issueType: 'Nước dùng bị đổ trong quá trình vận chuyển',
+        evidenceImage: 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=240&auto=format&fit=crop&q=80',
+        compensationAmount: 75000,
+        resolutionNotes: 'Đã xác minh ảnh chụp từ khách và hoàn ví MoMo 75.000đ (Khấu trừ ví tài xế làm đổ món).',
+        status: 'REFUNDED',
+        faultParty: 'DRIVER' as const,
+        createdAt: '02/11/2026 19:15',
+      },
+      {
+        id: 'cmp-03',
+        code: 'CMP-298085',
+        orderNumber: 'DG20261101-9B11EF',
+        customerName: 'Trần Thị Bình',
+        merchantName: 'Bún Chả Hương Liên',
+        driverName: 'Lê Hoàng Long',
+        issueType: 'Giao nhầm phân loại món (Đặt phần đặc biệt giao phần thường)',
+        evidenceImage: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=240&auto=format&fit=crop&q=80',
+        compensationAmount: 25000,
+        resolutionNotes: '',
+        status: 'OPEN',
+        createdAt: '01/11/2026 12:40',
+      },
+    ];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_admin_complaints', JSON.stringify(complaints));
+    } catch {}
+  }, [complaints]);
+
+  const [complaintNoteInputs, setComplaintNoteInputs] = useState<Record<string, string>>({});
+
+  const handleResolveComplaint = (
+    id: string,
+    action: 'REFUND_MERCHANT' | 'REFUND_DRIVER' | 'REFUND_PLATFORM' | 'REJECT',
+  ) => {
+    const target = complaints.find((c) => c.id === id);
+    const faultParty: 'MERCHANT' | 'DRIVER' | 'PLATFORM' | undefined =
+      action === 'REFUND_MERCHANT'
+        ? 'MERCHANT'
+        : action === 'REFUND_DRIVER'
+        ? 'DRIVER'
+        : action === 'REFUND_PLATFORM'
+        ? 'PLATFORM'
+        : undefined;
+
+    const defaultNote =
+      action === 'REFUND_MERCHANT'
+        ? 'Lỗi chế biến/thiếu món từ Quán. Duyệt hoàn tiền khách & cấn trừ vào đối soát nhà hàng.'
+        : action === 'REFUND_DRIVER'
+        ? 'Lỗi vận chuyển/làm đổ vỡ từ Tài xế. Duyệt hoàn tiền khách & khấu trừ trực tiếp vào ví Shipper.'
+        : action === 'REFUND_PLATFORM'
+        ? 'Sự cố bất khả kháng, sàn bảo trợ hoàn tiền cho khách.'
+        : 'Bằng chứng chưa đủ cơ sở bồi hoàn theo quy định sàn.';
+
+    const note = complaintNoteInputs[id]?.trim() || defaultNote;
+
+    void adminApi.resolveComplaint(id, {
+      decision: action === 'REJECT' ? 'REJECTED' : 'RESOLVED_REFUND',
+      resolutionNotes: note,
+      compensationAmount: action !== 'REJECT' ? target?.compensationAmount : 0,
+      faultParty,
+    });
+
+    setComplaints(
+      complaints.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              status: action === 'REJECT' ? 'REJECTED' : 'REFUNDED',
+              faultParty,
+              resolutionNotes: note,
+            }
+          : c,
+      ),
+    );
+
+    if (target) {
+      const logTitle =
+        action === 'REFUND_MERCHANT'
+          ? 'DUYỆT HOÀN TIỀN - PHẠT TRỪ QUÁN'
+          : action === 'REFUND_DRIVER'
+          ? 'DUYỆT HOÀN TIỀN - PHẠT TRỪ VÍ TÀI XẾ'
+          : action === 'REFUND_PLATFORM'
+          ? 'DUYỆT HOÀN TIỀN - SÀN BẢO TRỢ'
+          : 'TỪ CHỐI KHIẾU NẠI';
+
+      appendAuditLog(
+        logTitle,
+        `${target.code} (#${target.orderNumber})`,
+        `${note} (Số tiền: ${(target.compensationAmount || 0).toLocaleString('vi-VN')}đ)`,
+      );
+    }
+  };
+
   // Real Revenue & System Calculations from actual orders, merchants, complaints & feastBookings
   const validOrders = orders.filter((o) => o.status !== 'CANCELLED');
   const completedOrdersList = orders.filter((o) => o.status === 'COMPLETED');
@@ -673,7 +800,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     : validOrders;
   const merchantGrossRevenue = merchantScopedOrders.reduce((sum, o) => sum + o.subtotal, 0);
   const merchantPlatformCommission = Math.round(merchantGrossRevenue * commissionRateDecimal);
-  const merchantNetPayout = merchantGrossRevenue - merchantPlatformCommission;
+  const merchantComplaintRefunds = complaints
+    .filter(
+      (c) =>
+        c.status === 'REFUNDED' &&
+        c.faultParty !== 'DRIVER' &&
+        c.faultParty !== 'PLATFORM' &&
+        (!currentMerchant ||
+          c.merchantName.toLowerCase().includes(currentMerchant.name.toLowerCase()) ||
+          currentMerchant.name.toLowerCase().includes(c.merchantName.toLowerCase())),
+    )
+    .reduce((s, c) => s + (c.compensationAmount || 0), 0);
+  const merchantNetPayout = Math.max(0, merchantGrossRevenue - merchantPlatformCommission - merchantComplaintRefunds);
 
   const dishSalesMap = new Map<
     string,
@@ -1020,98 +1158,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     );
   };
 
-  // Admin Complaints State (U051) — Persisted in localStorage & synced with Backend
-  const [complaints, setComplaints] = useState(() => {
-    try {
-      const saved = localStorage.getItem('dinego_admin_complaints');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return [
-      {
-        id: 'cmp-01',
-        code: 'CMP-298101',
-        orderNumber: 'DG20261103-TRK88',
-        customerName: 'Nguyễn Văn An',
-        merchantName: 'Cơm Tấm Sài Gòn 1985',
-        issueType: 'Giao thiếu 01 phần canh chua cá lóc trong đơn hàng',
-        evidenceImage: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=240&auto=format&fit=crop&q=80',
-        compensationAmount: 35000,
-        resolutionNotes: '',
-        status: 'OPEN',
-        createdAt: '03/11/2026 11:30',
-      },
-      {
-        id: 'cmp-02',
-        code: 'CMP-298099',
-        orderNumber: 'DG20261102-4D25CA',
-        customerName: 'Lê Hoàng Cường',
-        merchantName: 'Phở Thìn Lò Đúc',
-        issueType: 'Nước dùng bị đổ trong quá trình vận chuyển',
-        evidenceImage: 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=240&auto=format&fit=crop&q=80',
-        compensationAmount: 75000,
-        resolutionNotes: 'Đã xác minh ảnh chụp từ khách và hoàn ví MoMo 75.000đ.',
-        status: 'REFUNDED',
-        createdAt: '02/11/2026 19:15',
-      },
-      {
-        id: 'cmp-03',
-        code: 'CMP-298085',
-        orderNumber: 'DG20261101-9B11EF',
-        customerName: 'Trần Thị Bình',
-        merchantName: 'Bún Chả Hương Liên',
-        issueType: 'Giao nhầm phân loại món (Đặt phần đặc biệt giao phần thường)',
-        evidenceImage: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=240&auto=format&fit=crop&q=80',
-        compensationAmount: 25000,
-        resolutionNotes: '',
-        status: 'OPEN',
-        createdAt: '01/11/2026 12:40',
-      },
-    ];
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('dinego_admin_complaints', JSON.stringify(complaints));
-    } catch {}
-  }, [complaints]);
-
-  const [complaintNoteInputs, setComplaintNoteInputs] = useState<Record<string, string>>({});
-
-  const handleResolveComplaint = (id: string, action: 'REFUND' | 'REJECT') => {
-    const target = complaints.find((c) => c.id === id);
-    const note =
-      complaintNoteInputs[id]?.trim() ||
-      (action === 'REFUND'
-        ? 'Xác nhận khiếu nại hợp lệ, duyệt hoàn tiền cho khách hàng.'
-        : 'Bằng chứng chưa đủ cơ sở bồi hoàn theo quy định sàn.');
-    void adminApi.resolveComplaint(id, {
-      decision: action === 'REFUND' ? 'RESOLVED_REFUND' : 'REJECTED',
-      resolutionNotes: note,
-      compensationAmount: action === 'REFUND' ? target?.compensationAmount : 0,
-    });
-    setComplaints(
-      complaints.map((c) =>
-        c.id === id
-          ? {
-              ...c,
-              status: action === 'REFUND' ? 'REFUNDED' : 'REJECTED',
-              resolutionNotes: note,
-            }
-          : c,
-      ),
-    );
-    if (target) {
-      appendAuditLog(
-        action === 'REFUND' ? 'DUYỆT HOÀN TIỀN KHIẾU NẠI' : 'TỪ CHỐI KHIẾU NẠI',
-        `${target.code} (#${target.orderNumber})`,
-        note,
-      );
-    }
-  };
-
   // Merchant Moderation State for Admin (U045: PENDING / APPROVED / REJECTED / SUSPENDED)
   const [merchantKycStatuses, setMerchantKycStatuses] = useState<
     Record<string, 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED'>
@@ -1203,6 +1249,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       .filter(
         (c) =>
           c.status === 'REFUNDED' &&
+          c.faultParty !== 'DRIVER' &&
+          c.faultParty !== 'PLATFORM' &&
           (c.merchantName.toLowerCase().includes(m.name.toLowerCase()) ||
             m.name.toLowerCase().includes(c.merchantName.toLowerCase())),
       )
@@ -2695,7 +2743,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                           </td>
                           <td style={{ padding: '14px 18px' }}>
                             <div style={{ fontWeight: 600, color: '#0F172A' }}>{cmp.customerName}</div>
-                            <div style={{ fontSize: '0.76rem', color: '#64748B' }}>Quán: {cmp.merchantName}</div>
+                            <div style={{ fontSize: '0.76rem', color: '#64748B' }}>
+                              Quán: <strong>{cmp.merchantName}</strong>
+                            </div>
+                            {cmp.driverName && (
+                              <div style={{ fontSize: '0.72rem', color: '#0284C7', marginTop: 2 }}>
+                                Shipper: {cmp.driverName}
+                              </div>
+                            )}
                           </td>
                           <td style={{ padding: '14px 18px', color: '#334155', maxWidth: 280 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -2706,7 +2761,39 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                   style={{ width: 46, height: 46, borderRadius: 6, objectFit: 'cover', flexShrink: 0, border: '1px solid #E2E8F0' }}
                                 />
                               )}
-                              <span style={{ fontSize: '0.82rem' }}>{cmp.issueType}</span>
+                              <div>
+                                <span style={{ fontSize: '0.82rem', display: 'block' }}>{cmp.issueType}</span>
+                                {cmp.faultParty && cmp.status === 'REFUNDED' && (
+                                  <span
+                                    style={{
+                                      display: 'inline-block',
+                                      marginTop: 4,
+                                      fontSize: '0.7rem',
+                                      fontWeight: 700,
+                                      padding: '1px 6px',
+                                      borderRadius: 4,
+                                      background:
+                                        cmp.faultParty === 'DRIVER'
+                                          ? '#EFF6FF'
+                                          : cmp.faultParty === 'PLATFORM'
+                                          ? '#F0FDF4'
+                                          : '#FFF7ED',
+                                      color:
+                                        cmp.faultParty === 'DRIVER'
+                                          ? '#1D4ED8'
+                                          : cmp.faultParty === 'PLATFORM'
+                                          ? '#15803D'
+                                          : '#C2410C',
+                                    }}
+                                  >
+                                    {cmp.faultParty === 'DRIVER'
+                                      ? 'Trách nhiệm: Tài xế (Đã phạt ví)'
+                                      : cmp.faultParty === 'PLATFORM'
+                                      ? 'Trách nhiệm: Sàn hỗ trợ'
+                                      : 'Trách nhiệm: Quán ăn (Đã trừ đối soát)'}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </td>
                           <td style={{ padding: '14px 18px', fontWeight: 700, color: '#DC2626' }}>
@@ -2716,7 +2803,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                             {cmp.status === 'OPEN' ? (
                               <input
                                 type="text"
-                                placeholder="Nhập ghi chú..."
+                                placeholder="Ghi chú phân xử..."
                                 value={complaintNoteInputs[cmp.id] || ''}
                                 onChange={(e) =>
                                   setComplaintNoteInputs((prev) => ({
@@ -2729,7 +2816,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                   borderRadius: 6,
                                   border: '1px solid #CBD5E1',
                                   fontSize: '0.78rem',
-                                  width: 195,
+                                  width: 210,
                                 }}
                               />
                             ) : (
@@ -2741,50 +2828,127 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                           <td style={{ padding: '14px 18px' }}>
                             <span
                               style={{
-                                padding: '3px 10px',
+                                padding: '4px 10px',
                                 borderRadius: 6,
                                 fontSize: '0.74rem',
                                 fontWeight: 700,
-                                background: cmp.status === 'OPEN' ? '#FEF3C7' : cmp.status === 'REFUNDED' ? '#DCFCE7' : '#FEE2E2',
-                                color: cmp.status === 'OPEN' ? '#D97706' : cmp.status === 'REFUNDED' ? '#15803D' : '#DC2626',
+                                background:
+                                  cmp.status === 'OPEN'
+                                    ? '#FEF3C7'
+                                    : cmp.status === 'REFUNDED'
+                                    ? cmp.faultParty === 'DRIVER'
+                                      ? '#EFF6FF'
+                                      : cmp.faultParty === 'PLATFORM'
+                                      ? '#F0FDF4'
+                                      : '#FFF7ED'
+                                    : '#FEE2E2',
+                                color:
+                                  cmp.status === 'OPEN'
+                                    ? '#D97706'
+                                    : cmp.status === 'REFUNDED'
+                                    ? cmp.faultParty === 'DRIVER'
+                                      ? '#1D4ED8'
+                                      : cmp.faultParty === 'PLATFORM'
+                                      ? '#15803D'
+                                      : '#C2410C'
+                                    : '#DC2626',
+                                border:
+                                  cmp.status === 'REFUNDED'
+                                    ? cmp.faultParty === 'DRIVER'
+                                      ? '1px solid #BFDBFE'
+                                      : cmp.faultParty === 'PLATFORM'
+                                      ? '1px solid #BBF7D0'
+                                      : '1px solid #FED7AA'
+                                    : 'none',
+                                whiteSpace: 'nowrap',
                               }}
                             >
-                              {cmp.status === 'OPEN' ? 'Chờ phân xử' : cmp.status === 'REFUNDED' ? 'Đã hoàn tiền' : 'Đã từ chối'}
+                              {cmp.status === 'OPEN'
+                                ? 'Chờ phân xử'
+                                : cmp.status === 'REFUNDED'
+                                ? cmp.faultParty === 'DRIVER'
+                                  ? 'Đã hoàn tiền (Trừ ví Shipper)'
+                                  : cmp.faultParty === 'PLATFORM'
+                                  ? 'Đã hoàn tiền (Sàn hỗ trợ)'
+                                  : 'Đã hoàn tiền (Trừ Quán)'
+                                : 'Đã từ chối'}
                             </span>
                           </td>
                           <td style={{ padding: '14px 18px', textAlign: 'right' }}>
                             {cmp.status === 'OPEN' ? (
-                              <div style={{ display: 'inline-flex', gap: 6 }}>
-                                <button
-                                  onClick={() => handleResolveComplaint(cmp.id, 'REFUND')}
-                                  style={{
-                                    padding: '6px 12px',
-                                    borderRadius: 6,
-                                    background: '#00B14F',
-                                    color: '#FFFFFF',
-                                    fontSize: '0.78rem',
-                                    fontWeight: 700,
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                  }}
-                                >
-                                  Duyệt hoàn tiền
-                                </button>
-                                <button
-                                  onClick={() => handleResolveComplaint(cmp.id, 'REJECT')}
-                                  style={{
-                                    padding: '6px 12px',
-                                    borderRadius: 6,
-                                    background: '#FFFFFF',
-                                    border: '1px solid #CBD5E1',
-                                    color: '#475569',
-                                    fontSize: '0.78rem',
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                  }}
-                                >
-                                  Từ chối
-                                </button>
+                              <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+                                <div style={{ display: 'inline-flex', gap: 6 }}>
+                                  <button
+                                    onClick={() => handleResolveComplaint(cmp.id, 'REFUND_MERCHANT')}
+                                    title="Lỗi chuẩn bị/chất lượng món: Hoàn tiền khách & Khấu trừ vào doanh thu Quán"
+                                    style={{
+                                      padding: '6px 10px',
+                                      borderRadius: 6,
+                                      background: '#EA580C',
+                                      color: '#FFFFFF',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 700,
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    Duyệt (Lỗi Quán)
+                                  </button>
+                                  <button
+                                    onClick={() => handleResolveComplaint(cmp.id, 'REFUND_DRIVER')}
+                                    title="Lỗi vận chuyển/làm đổ vỡ: Hoàn tiền khách & Khấu trừ trực tiếp vào Ví Tài xế"
+                                    style={{
+                                      padding: '6px 10px',
+                                      borderRadius: 6,
+                                      background: '#0284C7',
+                                      color: '#FFFFFF',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 700,
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    Duyệt (Lỗi Tài xế)
+                                  </button>
+                                </div>
+                                <div style={{ display: 'inline-flex', gap: 6 }}>
+                                  <button
+                                    onClick={() => handleResolveComplaint(cmp.id, 'REFUND_PLATFORM')}
+                                    title="Sự cố bất khả kháng do thời tiết/hệ thống: Sàn bảo trợ hoàn tiền"
+                                    style={{
+                                      padding: '4px 8px',
+                                      borderRadius: 5,
+                                      background: '#F0FDF4',
+                                      border: '1px solid #BBF7D0',
+                                      color: '#15803D',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    Sàn hỗ trợ
+                                  </button>
+                                  <button
+                                    onClick={() => handleResolveComplaint(cmp.id, 'REJECT')}
+                                    title="Từ chối khiếu nại do không đủ căn cứ"
+                                    style={{
+                                      padding: '4px 8px',
+                                      borderRadius: 5,
+                                      background: '#FFFFFF',
+                                      border: '1px solid #CBD5E1',
+                                      color: '#475569',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    Từ chối
+                                  </button>
+                                </div>
                               </div>
                             ) : (
                               <span style={{ fontSize: '0.78rem', color: '#94A3B8' }}>{cmp.createdAt}</span>

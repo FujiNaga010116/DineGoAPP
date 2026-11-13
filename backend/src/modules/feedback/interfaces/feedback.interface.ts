@@ -47,6 +47,7 @@ export interface ComplaintItem {
   status: ComplaintStatus;
   adminResolutionNotes?: string;
   compensationAmount?: number;
+  faultParty?: 'MERCHANT' | 'DRIVER' | 'PLATFORM';
   resolvedAt?: Date;
   createdAt: Date;
 }

@@ -62,5 +62,15 @@ export class ResolveComplaintDto {
   @IsNumber()
   @Min(0)
   compensationAmount?: number;
+
+  @ApiProperty({
+    example: 'MERCHANT',
+    enum: ['MERCHANT', 'DRIVER', 'PLATFORM'],
+    description: 'Bên chịu trách nhiệm bồi thường',
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(['MERCHANT', 'DRIVER', 'PLATFORM'])
+  faultParty?: 'MERCHANT' | 'DRIVER' | 'PLATFORM';
 }
 

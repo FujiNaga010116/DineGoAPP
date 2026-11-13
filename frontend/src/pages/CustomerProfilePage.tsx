@@ -4,7 +4,7 @@
 // payment bank accounts, and account password
 // ==============================================================================
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   User as UserIcon,
   MapPin,
@@ -54,6 +54,51 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
   const [invoiceFilter, setInvoiceFilter] = useState<InvoiceFilter>('ALL');
   const [selectedCateringBill, setSelectedCateringBill] = useState<CateringBillData | null>(null);
   const [selectedFoodInvoice, setSelectedFoodInvoice] = useState<Order | null>(null);
+
+  const [customerComplaints, setCustomerComplaints] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('dinego_admin_complaints');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+
+  useEffect(() => {
+    const handleSync = () => {
+      try {
+        const saved = localStorage.getItem('dinego_admin_complaints');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setCustomerComplaints(parsed);
+        }
+      } catch {}
+    };
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('dinego_complaints_updated', handleSync);
+    return () => {
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('dinego_complaints_updated', handleSync);
+    };
+  }, []);
+
+  const resolvedRefunds = useMemo(() => {
+    return customerComplaints.filter(
+      (c) =>
+        c.status === 'REFUNDED' &&
+        (!currentUser ||
+          !c.customerName ||
+          c.customerName === currentUser.fullName ||
+          c.customerName === 'Nguyễn Văn An' ||
+          orders.some((o) => o.orderNumber === c.orderNumber)),
+    );
+  }, [customerComplaints, currentUser, orders]);
+
+  const totalRefundBalance = useMemo(() => {
+    return resolvedRefunds.reduce((s, c) => s + (Number(c.compensationAmount) || 0), 0);
+  }, [resolvedRefunds]);
 
   const invoiceStats = useMemo(() => {
     let totalPaidAmount = 0;
@@ -885,7 +930,8 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
 
           {/* SECTION 3: PAYMENT & REFUND BANK ACCOUNT */}
           {activeSection === 'payment' && (
-            <form onSubmit={handleSavePayment}>
+            <>
+              <form onSubmit={handleSavePayment}>
               <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0F172A', marginBottom: 4 }}>
                 Tài Khoản Ngân Hàng & Nhận Hoàn Tiền
               </h2>
@@ -933,6 +979,120 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
                 <Save size={16} /> Lưu thông tin ngân hàng
               </button>
             </form>
+
+            {/* CUSTOMER REFUND WALLET & RESOLUTION HISTORY */}
+            <div style={{ marginTop: 28, paddingTop: 24, borderTop: '1px solid #E2E8F0' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0F172A', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <CheckCircle2 size={18} color="#059669" />
+                <span>Ví Hoàn Tiền Sự Cố &amp; Bồi Thường (DineGo Guarantee)</span>
+              </h3>
+              <p style={{ fontSize: '0.82rem', color: '#64748B', marginBottom: 16 }}>
+                Số tiền bồi thường được Admin sàn phê duyệt giải ngân trực tiếp cho bạn khi có sự cố đơn hàng
+              </p>
+
+              <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12, padding: 20, marginBottom: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
+                <div>
+                  <div style={{ fontSize: '0.78rem', color: '#15803D', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Tổng số dư bồi hoàn khả dụng
+                  </div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#166534', marginTop: 2 }}>
+                    {totalRefundBalance.toLocaleString('vi-VN')}đ
+                  </div>
+                  <div style={{ fontSize: '0.76rem', color: '#15803D', marginTop: 4 }}>
+                    {resolvedRefunds.length} khiếu nại đã được Admin giải quyết &amp; bồi hoàn
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => triggerSavedBanner(`Đã gửi lệnh rút ${totalRefundBalance.toLocaleString('vi-VN')}đ về ${bankName || 'tài khoản thụ hưởng'}.`)}
+                  disabled={totalRefundBalance <= 0}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: 8,
+                    background: totalRefundBalance > 0 ? '#15803D' : '#CBD5E1',
+                    color: '#FFFFFF',
+                    fontWeight: 700,
+                    fontSize: '0.84rem',
+                    border: 'none',
+                    cursor: totalRefundBalance > 0 ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  Chuyển về tài khoản ngân hàng thụ hưởng
+                </button>
+              </div>
+
+              {resolvedRefunds.length > 0 && (
+                <div>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0F172A', marginBottom: 10 }}>
+                    Lịch sử Bồi Hoàn Khiếu Nại ({resolvedRefunds.length})
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {resolvedRefunds.map((r) => (
+                      <div
+                        key={r.id}
+                        style={{
+                          background: '#FFFFFF',
+                          border: '1px solid #E2E8F0',
+                          borderRadius: 8,
+                          padding: '12px 16px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          flexWrap: 'wrap',
+                          gap: 10,
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>
+                            Đơn hàng #{r.orderNumber} ({r.code}) • Quán: {r.merchantName}
+                          </div>
+                          <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: 2 }}>
+                            Sự cố: <strong>{r.issueType}</strong>
+                          </div>
+                          <div style={{ fontSize: '0.74rem', color: '#15803D', marginTop: 2 }}>
+                            Quyết định: {r.resolutionNotes || 'Admin đã duyệt hoàn tiền đầy đủ'}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '1rem', fontWeight: 800, color: '#059669' }}>
+                            +{(Number(r.compensationAmount) || 0).toLocaleString('vi-VN')}đ
+                          </div>
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              marginTop: 3,
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              padding: '2px 8px',
+                              borderRadius: 4,
+                              background:
+                                r.faultParty === 'DRIVER'
+                                  ? '#EFF6FF'
+                                  : r.faultParty === 'PLATFORM'
+                                  ? '#F0FDF4'
+                                  : '#FFF7ED',
+                              color:
+                                r.faultParty === 'DRIVER'
+                                  ? '#1D4ED8'
+                                  : r.faultParty === 'PLATFORM'
+                                  ? '#15803D'
+                                  : '#C2410C',
+                            }}
+                          >
+                            {r.faultParty === 'DRIVER'
+                              ? 'Tài xế bồi thường'
+                              : r.faultParty === 'PLATFORM'
+                              ? 'Sàn bảo trợ'
+                              : 'Quán ăn bồi hoàn'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            </>
           )}
 
           {/* SECTION 4: PASSWORD & SECURITY */}
