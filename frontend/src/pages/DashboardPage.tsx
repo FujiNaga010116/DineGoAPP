@@ -225,6 +225,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [orderSearch, setOrderSearch] = useState('');
   const [printingOrder, setPrintingOrder] = useState<Order | null>(null);
   const [merchantWithdrawSuccess, setMerchantWithdrawSuccess] = useState(false);
+  const [merchantWithdrawAmountInput, setMerchantWithdrawAmountInput] = useState('');
+  const [merchantWithdrawError, setMerchantWithdrawError] = useState('');
 
   // Merchant KYC & Store Settings Editable States
   const [isEditingMerchantKyc, setIsEditingMerchantKyc] = useState(true);
@@ -704,11 +706,79 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     });
   });
 
+  // Merchant Withdrawals state (cross-actor sync between Merchant Seller Center and Admin)
+  const [merchantWithdrawals, setMerchantWithdrawals] = useState<
+    Array<{
+      id: string;
+      merchantId: string;
+      merchantName: string;
+      bankName: string;
+      bankAccountNumber: string;
+      bankAccountHolder: string;
+      amount: number;
+      status: 'PENDING' | 'APPROVED' | 'REJECTED';
+      note?: string;
+      createdAt: string;
+      processedAt?: string;
+    }>
+  >(() => {
+    try {
+      const saved = localStorage.getItem('dinego_merchant_withdrawals');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_merchant_withdrawals', JSON.stringify(merchantWithdrawals));
+    } catch {}
+  }, [merchantWithdrawals]);
+
+  const handleProcessMerchantWithdrawal = (id: string, nextStatus: 'APPROVED' | 'REJECTED') => {
+    const target = merchantWithdrawals.find((w) => w.id === id);
+    const nowStr = new Date().toLocaleString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const note =
+      nextStatus === 'APPROVED'
+        ? 'Admin đã giải ngân doanh thu ròng về tài khoản ngân hàng nhà hàng'
+        : 'Từ chối yêu cầu rút tiền do chưa khớp biên bản đối soát';
+
+    setMerchantWithdrawals((prev) =>
+      prev.map((w) =>
+        w.id === id ? { ...w, status: nextStatus, processedAt: nowStr, note } : w,
+      ),
+    );
+    if (target) {
+      appendAuditLog(
+        nextStatus === 'APPROVED' ? 'DUYỆT RÚT TIỀN NHÀ HÀNG' : 'TỪ CHỐI RÚT TIỀN NHÀ HÀNG',
+        `${target.merchantName} (${target.amount.toLocaleString('vi-VN')}đ)`,
+        `${note} • ${target.bankName} (${target.bankAccountNumber})`,
+      );
+    }
+  };
+
+  const currentMerchantId = currentMerchant?.id || 'merchant-com-tam';
+  const approvedMerchantWithdrawnTotal = merchantWithdrawals
+    .filter((w) => w.merchantId === currentMerchantId && w.status === 'APPROVED')
+    .reduce((s, w) => s + w.amount, 0);
+  const merchantAvailableBalance = Math.max(0, merchantNetPayout - approvedMerchantWithdrawnTotal);
+
   const merchantRevenue = {
     merchantName: currentMerchant?.name || 'Cơm Tấm Sài Gòn 1985',
     totalRevenue: merchantGrossRevenue,
     platformCommission: merchantPlatformCommission,
     netPayout: merchantNetPayout,
+    availableBalance: merchantAvailableBalance,
+    totalWithdrawn: approvedMerchantWithdrawnTotal,
     completedOrders: merchantScopedOrders.filter((o) => o.status === 'COMPLETED').length,
     cancelledOrders: orders.filter(
       (o) => o.status === 'CANCELLED' && (!currentMerchant || o.merchant?.id === currentMerchant.id),
@@ -3058,6 +3128,129 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                             </td>
                           </tr>
                         ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Merchant On-Demand Withdrawal Requests Table (Synced with Merchant Seller Center) */}
+                  <div style={{ borderTop: '1px solid #E2E8F0', padding: '18px 24px', background: '#F8FAFC', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                        Yêu cầu Rút Doanh thu Trực tuyến của Nhà hàng
+                      </h4>
+                      <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '3px 0 0 0' }}>
+                        Admin đối chiếu doanh thu ròng thực nhận và phê duyệt lệnh rút về tài khoản ngân hàng của quán
+                      </p>
+                    </div>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#B45309', background: '#FEF3C7', padding: '4px 12px', borderRadius: 6 }}>
+                      {merchantWithdrawals.filter((w) => w.status === 'PENDING').length} yêu cầu chờ duyệt
+                    </span>
+                  </div>
+
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem', fontVariantNumeric: 'tabular-nums' }}>
+                      <thead>
+                        <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569', fontSize: '0.74rem', textTransform: 'uppercase' }}>
+                          <th style={{ padding: '10px 20px' }}>Nhà hàng</th>
+                          <th style={{ padding: '10px 20px' }}>Tài khoản nhận</th>
+                          <th style={{ padding: '10px 20px' }}>Số tiền rút</th>
+                          <th style={{ padding: '10px 20px' }}>Thời gian gửi</th>
+                          <th style={{ padding: '10px 20px' }}>Trạng thái</th>
+                          <th style={{ padding: '10px 20px', textAlign: 'right' }}>Phê duyệt</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {merchantWithdrawals.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} style={{ padding: '18px', textAlign: 'center', color: '#94A3B8' }}>
+                              Chưa có yêu cầu rút doanh thu nào từ các đối tác nhà hàng.
+                            </td>
+                          </tr>
+                        ) : (
+                          merchantWithdrawals.map((w) => (
+                            <tr key={w.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                              <td style={{ padding: '12px 20px' }}>
+                                <div style={{ fontWeight: 700, color: '#0F172A' }}>{w.merchantName}</div>
+                              </td>
+                              <td style={{ padding: '12px 20px', color: '#334155' }}>
+                                <div><strong>{w.bankName}</strong> • {w.bankAccountNumber}</div>
+                                <div style={{ fontSize: '0.74rem', color: '#64748B' }}>{w.bankAccountHolder}</div>
+                              </td>
+                              <td style={{ padding: '12px 20px', fontWeight: 800, color: '#00B14F' }}>
+                                {w.amount.toLocaleString('vi-VN')}đ
+                              </td>
+                              <td style={{ padding: '12px 20px', color: '#64748B', fontSize: '0.78rem' }}>{w.createdAt}</td>
+                              <td style={{ padding: '12px 20px' }}>
+                                <span
+                                  style={{
+                                    padding: '3px 10px',
+                                    borderRadius: 6,
+                                    fontSize: '0.74rem',
+                                    fontWeight: 700,
+                                    background:
+                                      w.status === 'APPROVED'
+                                        ? '#DCFCE7'
+                                        : w.status === 'REJECTED'
+                                        ? '#FEE2E2'
+                                        : '#FEF3C7',
+                                    color:
+                                      w.status === 'APPROVED'
+                                        ? '#15803D'
+                                        : w.status === 'REJECTED'
+                                        ? '#DC2626'
+                                        : '#B45309',
+                                  }}
+                                >
+                                  {w.status === 'APPROVED'
+                                    ? 'Đã giải ngân'
+                                    : w.status === 'REJECTED'
+                                    ? 'Đã từ chối'
+                                    : 'Chờ Admin duyệt'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                                {w.status === 'PENDING' ? (
+                                  <div style={{ display: 'inline-flex', gap: 8 }}>
+                                    <button
+                                      onClick={() => handleProcessMerchantWithdrawal(w.id, 'APPROVED')}
+                                      style={{
+                                        padding: '6px 12px',
+                                        borderRadius: 6,
+                                        background: '#10B981',
+                                        color: '#FFFFFF',
+                                        fontSize: '0.78rem',
+                                        fontWeight: 700,
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      Duyệt giải ngân
+                                    </button>
+                                    <button
+                                      onClick={() => handleProcessMerchantWithdrawal(w.id, 'REJECTED')}
+                                      style={{
+                                        padding: '6px 12px',
+                                        borderRadius: 6,
+                                        background: '#FFFFFF',
+                                        color: '#DC2626',
+                                        border: '1px solid #FCA5A5',
+                                        fontSize: '0.78rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      Từ chối
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span style={{ fontSize: '0.76rem', color: '#64748B' }}>
+                                    {w.processedAt || 'Đã xử lý'}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -5930,39 +6123,200 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 </div>
 
                 <div style={{ background: '#FFFFFF', border: '1px solid #86EFAC', borderRadius: 10, padding: '18px 20px' }}>
-                  <div style={{ fontSize: '0.76rem', color: '#15803D', fontWeight: 700 }}>DOANH THU RÒNG THỰC NHẬN (85%)</div>
+                  <div style={{ fontSize: '0.76rem', color: '#15803D', fontWeight: 700 }}>DOANH THU KHẢ DỤNG RÚT (85%)</div>
                   <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#00B14F', marginTop: 6 }}>
-                    {merchantRevenue.netPayout.toLocaleString('vi-VN')} đ
+                    {merchantRevenue.availableBalance.toLocaleString('vi-VN')} đ
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: 4 }}>
+                    Tổng ròng: {merchantRevenue.netPayout.toLocaleString('vi-VN')}đ • Đã giải ngân: {merchantRevenue.totalWithdrawn.toLocaleString('vi-VN')}đ
                   </div>
                 </div>
 
                 <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '18px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                   <div style={{ fontSize: '0.76rem', color: '#64748B', fontWeight: 600 }}>LỆNH RÚT DOANH THU</div>
-                  <button
-                    disabled={merchantRevenue.netPayout <= 0}
-                    onClick={() => setMerchantWithdrawSuccess(true)}
-                    style={{
-                      marginTop: 8,
-                      padding: '9px 14px',
-                      borderRadius: 6,
-                      background: merchantRevenue.netPayout > 0 ? '#0F172A' : '#E2E8F0',
-                      color: merchantRevenue.netPayout > 0 ? '#FFFFFF' : '#94A3B8',
-                      fontSize: '0.8rem',
-                      fontWeight: 700,
-                      cursor: merchantRevenue.netPayout > 0 ? 'pointer' : 'not-allowed',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <ArrowUpRight size={15} />{' '}
-                    {merchantWithdrawSuccess
-                      ? 'Đã gửi yêu cầu rút tiền'
-                      : `Rút về ${currentMerchant?.bankName || 'Ngân hàng'}`}
-                  </button>
+                  {(() => {
+                    const myWithdrawals = merchantWithdrawals.filter((w) => w.merchantId === currentMerchantId);
+                    const pendingReq = myWithdrawals.find((w) => w.status === 'PENDING');
+                    const canWithdraw = merchantRevenue.availableBalance > 0 && !pendingReq;
+
+                    return (
+                      <div style={{ marginTop: 8 }}>
+                        {!pendingReq && merchantRevenue.availableBalance > 0 && (
+                          <div style={{ marginBottom: 6 }}>
+                            <input
+                              type="number"
+                              min={100000}
+                              max={merchantRevenue.availableBalance}
+                              step={50000}
+                              value={merchantWithdrawAmountInput}
+                              onChange={(e) => {
+                                setMerchantWithdrawAmountInput(e.target.value);
+                                if (merchantWithdrawError) setMerchantWithdrawError('');
+                              }}
+                              placeholder={`Số tiền rút (tối đa ${merchantRevenue.availableBalance.toLocaleString('vi-VN')}đ)`}
+                              style={{
+                                width: '100%',
+                                padding: '7px 10px',
+                                borderRadius: 6,
+                                border: merchantWithdrawError ? '1px solid #EF4444' : '1px solid #CBD5E1',
+                                fontSize: '0.78rem',
+                                background: '#FFFFFF',
+                              }}
+                            />
+                            {merchantWithdrawError && (
+                              <div style={{ fontSize: '0.72rem', color: '#DC2626', marginTop: 2, fontWeight: 600 }}>
+                                {merchantWithdrawError}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <button
+                          disabled={!canWithdraw}
+                          onClick={() => {
+                            if (!canWithdraw) return;
+                            const parsedAmount = Number(merchantWithdrawAmountInput);
+                            if (!merchantWithdrawAmountInput.trim() || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+                              setMerchantWithdrawError('Vui lòng nhập số tiền muốn rút.');
+                              return;
+                            }
+                            if (parsedAmount < 100000) {
+                              setMerchantWithdrawError('Hạn mức rút tối thiểu của quán là 100.000đ.');
+                              return;
+                            }
+                            if (parsedAmount > merchantRevenue.availableBalance) {
+                              setMerchantWithdrawError(
+                                `Số tiền rút không được vượt quá số dư khả dụng (${merchantRevenue.availableBalance.toLocaleString('vi-VN')}đ).`,
+                              );
+                              return;
+                            }
+
+                            const newReq = {
+                              id: `mwd-${Date.now()}`,
+                              merchantId: currentMerchantId,
+                              merchantName: currentMerchant?.name || 'Nhà hàng DineGo',
+                              bankName: currentMerchant?.bankName || 'Ngân hàng liên kết',
+                              bankAccountNumber: currentMerchant?.bankAccountNumber || '—',
+                              bankAccountHolder: currentMerchant?.bankAccountHolder || currentMerchant?.ownerName || 'Chủ quán',
+                              amount: parsedAmount,
+                              status: 'PENDING' as const,
+                              createdAt: new Date().toLocaleString('vi-VN', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              }),
+                            };
+                            setMerchantWithdrawals((prev) => [newReq, ...prev]);
+                            setMerchantWithdrawAmountInput('');
+                            setMerchantWithdrawError('');
+                            setMerchantWithdrawSuccess(true);
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '9px 14px',
+                            borderRadius: 6,
+                            background: canWithdraw ? '#0F172A' : '#E2E8F0',
+                            color: canWithdraw ? '#FFFFFF' : '#94A3B8',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            cursor: canWithdraw ? 'pointer' : 'not-allowed',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            border: 'none',
+                          }}
+                        >
+                          <ArrowUpRight size={15} />{' '}
+                          {pendingReq
+                            ? 'Đang chờ Admin duyệt rút tiền'
+                            : `Rút về ${currentMerchant?.bankName || 'Ngân hàng'}`}
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
+
+              {merchantWithdrawSuccess && (
+                <div
+                  style={{
+                    padding: '12px 18px',
+                    borderRadius: 8,
+                    background: '#FEF3C7',
+                    color: '#92400E',
+                    fontSize: '0.84rem',
+                    fontWeight: 600,
+                    marginBottom: 20,
+                    border: '1px solid #FDE68A',
+                  }}
+                >
+                  Đã gửi yêu cầu rút tiền về tài khoản ngân hàng của quán. Trạng thái: <strong>Chờ Admin duyệt & giải ngân</strong>.
+                </div>
+              )}
+
+              {merchantWithdrawals.filter((w) => w.merchantId === currentMerchantId).length > 0 && (
+                <div style={{ background: '#FFFFFF', borderRadius: 10, border: '1px solid #E2E8F0', padding: 18, marginBottom: 20 }}>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0F172A', margin: '0 0 10px 0' }}>
+                    Lịch sử Yêu cầu Rút Doanh thu Quán (Đồng bộ Admin)
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {merchantWithdrawals
+                      .filter((w) => w.merchantId === currentMerchantId)
+                      .map((w) => (
+                        <div
+                          key={w.id}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '9px 12px',
+                            borderRadius: 6,
+                            background: '#F8FAFC',
+                            border: '1px solid #E2E8F0',
+                            fontSize: '0.8rem',
+                          }}
+                        >
+                          <div>
+                            <strong style={{ color: '#0F172A' }}>{w.amount.toLocaleString('vi-VN')}đ</strong> → {w.bankName} ({w.bankAccountNumber})
+                            <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: 2 }}>
+                              Gửi lúc: {w.createdAt}
+                              {w.processedAt ? ` • Xử lý: ${w.processedAt}` : ''}
+                              {w.note ? ` • Ghi chú: ${w.note}` : ''}
+                            </div>
+                          </div>
+                          <span
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: 4,
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              background:
+                                w.status === 'APPROVED'
+                                  ? '#DCFCE7'
+                                  : w.status === 'REJECTED'
+                                  ? '#FEE2E2'
+                                  : '#FEF3C7',
+                              color:
+                                w.status === 'APPROVED'
+                                  ? '#15803D'
+                                  : w.status === 'REJECTED'
+                                  ? '#DC2626'
+                                  : '#B45309',
+                            }}
+                          >
+                            {w.status === 'APPROVED'
+                              ? 'Admin đã giải ngân'
+                              : w.status === 'REJECTED'
+                              ? 'Đã từ chối'
+                              : 'Chờ Admin duyệt'}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24, alignItems: 'start' }}>
                 {/* Top Selling Dishes Table */}
