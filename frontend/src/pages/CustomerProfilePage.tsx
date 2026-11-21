@@ -88,10 +88,10 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
     return customerComplaints.filter(
       (c) =>
         c.status === 'REFUNDED' &&
-        (!currentUser ||
-          !c.customerName ||
-          c.customerName === currentUser.fullName ||
-          c.customerName === 'Nguyễn Văn An' ||
+        currentUser &&
+        ((c.customerId && c.customerId === currentUser.id) ||
+          (c.customerName &&
+            c.customerName.trim().toLowerCase() === currentUser.fullName.trim().toLowerCase()) ||
           orders.some((o) => o.orderNumber === c.orderNumber)),
     );
   }, [customerComplaints, currentUser, orders]);

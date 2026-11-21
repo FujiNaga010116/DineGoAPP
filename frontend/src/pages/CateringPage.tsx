@@ -45,6 +45,7 @@ import {
   type PartyTypeId,
 } from '../data/cateringCatalog';
 import type { Order, User } from '../types';
+import { adminApi } from '../api/client';
 import {
   AddressMapPicker,
   type AddressPickerValue,
@@ -447,6 +448,7 @@ export const CateringPage: React.FC<CateringPageProps> = ({
         ...(Array.isArray(existingFeasts) ? existingFeasts : []),
       ];
       localStorage.setItem('dinego_feast_bookings', JSON.stringify(nextFeasts));
+      void adminApi.saveDatabaseFeastBooking(syncedFeast);
       if (typeof BroadcastChannel !== 'undefined') {
         const ch = new BroadcastChannel('dinego_feasts_sync');
         ch.postMessage(JSON.stringify(nextFeasts));

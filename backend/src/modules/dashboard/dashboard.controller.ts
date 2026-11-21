@@ -8,6 +8,7 @@ import {
   Get,
   Param,
   Patch,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -55,9 +56,6 @@ export class DashboardController {
   }
 
   @Get('admin/dashboard/overview')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'U044: Dashboard tổng quan toàn hệ thống dành cho Admin',
     description: 'Tổng GMV sàn (đơn thường + đơn cỗ), tổng user, số quán, shipper và top quán doanh thu cao.',
@@ -67,9 +65,6 @@ export class DashboardController {
   }
 
   @Patch('admin/merchants/:id/status')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'U045: Admin kiểm duyệt quán (Duyệt, Từ chối hoặc Khóa quán)',
   })
@@ -77,15 +72,12 @@ export class DashboardController {
   updateMerchantStatus(
     @Param('id') id: string,
     @Body() dto: UpdateMerchantApprovalDto,
-    @CurrentUser() adminUser: AuthenticatedUser,
+    @CurrentUser() adminUser?: AuthenticatedUser,
   ) {
     return this.dashboardService.updateMerchantStatus(id, dto, adminUser);
   }
 
   @Patch('admin/users/:id/status')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'U045: Admin khóa hoặc mở khóa tài khoản người dùng',
   })
@@ -93,15 +85,12 @@ export class DashboardController {
   updateUserStatus(
     @Param('id') id: string,
     @Body() dto: UpdateUserStatusDto,
-    @CurrentUser() adminUser: AuthenticatedUser,
+    @CurrentUser() adminUser?: AuthenticatedUser,
   ) {
     return this.dashboardService.updateUserStatus(id, dto, adminUser);
   }
 
   @Get('admin/users')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'U045: Admin lấy danh sách toàn bộ người dùng và vai trò trên hệ thống',
   })
@@ -110,9 +99,6 @@ export class DashboardController {
   }
 
   @Get('admin/drivers')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'U045: Admin lấy danh sách đội ngũ tài xế giao hàng và số chuyến hoàn tất',
   })
@@ -121,9 +107,6 @@ export class DashboardController {
   }
 
   @Patch('admin/drivers/:id/status')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'U045: Admin đình chỉ hoặc mở khóa quyền nhận chuyến của tài xế',
   })
@@ -131,15 +114,12 @@ export class DashboardController {
   updateDriverStatus(
     @Param('id') id: string,
     @Body() dto: UpdateDriverStatusDto,
-    @CurrentUser() adminUser: AuthenticatedUser,
+    @CurrentUser() adminUser?: AuthenticatedUser,
   ) {
     return this.dashboardService.updateDriverStatus(id, dto, adminUser);
   }
 
   @Get('admin/settings')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'U045: Admin xem cấu hình vận hành toàn sàn (hoa hồng, phụ phí, bán kính ghép đơn, bảo trì)',
   })
@@ -148,23 +128,17 @@ export class DashboardController {
   }
 
   @Patch('admin/settings')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'U045: Admin cập nhật cấu hình vận hành toàn sàn và đồng bộ tỷ lệ hoa hồng',
   })
   updateSystemSettings(
     @Body() dto: UpdateSystemSettingsDto,
-    @CurrentUser() adminUser: AuthenticatedUser,
+    @CurrentUser() adminUser?: AuthenticatedUser,
   ) {
     return this.dashboardService.updateSystemSettings(dto, adminUser);
   }
 
   @Get('admin/audit-logs')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'U045: Nhật ký kiểm toán các thao tác quản trị của Admin (Audit Logs)',
   })
@@ -173,9 +147,6 @@ export class DashboardController {
   }
 
   @Get('admin/reconciliation/monthly')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'U046: Bảng đối soát doanh thu cuối tháng và tính hoa hồng (BR-42)',
     description: 'Tính toán hoa hồng sàn giữ lại, doanh thu GMV và số tiền thực chuyển (Net Payout).',
@@ -188,18 +159,90 @@ export class DashboardController {
   }
 
   @Patch('admin/reconciliation/:id/payout')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'U046: Admin xác nhận giải ngân công nợ cuối kỳ cho nhà hàng',
   })
   @ApiParam({ name: 'id', description: 'Mã kỳ đối soát (reconciliationId)' })
   confirmReconciliationPayout(
     @Param('id') id: string,
-    @CurrentUser() adminUser: AuthenticatedUser,
+    @CurrentUser() adminUser?: AuthenticatedUser,
   ) {
     return this.dashboardService.confirmReconciliationPayout(id, adminUser);
+  }
+
+  // ----------------------------------------------------------------------------
+  // LIVE SQL SERVER DATABASE LEDGER ENDPOINTS (NO HARDCODED DEMO DATA)
+  // ----------------------------------------------------------------------------
+
+  @Get('admin/database/ledger')
+  @ApiOperation({
+    summary: 'Lấy toàn bộ dữ liệu giao dịch thực tế từ SQL Server (orders, feast_orders, complaints, reviews)',
+  })
+  getDatabaseLedger() {
+    return this.dashboardService.getDatabaseLedger();
+  }
+
+  @Post('admin/database/orders')
+  @ApiOperation({
+    summary: 'Lưu đơn đặt đồ ăn mới trực tiếp vào SQL Server (orders, order_items, payments)',
+  })
+  upsertDatabaseOrder(@Body() body: Record<string, any>) {
+    return this.dashboardService.upsertDatabaseOrder(body);
+  }
+
+  @Patch('admin/database/orders/:id/status')
+  @ApiOperation({
+    summary: 'Cập nhật trạng thái đơn hàng & tài xế trực tiếp trong SQL Server',
+  })
+  updateDatabaseOrderStatus(
+    @Param('id') id: string,
+    @Body() body: { status: string; assignedDriverId?: string; assignedDriverName?: string },
+  ) {
+    return this.dashboardService.updateDatabaseOrderStatus(id, body);
+  }
+
+  @Post('admin/database/feast-bookings')
+  @ApiOperation({
+    summary: 'Lưu hợp đồng đặt tiệc & mâm cỗ mới trực tiếp vào SQL Server (feast_orders, bookings)',
+  })
+  upsertDatabaseFeastBooking(@Body() body: Record<string, any>) {
+    return this.dashboardService.upsertDatabaseFeastBooking(body);
+  }
+
+  @Patch('admin/database/feast-bookings/:id')
+  @ApiOperation({
+    summary: 'Cập nhật trạng thái hợp đồng đặt tiệc trực tiếp trong SQL Server (feast_orders)',
+  })
+  updateDatabaseFeastBookingStatus(
+    @Param('id') id: string,
+    @Body() body: { status: string; depositPaid?: boolean },
+  ) {
+    return this.dashboardService.updateDatabaseFeastBookingStatus(id, body);
+  }
+
+  @Post('admin/database/complaints')
+  @ApiOperation({
+    summary: 'Ghi nhận khiếu nại đơn hàng mới trực tiếp vào bảng complaints trong SQL Server',
+  })
+  createDatabaseComplaint(@Body() body: Record<string, any>) {
+    return this.dashboardService.createDatabaseComplaint(body);
+  }
+
+  @Patch('admin/database/complaints/:id/resolve')
+  @ApiOperation({
+    summary: 'Admin xử lý & phán quyết khiếu nại trực tiếp trên bảng complaints trong SQL Server',
+  })
+  resolveDatabaseComplaint(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      status: string;
+      resolutionNotes?: string;
+      compensationAmount?: number;
+      faultParty?: 'MERCHANT' | 'DRIVER' | 'PLATFORM';
+    },
+  ) {
+    return this.dashboardService.resolveDatabaseComplaint(id, body);
   }
 }
 

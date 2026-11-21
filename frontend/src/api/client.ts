@@ -1040,4 +1040,55 @@ export const adminApi = {
       method: 'PATCH',
       body: JSON.stringify(payload),
     }),
+  getDatabaseLedger: () =>
+    safeRequest<{
+      orders: any[];
+      feastBookings: any[];
+      complaints: any[];
+      reviews: any[];
+    }>('/admin/database/ledger'),
+  saveDatabaseOrder: (order: Record<string, any>) =>
+    safeRequest('/admin/database/orders', {
+      method: 'POST',
+      body: JSON.stringify(order),
+    }),
+  updateDatabaseOrderStatus: (
+    orderId: string,
+    payload: { status: string; assignedDriverId?: string; assignedDriverName?: string },
+  ) =>
+    safeRequest(`/admin/database/orders/${encodeURIComponent(orderId)}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+  saveDatabaseFeastBooking: (booking: Record<string, any>) =>
+    safeRequest('/admin/database/feast-bookings', {
+      method: 'POST',
+      body: JSON.stringify(booking),
+    }),
+  updateDatabaseFeastBookingStatus: (
+    bookingId: string,
+    payload: { status: string; depositPaid?: boolean },
+  ) =>
+    safeRequest(`/admin/database/feast-bookings/${encodeURIComponent(bookingId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+  createDatabaseComplaint: (complaint: Record<string, any>) =>
+    safeRequest('/admin/database/complaints', {
+      method: 'POST',
+      body: JSON.stringify(complaint),
+    }),
+  resolveDatabaseComplaint: (
+    complaintId: string,
+    payload: {
+      status: string;
+      resolutionNotes?: string;
+      compensationAmount?: number;
+      faultParty?: 'MERCHANT' | 'DRIVER' | 'PLATFORM';
+    },
+  ) =>
+    safeRequest(`/admin/database/complaints/${encodeURIComponent(complaintId)}/resolve`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
 };

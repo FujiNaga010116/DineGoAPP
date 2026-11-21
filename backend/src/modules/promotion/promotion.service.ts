@@ -472,15 +472,98 @@ export class PromotionService {
     return this.updatePromotion(user, id, { isActive });
   }
 
-  getLiveVouchers(): { vouchers: Record<string, unknown>[] | null } {
+  async getLiveVouchers(): Promise<{ vouchers: Record<string, unknown>[] | null }> {
+    if (!this.liveVouchers) {
+      try {
+        const dbPromos = await this.prisma.promotion.findMany({
+          where: { isActive: true },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (dbPromos.length > 0) {
+          this.liveVouchers = dbPromos.map((p) => ({
+            id: p.id,
+            code: p.code,
+            title: p.name,
+            discountType: p.discountType,
+            discountValue: Number(p.discountValue),
+            maxDiscountAmount: p.maxDiscountAmount ? Number(p.maxDiscountAmount) : undefined,
+            minOrder: Number(p.minOrderValue),
+            usageCount: p.currentUsage,
+            claimedCount: p.currentUsage,
+            maxUsage: p.maxUsage || 100,
+            endDate: p.endDate ? p.endDate.toISOString().split('T')[0] : '2026-12-31',
+            isActive: p.isActive,
+            merchantId: p.merchantId || 'ALL',
+            merchantName: p.scope === 'GLOBAL' ? 'Toàn sàn DineGo' : 'Cửa hàng liên kết',
+            eventTheme: 'ALL_PLATFORM',
+            eventTag: 'Ưu đãi toàn sàn',
+            isFlashHunt: true,
+          }));
+        }
+      } catch (err) {
+        this.logger.error('Error fetching live vouchers from DB', err);
+      }
+    }
     return { vouchers: this.liveVouchers };
   }
 
-  syncLiveVouchers(vouchers: Record<string, unknown>[]): {
+  async syncLiveVouchers(vouchers: Record<string, unknown>[]): Promise<{
     vouchers: Record<string, unknown>[];
-  } {
+  }> {
     if (Array.isArray(vouchers)) {
       this.liveVouchers = vouchers;
+
+      // Asynchronously upsert vouchers into SQL Server database
+      for (const v of vouchers) {
+        const code = String(v.code || '').trim().toUpperCase();
+        if (!code) continue;
+        try {
+          const name = String(v.title || v.name || code).trim();
+          const discountType = String(v.discountType || 'FIXED_AMOUNT').toUpperCase();
+          const discountValue = Number(v.discountValue) || 0;
+          const minOrder = Number(v.minOrder) || 0;
+          const maxDiscount = v.maxDiscountAmount ? Number(v.maxDiscountAmount) : null;
+          const maxUsage = Number(v.maxUsage) || 100;
+          const usageCount = Number(v.usageCount) || 0;
+          const endDate = v.endDate ? new Date(String(v.endDate)) : new Date('2026-12-31');
+          const isActive = v.isActive !== false;
+          const merchantId = v.merchantId && v.merchantId !== 'ALL' ? String(v.merchantId) : null;
+          const scope = merchantId ? 'MERCHANT' : 'GLOBAL';
+
+          await this.prisma.promotion.upsert({
+            where: { code },
+            update: {
+              name,
+              discountType,
+              discountValue,
+              minOrderValue: minOrder,
+              maxDiscountAmount: maxDiscount,
+              maxUsage,
+              currentUsage: usageCount,
+              endDate,
+              isActive,
+              scope,
+            },
+            create: {
+              code,
+              name,
+              discountType,
+              discountValue,
+              minOrderValue: minOrder,
+              maxDiscountAmount: maxDiscount,
+              startDate: new Date(),
+              endDate,
+              maxUsage,
+              currentUsage: usageCount,
+              scope,
+              merchantId,
+              isActive,
+            },
+          });
+        } catch (dbErr) {
+          this.logger.warn(`Failed to persist live voucher ${code} to DB: ${(dbErr as Error).message}`);
+        }
+      }
     }
     return { vouchers: this.liveVouchers || [] };
   }
