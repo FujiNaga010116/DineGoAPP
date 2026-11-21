@@ -1397,10 +1397,16 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
       o.status !== 'CANCELLED' &&
       (!o.assignedDriverId || o.assignedDriverId === currentDriver.id),
   );
-  const totalShippingEarned =
-    completedDriverOrders.reduce((s, o) => s + (o.deliveryFee || 15000), 0) +
-    currentDriver.walletBalance;
-  const driverNetIncome = Math.round(totalShippingEarned * 0.85);
+  const tripShippingFeeTotal = completedDriverOrders.reduce(
+    (s, o) => s + (o.deliveryFee || 15000),
+    0,
+  );
+  const compensatedDisputesTotal = driverDisputes
+    .filter((d) => d.status === 'COMPENSATED_DRIVER')
+    .reduce((s, d) => s + (Number(d.compensationAmount) || 15000), 0);
+  const baseSeedGrossShipping = Math.max(0, (currentDriver.walletBalance || 0) - compensatedDisputesTotal);
+  const totalShippingEarned = tripShippingFeeTotal + baseSeedGrossShipping;
+  const driverNetIncome = Math.round(totalShippingEarned * 0.85) + compensatedDisputesTotal;
   const approvedWithdrawnTotal = driverWithdrawals
     .filter((w) => w.driverId === currentDriver.id && w.status === 'APPROVED')
     .reduce((s, w) => s + w.amount, 0);
@@ -1409,11 +1415,13 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
     (c) =>
       c.status === 'REFUNDED' &&
       c.faultParty === 'DRIVER' &&
-      (c.driverId === currentDriver.id ||
-        c.driverName === currentDriver.fullName ||
+      ((c.driverId && c.driverId === currentDriver.id) ||
+        (c.driverName &&
+          c.driverName.trim().toLowerCase() === currentDriver.fullName.trim().toLowerCase()) ||
         completedDriverOrders.some((o) => o.orderNumber === c.orderNumber) ||
-        allOrders.some((o) => o.orderNumber === c.orderNumber && o.assignedDriverId === currentDriver.id) ||
-        !c.driverId),
+        allOrders.some(
+          (o) => o.orderNumber === c.orderNumber && o.assignedDriverId === currentDriver.id,
+        )),
   );
   const driverPenaltiesTotal = driverPenaltiesList.reduce(
     (s, c) => s + (Number(c.compensationAmount) || 0),
@@ -1436,7 +1444,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
       : 'driver-orders';
 
     return (
-      <div style={{ display: 'flex', minHeight: '100vh', background: '#F1F5F9', color: '#0F172A' }}>
+      <div style={{ display: 'flex', height: '100vh', width: '100%', maxWidth: '100vw', overflow: 'hidden', background: '#F1F5F9', color: '#0F172A' }}>
         {/* Left Sidebar — Driver Partner Shell */}
         <aside
           style={{
@@ -1447,8 +1455,6 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
             flexDirection: 'column',
             flexShrink: 0,
             borderRight: '1px solid #1E293B',
-            position: 'sticky',
-            top: 0,
             height: '100vh',
             overflowY: 'auto',
             zIndex: 40,
@@ -1722,7 +1728,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
         </aside>
 
         {/* Right Main Operational Area */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', overflowY: 'auto', overflowX: 'hidden' }}>
           {/* Top Operational Header */}
           <header
             style={{

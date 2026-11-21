@@ -333,21 +333,23 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     localStorage.setItem('dinego_menu_items', JSON.stringify(allMenuItems));
   }, [allMenuItems]);
 
-  const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem('dinego_orders');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          // Strip legacy hardcoded sample order so blank accounts never inherit demo orders
-          return parsed.filter((o: Order) => o.id !== 'ord-sample-01');
-        }
-      } catch {
-        return [];
+  // Orders state loaded directly from SQL Server database (No hardcoded demo orders)
+  const [orders, setOrders] = useState<Order[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    const loadDatabaseOrders = async () => {
+      const ledger = await adminApi.getDatabaseLedger();
+      if (active && ledger && Array.isArray(ledger.orders)) {
+        setOrders(ledger.orders);
+        localStorage.setItem('dinego_orders', JSON.stringify(ledger.orders));
       }
-    }
-    return [];
-  });
+    };
+    void loadDatabaseOrders();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const [driverShifts, setDriverShifts] = useState<DriverShift[]>(() => {
     let initial: DriverShift[] = [];
@@ -735,29 +737,45 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     }
   };
 
-  // Admin toggles user account active / suspended
+  // Admin toggles user account active / suspended (synchronized with Merchant & Driver status)
   const handleToggleUserStatus = (userId: string) => {
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id !== userId) return u;
-        const nextActive = u.isActive === false ? true : false;
-        void adminApi.updateUserStatus(
-          userId,
-          nextActive,
-          nextActive ? 'Mở khóa tài khoản bởi Admin' : 'Tạm khóa tài khoản bởi Admin',
-        );
-        return { ...u, isActive: nextActive };
-      }),
+    const targetUser = users.find((u) => u.id === userId);
+    if (!targetUser) return;
+    const nextActive = targetUser.isActive === false ? true : false;
+    void adminApi.updateUserStatus(
+      userId,
+      nextActive,
+      nextActive ? 'Mở khóa tài khoản bởi Admin' : 'Tạm khóa tài khoản bởi Admin',
     );
+    setUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, isActive: nextActive } : u)),
+    );
+    if (targetUser.merchantId) {
+      setMerchants((prev) =>
+        prev.map((m) =>
+          m.id === targetUser.merchantId ? { ...m, isActive: nextActive } : m,
+        ),
+      );
+    }
+    if (targetUser.driverId) {
+      setDrivers((prev) =>
+        prev.map((d) =>
+          d.id === targetUser.driverId
+            ? { ...d, status: nextActive ? 'ONLINE' : 'SUSPENDED' }
+            : d,
+        ),
+      );
+    }
   };
 
-  // Admin updates merchant KYC & operating status
+  // Admin updates merchant KYC & operating status (synchronized with User account)
   const handleAdminUpdateMerchantStatus = (
     merchantId: string,
     nextStatus: 'APPROVED' | 'REJECTED' | 'SUSPENDED',
     reason?: string,
   ) => {
     void adminApi.updateMerchantStatus(merchantId, nextStatus, reason);
+    const isNowActive = nextStatus === 'APPROVED';
     setMerchants((prev) =>
       prev.map((m) => {
         if (m.id !== merchantId) return m;
@@ -769,7 +787,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
               : nextStatus === 'REJECTED'
               ? 'REJECTED'
               : m.kycStatus,
-          isActive: nextStatus === 'APPROVED',
+          isActive: isNowActive,
           verifiedAt:
             nextStatus === 'APPROVED'
               ? new Date().toISOString().slice(0, 10)
@@ -777,20 +795,31 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
         };
       }),
     );
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.merchantId === merchantId ? { ...u, isActive: isNowActive } : u,
+      ),
+    );
   };
 
-  // Admin updates driver active / suspended status
+  // Admin updates driver active / suspended status (synchronized with User account)
   const handleAdminUpdateDriverStatus = (
     driverId: string,
     nextStatus: 'ACTIVE' | 'SUSPENDED',
     reason?: string,
   ) => {
     void adminApi.updateDriverStatus(driverId, nextStatus, reason);
+    const isNowActive = nextStatus === 'ACTIVE';
     setDrivers((prev) =>
       prev.map((d) =>
         d.id === driverId
-          ? { ...d, status: nextStatus === 'ACTIVE' ? 'ONLINE' : 'SUSPENDED' }
+          ? { ...d, status: isNowActive ? 'ONLINE' : 'SUSPENDED' }
           : d,
+      ),
+    );
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.driverId === driverId ? { ...u, isActive: isNowActive } : u,
       ),
     );
   };
@@ -822,6 +851,9 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
       customerEmail: newOrder.customerEmail || currentUser?.email,
     };
     setOrders([ownedOrder, ...orders]);
+    if (ownedOrder.orderType !== 'CATERING') {
+      void adminApi.saveDatabaseOrder(ownedOrder);
+    }
     setCurrentTab('orders');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -839,6 +871,11 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
         return o;
       }),
     );
+    void adminApi.updateDatabaseOrderStatus(orderId, {
+      status: newStatus,
+      assignedDriverId: completedOrder?.assignedDriverId || undefined,
+      assignedDriverName: completedOrder?.assignedDriverName || undefined,
+    });
     if (newStatus === 'COMPLETED' && completedOrder && completedOrder.assignedDriverId) {
       const assignedDrv = drivers.find((d) => d.id === completedOrder.assignedDriverId);
       if (assignedDrv) {
@@ -977,6 +1014,8 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
         prev.map((d) => (d.id === driver.id ? { ...d, status: 'ONLINE' } : d)),
       );
     }
+    const targetOrder = orders.find((o) => o.id === orderId);
+    const nextStatus = targetOrder?.status === 'PENDING' ? 'CONFIRMED' : targetOrder?.status || 'CONFIRMED';
     setOrders((prev) =>
       prev.map((o) =>
         o.id === orderId
@@ -989,6 +1028,11 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
           : o,
       ),
     );
+    void adminApi.updateDatabaseOrderStatus(orderId, {
+      status: nextStatus,
+      assignedDriverId: driver.id,
+      assignedDriverName: driver.fullName,
+    });
   };
 
   const handleMarkDriverArrivedAtStore = (orderId: string) => {
@@ -1149,6 +1193,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     currentTab === 'admin-users' ||
     currentTab === 'admin-complaints' ||
     currentTab === 'admin-reconciliation' ||
+    currentTab === 'admin-vouchers' ||
     currentTab === 'admin-knowledge' ||
     currentTab === 'admin-settings';
 
@@ -1518,9 +1563,14 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
               const newComplaint = {
                 id: `cmp-${Date.now()}`,
                 code: `CMP-${String(Date.now()).slice(-6)}`,
+                orderId: reviewModalOrder.id,
                 orderNumber: reviewModalOrder.orderNumber,
+                customerId: currentUser?.id || reviewModalOrder.customerId || '',
                 customerName: currentUser?.fullName || reviewModalOrder.recipientName || 'Khách hàng',
+                merchantId: reviewModalOrder.merchant?.id || '',
                 merchantName: reviewModalOrder.merchant?.name || 'Nhà hàng DineGo',
+                driverId: reviewModalOrder.assignedDriverId || '',
+                driverName: reviewModalOrder.assignedDriverName || '',
                 issueType: data.description || 'Khiếu nại chất lượng đơn hàng',
                 evidenceImage:
                   reviewModalOrder.items?.[0]?.itemImage ||
@@ -1536,6 +1586,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
               ];
               const serializedComplaints = JSON.stringify(nextComplaints);
               localStorage.setItem('dinego_admin_complaints', serializedComplaints);
+              void adminApi.createDatabaseComplaint(newComplaint);
               window.dispatchEvent(new CustomEvent('dinego_complaints_updated'));
               if (typeof BroadcastChannel !== 'undefined') {
                 const ch = new BroadcastChannel('dinego_complaints_sync');
