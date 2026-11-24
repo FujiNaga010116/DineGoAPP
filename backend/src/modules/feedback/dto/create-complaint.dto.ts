@@ -18,11 +18,46 @@ export class CreateComplaintDto {
 
   @ApiProperty({
     example: 'MISSING_ITEMS',
-    enum: ['MISSING_ITEMS', 'LATE_DELIVERY', 'FOOD_QUALITY', 'WRONG_ITEMS', 'OTHER'],
+    enum: [
+      'MISSING_ITEMS',
+      'FOOD_DAMAGED',
+      'NOT_RECEIVED',
+      'DRIVER_ATTITUDE',
+      'MERCHANT_LATE',
+      'LATE_DELIVERY',
+      'FOOD_QUALITY',
+      'WRONG_ITEMS',
+      'HYGIENE',
+      'PAYMENT_ERROR',
+      'OTHER',
+    ],
     description: 'Phân loại vấn đề khiếu nại',
   })
-  @IsEnum(['MISSING_ITEMS', 'LATE_DELIVERY', 'FOOD_QUALITY', 'WRONG_ITEMS', 'OTHER'])
-  issueType!: 'MISSING_ITEMS' | 'LATE_DELIVERY' | 'FOOD_QUALITY' | 'WRONG_ITEMS' | 'OTHER';
+  @IsEnum([
+    'MISSING_ITEMS',
+    'FOOD_DAMAGED',
+    'NOT_RECEIVED',
+    'DRIVER_ATTITUDE',
+    'MERCHANT_LATE',
+    'LATE_DELIVERY',
+    'FOOD_QUALITY',
+    'WRONG_ITEMS',
+    'HYGIENE',
+    'PAYMENT_ERROR',
+    'OTHER',
+  ])
+  issueType!:
+    | 'MISSING_ITEMS'
+    | 'FOOD_DAMAGED'
+    | 'NOT_RECEIVED'
+    | 'DRIVER_ATTITUDE'
+    | 'MERCHANT_LATE'
+    | 'LATE_DELIVERY'
+    | 'FOOD_QUALITY'
+    | 'WRONG_ITEMS'
+    | 'HYGIENE'
+    | 'PAYMENT_ERROR'
+    | 'OTHER';
 
   @ApiProperty({
     example: 'Đơn hàng bị thiếu 1 phần canh sườn và giao trễ hơn 40 phút.',
@@ -62,5 +97,15 @@ export class ResolveComplaintDto {
   @IsNumber()
   @Min(0)
   compensationAmount?: number;
+
+  @ApiProperty({
+    example: 'MERCHANT',
+    enum: ['MERCHANT', 'DRIVER', 'PLATFORM'],
+    description: 'Bên chịu trách nhiệm bồi thường',
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(['MERCHANT', 'DRIVER', 'PLATFORM'])
+  faultParty?: 'MERCHANT' | 'DRIVER' | 'PLATFORM';
 }
 

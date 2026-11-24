@@ -135,18 +135,23 @@ export const saveAdminVouchers = (
 ) => {
   const cleaned = sanitizeVoucherList(vouchers);
   const serialized = JSON.stringify(cleaned);
+  let changed = true;
   try {
-    localStorage.setItem(ADMIN_VOUCHERS_KEY, serialized);
-    window.dispatchEvent(new CustomEvent('dinego_vouchers_updated'));
-    if (typeof BroadcastChannel !== 'undefined') {
-      const ch = new BroadcastChannel('dinego_vouchers_sync');
-      ch.postMessage(serialized);
-      ch.close();
+    const prev = localStorage.getItem(ADMIN_VOUCHERS_KEY);
+    changed = prev !== serialized;
+    if (changed) {
+      localStorage.setItem(ADMIN_VOUCHERS_KEY, serialized);
+      window.dispatchEvent(new CustomEvent('dinego_vouchers_updated'));
+      if (typeof BroadcastChannel !== 'undefined') {
+        const ch = new BroadcastChannel('dinego_vouchers_sync');
+        ch.postMessage(serialized);
+        ch.close();
+      }
     }
   } catch {
     // Ignore storage errors
   }
-  if (syncBackend) {
+  if (syncBackend && changed) {
     void fetch(`${API_BASE_URL}/promotions/live/sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

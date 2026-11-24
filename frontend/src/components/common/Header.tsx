@@ -50,6 +50,7 @@ export type NavTab =
   | 'admin-users'
   | 'admin-complaints'
   | 'admin-reconciliation'
+  | 'admin-vouchers'
   | 'admin-knowledge'
   | 'admin-settings';
 

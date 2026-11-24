@@ -359,10 +359,14 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
                     outline: 'none',
                   }}
                 >
-                  <option value="MISSING_ITEMS">Giao thiếu món / thiếu đồ ăn kèm</option>
-                  <option value="FOOD_QUALITY">Món ăn không đúng mô tả / đồ nguội</option>
+                  <option value="MISSING_ITEMS">Giao thiếu món / sai món / sai topping (Quán đóng gói)</option>
+                  <option value="FOOD_DAMAGED">Đồ ăn bị đổ vỡ, nghiêng ngả, rách bao bì (Lỗi vận chuyển)</option>
+                  <option value="NOT_RECEIVED">Tài xế tự ý bấm đã giao nhưng tôi chưa nhận được đồ</option>
+                  <option value="FOOD_QUALITY">Món ăn không đúng mô tả / đồ nguội hỏng</option>
+                  <option value="MERCHANT_LATE">Quán làm quá chậm (ngâm đơn), tài xế phải chờ lâu</option>
                   <option value="HYGIENE">Vấn đề vệ sinh an toàn thực phẩm</option>
-                  <option value="DRIVER_ISSUE">Thái độ phục vụ của tài xế shipper</option>
+                  <option value="DRIVER_ATTITUDE">Tài xế thái độ hung hăng, chửi bới, đòi thêm tiền tip</option>
+                  <option value="DRIVER_ISSUE">Vấn đề khác về dịch vụ vận chuyển</option>
                   <option value="PAYMENT_ERROR">Lỗi trừ tiền ví MoMo sai lệch</option>
                 </select>
               </div>

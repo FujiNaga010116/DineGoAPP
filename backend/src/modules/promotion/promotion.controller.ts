@@ -45,14 +45,14 @@ export class PromotionController {
 
   @Get('live')
   @ApiOperation({ summary: 'Lấy danh sách voucher sự kiện / ngày lễ đang đồng bộ từ Admin' })
-  getLiveVouchers() {
+  async getLiveVouchers() {
     return this.promotionService.getLiveVouchers();
   }
 
   @Post('live/sync')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Admin đồng bộ danh sách voucher sự kiện / ngày lễ' })
-  syncLiveVouchers(@Body() body: { vouchers?: Record<string, unknown>[] }) {
+  async syncLiveVouchers(@Body() body: { vouchers?: Record<string, unknown>[] }) {
     return this.promotionService.syncLiveVouchers(body?.vouchers || []);
   }
 

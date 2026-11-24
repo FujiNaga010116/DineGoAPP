@@ -27,9 +27,15 @@ export type ComplaintStatus =
 
 export type IssueType =
   | 'MISSING_ITEMS'
+  | 'FOOD_DAMAGED'
+  | 'NOT_RECEIVED'
+  | 'DRIVER_ATTITUDE'
+  | 'MERCHANT_LATE'
   | 'LATE_DELIVERY'
   | 'FOOD_QUALITY'
   | 'WRONG_ITEMS'
+  | 'HYGIENE'
+  | 'PAYMENT_ERROR'
   | 'OTHER';
 
 export interface ComplaintItem {
@@ -47,6 +53,7 @@ export interface ComplaintItem {
   status: ComplaintStatus;
   adminResolutionNotes?: string;
   compensationAmount?: number;
+  faultParty?: 'MERCHANT' | 'DRIVER' | 'PLATFORM';
   resolvedAt?: Date;
   createdAt: Date;
 }

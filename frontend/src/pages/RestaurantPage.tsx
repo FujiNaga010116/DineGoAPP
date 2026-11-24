@@ -21,10 +21,11 @@ import {
   Share2,
   Ticket,
   Store,
+  AlertTriangle,
 } from 'lucide-react';
 import { MOCK_MENU_ITEMS } from '../api/client';
 import { useCart } from '../context/CartContext';
-import { hasVerifiedCustomerAddress } from '../utils/routing';
+import { calculateHaversineKm, hasVerifiedCustomerAddress } from '../utils/routing';
 import {
   ADMIN_VOUCHERS_KEY,
   claimVoucherForAccount,
@@ -66,6 +67,32 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('all');
+
+  // Customer location & merchant distance calculation
+  const defaultSaved =
+    currentUser?.savedAddresses?.find((a) => a.isDefault) ||
+    currentUser?.savedAddresses?.[0];
+  const userLat =
+    typeof defaultSaved?.latitude === 'number'
+      ? defaultSaved.latitude
+      : typeof currentUser?.addressLat === 'number'
+      ? currentUser.addressLat
+      : 10.7736;
+  const userLng =
+    typeof defaultSaved?.longitude === 'number'
+      ? defaultSaved.longitude
+      : typeof currentUser?.addressLng === 'number'
+      ? currentUser.addressLng
+      : 106.7037;
+
+  const merchantDistanceKm =
+    typeof merchant.latitude === 'number' && typeof merchant.longitude === 'number'
+      ? calculateHaversineKm(
+          { lat: userLat, lng: userLng },
+          { lat: merchant.latitude, lng: merchant.longitude },
+        )
+      : 2.2;
+  const isOverRadius = merchantDistanceKm > 15;
 
   const [allVouchers, setAllVouchers] = useState<ManagedVoucher[]>(() => loadAdminVouchers());
   const [restaurantReviews, setRestaurantReviews] = useState<any[]>(() => {
@@ -511,8 +538,46 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
                   {merchant.deliveryTimeMin} - {merchant.deliveryTimeMax} phút giao hàng
                 </span>
                 <span>•</span>
-                <span style={{ fontWeight: 600 }}>Cách bạn 1.8 km</span>
+                <span
+                  style={{
+                    fontWeight: 700,
+                    color: isOverRadius ? '#E11D48' : 'var(--primary)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  {isOverRadius ? <AlertTriangle size={14} color="#E11D48" /> : <MapPin size={14} color="var(--primary)" />}
+                  Cách bạn {merchantDistanceKm.toFixed(1)} km
+                  {isOverRadius && ' (Ngoài bán kính 15km)'}
+                </span>
               </div>
+
+              {isOverRadius && (
+                <div
+                  style={{
+                    marginTop: 12,
+                    marginBottom: 12,
+                    padding: '10px 14px',
+                    background: '#FFF1F2',
+                    border: '1px solid #FECDD3',
+                    borderRadius: 10,
+                    color: '#9F1239',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    fontSize: '0.84rem',
+                  }}
+                >
+                  <AlertTriangle size={18} color="#E11D48" style={{ flexShrink: 0, marginTop: 2 }} />
+                  <div>
+                    <div style={{ fontWeight: 800 }}>Vượt quá bán kính giao hàng tối đa 15 km ({merchantDistanceKm.toFixed(1)} km)</div>
+                    <div style={{ fontSize: '0.78rem', marginTop: 2, color: '#BE123C', lineHeight: 1.4 }}>
+                      DineGo giới hạn bán kính 15km để đồ ăn khi giao tới tay bạn luôn giữ được nhiệt độ nóng sốt và hương vị ngon nhất. Bạn có thể tham khảo menu nhưng đơn hàng sẽ không thể giao tới địa chỉ hiện tại.
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div
                 style={{
