@@ -1243,6 +1243,16 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
       activeOrder?.status === 'COMPLETED';
 
     if (nextStatus === 'ARRIVED_AT_STORE') {
+      const distToStoreKm = calculateHaversineKm(
+        { lat: cur.currentLat, lng: cur.currentLng },
+        { lat: cur.storeLat, lng: cur.storeLng },
+      );
+      if (distToStoreKm > 0.1) {
+        alert(
+          `⚠️ Không thể xác nhận có mặt tại quán:\n\nVị trí GPS hiện tại của bạn đang cách nhà hàng ${(distToStoreKm * 1000).toFixed(0)}m (> 100m bán kính cho phép).\n\nTheo quy định chống gian lận của DineGo, tài xế phải di chuyển vào phạm vi 100m quanh nhà hàng mới được bấm "1. Đã đến nhà hàng" để nhận đơn. Vui lòng di chuyển tới quán hoặc dùng nút mô phỏng vị trí gần quán.`,
+        );
+        return;
+      }
       const dist = calculateHaversineKm(
         { lat: cur.storeLat, lng: cur.storeLng },
         { lat: cur.customerLat, lng: cur.customerLng },
@@ -1259,6 +1269,9 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
       setTracking(updated);
       broadcastTrackingState(updated);
       syncWithGlobalOrder('ARRIVED_AT_STORE');
+      if (activeOrder?.id) {
+        onMarkDriverArrivedAtStore?.(activeOrder.id);
+      }
     } else if (nextStatus === 'DELIVERING') {
       if (!hasMerchantConfirmedPickup) {
         alert(
@@ -2831,6 +2844,72 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                               </div>
                               </>
                             )}
+
+                            {stepIdx <= 1 && (() => {
+                              const distToStoreMeters = Math.round(
+                                calculateHaversineKm(
+                                  { lat: tracking.currentLat, lng: tracking.currentLng },
+                                  { lat: tracking.storeLat, lng: tracking.storeLng },
+                                ) * 1000,
+                              );
+                              const isDriverWithinStoreGeofence = distToStoreMeters <= 100;
+                              return (
+                                <div
+                                  style={{
+                                    marginBottom: 8,
+                                    padding: '7px 12px',
+                                    borderRadius: 7,
+                                    background: isDriverWithinStoreGeofence ? '#F0FDF4' : '#FFFBEB',
+                                    border: isDriverWithinStoreGeofence ? '1px solid #86EFAC' : '1px solid #FDE68A',
+                                    fontSize: '0.74rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    color: isDriverWithinStoreGeofence ? '#15803D' : '#92400E',
+                                    fontWeight: 700,
+                                    flexWrap: 'wrap',
+                                    gap: 6,
+                                  }}
+                                >
+                                  <span>
+                                    Khoảng cách tới quán: <strong>{distToStoreMeters}m</strong>{' '}
+                                    {isDriverWithinStoreGeofence ? '(✓ Trong phạm vi ≤100m)' : '(⚠️ Ở xa >100m - Chưa thể xác nhận)'}
+                                  </span>
+                                  {!isDriverWithinStoreGeofence && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const nearLat = tracking.storeLat + 0.0002;
+                                        const nearLng = tracking.storeLng + 0.0002;
+                                        const updated: TrackingState = {
+                                          ...tracking,
+                                          currentLat: nearLat,
+                                          currentLng: nearLng,
+                                        };
+                                        latestTrackingRef.current = updated;
+                                        setTracking(updated);
+                                        broadcastTrackingState(updated);
+                                        setGpsStatusNotice(
+                                          'Đã mô phỏng GPS di chuyển xe vào phạm vi 30m quanh quán! Giờ bạn có thể bấm "1. Đã đến nhà hàng".',
+                                        );
+                                      }}
+                                      style={{
+                                        padding: '3px 8px',
+                                        borderRadius: 5,
+                                        border: '1px solid #CBD5E1',
+                                        background: '#FFFFFF',
+                                        color: '#B45309',
+                                        fontSize: '0.7rem',
+                                        fontWeight: 800,
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      📍 [Mô phỏng] Tới sát quán (30m)
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })()}
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                               <button
