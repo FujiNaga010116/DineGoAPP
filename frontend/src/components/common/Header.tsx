@@ -222,7 +222,6 @@ export const Header: React.FC<HeaderProps> = ({
             { id: 'catering' as NavTab, label: 'Đặt tiệc lưu động', activeMatch: ['catering'] },
             { id: 'group-order' as NavTab, label: 'Đặt đơn nhóm', activeMatch: ['group-order'] },
             { id: 'vouchers' as NavTab, label: 'Săn Voucher', activeMatch: ['vouchers'] },
-            { id: 'ai-guide' as NavTab, label: 'Tư vấn thực đơn', activeMatch: ['ai-guide'] },
             { id: 'tracking' as NavTab, label: 'Theo dõi đơn', activeMatch: ['tracking'] },
             { id: 'orders' as NavTab, label: 'Đơn hàng', activeMatch: ['orders'], requiresAuth: true },
           ].map((item) => {

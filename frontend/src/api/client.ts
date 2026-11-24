@@ -1155,6 +1155,12 @@ export const adminApi = {
     safeRequest(`/admin/database/knowledge/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     }),
+  getAiSystemPrompt: () => safeRequest<{ prompt: string }>('/admin/database/ai-prompt'),
+  saveAiSystemPrompt: (prompt: string) =>
+    safeRequest<{ saved: boolean; prompt: string }>('/admin/database/ai-prompt', {
+      method: 'POST',
+      body: JSON.stringify({ prompt }),
+    }),
 };
 
 export const cateringApi = {

@@ -130,5 +130,35 @@ export class AiGuideController {
   deleteKnowledge(@Param('id') id: string) {
     return this.aiGuideService.deleteKnowledge(id);
   }
+
+  @Post('widget-chat')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Chatbot nổi góc phải màn hình (Hỗ trợ khách hàng + RAG SQL Server)',
+  })
+  widgetChat(
+    @Body()
+    body: {
+      message: string;
+      userId?: string;
+      userEmail?: string;
+      sessionId?: string;
+      history?: Array<{ role: 'user' | 'assistant'; text: string; recommendedIds?: string[] }>;
+    },
+  ) {
+    return this.aiGuideService.widgetChat(body);
+  }
+
+  @Get('widget-sessions/:userId')
+  @ApiOperation({ summary: 'Lấy danh sách các phiên chat AI đã lưu của khách hàng' })
+  getWidgetSessions(@Param('userId') userId: string, @Query('email') email?: string) {
+    return this.aiGuideService.getWidgetSessions(userId, email);
+  }
+
+  @Get('widget-sessions/:sessionId/messages')
+  @ApiOperation({ summary: 'Tải lại toàn bộ tin nhắn của một phiên chat AI cũ' })
+  getWidgetSessionMessages(@Param('sessionId') sessionId: string) {
+    return this.aiGuideService.getWidgetSessionMessages(sessionId);
+  }
 }
 
