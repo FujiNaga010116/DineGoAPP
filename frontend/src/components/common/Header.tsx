@@ -13,9 +13,13 @@ import {
   User as UserIcon,
   ClipboardList,
   Receipt,
+  ShieldCheck,
+  Store,
+  Bike,
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import type { Role, User } from '../../types';
+import { NotificationBell } from './NotificationBell';
 
 export type NavTab =
   | 'home'
@@ -235,11 +239,11 @@ export const Header: React.FC<HeaderProps> = ({
                 }}
                 style={{
                   height: '100%',
-                  padding: '0 11px',
+                  padding: '0 9px',
                   background: 'transparent',
                   color: isActive ? '#00B14F' : '#334155',
                   fontWeight: isActive ? 700 : 600,
-                  fontSize: '0.86rem',
+                  fontSize: '0.85rem',
                   borderBottom: isActive ? '2.5px solid #00B14F' : '2.5px solid transparent',
                   borderRadius: 0,
                   whiteSpace: 'nowrap',
@@ -252,8 +256,16 @@ export const Header: React.FC<HeaderProps> = ({
           })}
         </nav>
 
-        {/* Right Section: Cart & User Account */}
+        {/* Right Section: Notifications, Cart & User Account */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <NotificationBell
+            actorRole="CUSTOMER"
+            userId={currentUser?.id}
+            actorDisplayName={currentUser?.fullName || 'Thực khách'}
+            onNavigate={onNavigate}
+            variant="light"
+          />
+
           <button
             onClick={() => onNavigate('checkout')}
             title="Giỏ hàng"
@@ -461,6 +473,91 @@ export const Header: React.FC<HeaderProps> = ({
                     >
                       <Receipt size={15} color="#00B14F" /> Hóa đơn &amp; Giao dịch
                     </button>
+
+                    {/* Quick Portal Switcher for Multi-Role Accounts */}
+                    {currentUser.roles.includes('ADMIN') && (
+                      <button
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          onNavigate('admin-overview');
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: 6,
+                          background: '#EEF2FF',
+                          textAlign: 'left',
+                          fontSize: '0.84rem',
+                          color: '#4F46E5',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          border: '1px solid #C7D2FE',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          marginTop: 4,
+                        }}
+                      >
+                        <ShieldCheck size={15} color="#4F46E5" /> Quản trị Sàn (Admin Console)
+                      </button>
+                    )}
+
+                    {currentUser.roles.includes('MERCHANT') && (
+                      <button
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          onNavigate('merchant-orders');
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: 6,
+                          background: '#FFFBEB',
+                          textAlign: 'left',
+                          fontSize: '0.84rem',
+                          color: '#B45309',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          border: '1px solid #FDE68A',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          marginTop: 4,
+                        }}
+                      >
+                        <Store size={15} color="#D97706" /> Kênh Nhà Hàng (Seller Center)
+                      </button>
+                    )}
+
+                    {currentUser.roles.includes('DRIVER') && (
+                      <button
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          onNavigate('driver-orders');
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: 6,
+                          background: '#F0FDF4',
+                          textAlign: 'left',
+                          fontSize: '0.84rem',
+                          color: '#047857',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          border: '1px solid #BBF7D0',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          marginTop: 4,
+                        }}
+                      >
+                        <Bike size={15} color="#00B14F" /> Bảng Tài Xế (Driver Console)
+                      </button>
+                    )}
 
                     <div style={{ height: 1, background: '#F1F5F9', margin: '4px 0' }} />
 

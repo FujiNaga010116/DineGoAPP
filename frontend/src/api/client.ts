@@ -997,10 +997,10 @@ async function safeRequest<T>(path: string, options?: RequestInit): Promise<T | 
 export const adminApi = {
   getSystemOverview: () => safeRequest('/admin/dashboard/overview'),
   getAllUsers: () => safeRequest('/admin/users'),
-  updateUserStatus: (userId: string, isActive: boolean, reason?: string) =>
+  updateUserStatus: (userId: string, isActive: boolean, reason?: string, email?: string) =>
     safeRequest(`/admin/users/${encodeURIComponent(userId)}/status`, {
       method: 'PATCH',
-      body: JSON.stringify({ isActive, reason }),
+      body: JSON.stringify({ isActive, reason, email }),
     }),
   updateMerchantStatus: (
     merchantId: string,
@@ -1063,6 +1063,9 @@ export const adminApi = {
       feastBookings: any[];
       complaints: any[];
       reviews: any[];
+      deliveryDisputes?: any[];
+      merchantWithdrawals?: any[];
+      driverWithdrawals?: any[];
     }>('/admin/database/ledger'),
   saveDatabaseOrder: (order: Record<string, any>) =>
     safeRequest('/admin/database/orders', {
@@ -1107,6 +1110,50 @@ export const adminApi = {
     safeRequest(`/admin/database/complaints/${encodeURIComponent(complaintId)}/resolve`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
+    }),
+  createDatabaseDispute: (dispute: Record<string, any>) =>
+    safeRequest('/admin/database/disputes', {
+      method: 'POST',
+      body: JSON.stringify(dispute),
+    }),
+  resolveDatabaseDispute: (
+    disputeId: string,
+    status: 'COMPENSATED_DRIVER' | 'REJECTED',
+    adminNote?: string,
+  ) =>
+    safeRequest(`/admin/database/disputes/${encodeURIComponent(disputeId)}/resolve`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, adminNote }),
+    }),
+  createDatabaseWithdrawal: (withdrawal: Record<string, any>) =>
+    safeRequest('/admin/database/withdrawals', {
+      method: 'POST',
+      body: JSON.stringify(withdrawal),
+    }),
+  processDatabaseWithdrawal: (
+    withdrawalId: string,
+    status: 'APPROVED' | 'REJECTED',
+    note?: string,
+  ) =>
+    safeRequest(`/admin/database/withdrawals/${encodeURIComponent(withdrawalId)}/process`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, note }),
+    }),
+  getKnowledgeChunks: () =>
+    safeRequest<Array<{ id: string; source: string; content: string; authorName: string; createdAt: string }>>(
+      '/admin/database/knowledge',
+    ),
+  createKnowledgeChunk: (payload: { source: string; content: string }) =>
+    safeRequest<{ id: string; source: string; content: string; authorName: string; createdAt: string }>(
+      '/admin/database/knowledge',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+    ),
+  deleteKnowledgeChunk: (id: string) =>
+    safeRequest(`/admin/database/knowledge/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
     }),
 };
 

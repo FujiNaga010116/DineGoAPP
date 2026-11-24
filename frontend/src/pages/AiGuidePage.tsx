@@ -140,7 +140,7 @@ export const AiGuidePage: React.FC<AiGuidePageProps> = ({ onSelectMerchantByName
   };
 
   return (
-    <div className="container" style={{ padding: '28px 16px', maxWidth: 960, paddingBottom: 60 }}>
+    <div className="container" style={{ padding: '24px 20px 60px', maxWidth: 1040 }}>
       {/* Title */}
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
         <div

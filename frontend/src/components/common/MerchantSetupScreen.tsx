@@ -20,8 +20,30 @@ import {
   Plus,
   Trash2,
   ShieldCheck,
+  User as UserIcon,
+  Upload,
 } from 'lucide-react';
 import type { Merchant, MenuItem, User } from '../../types';
+import { pushMultiActorNotifications } from '../../utils/notifications';
+
+const SAMPLE_OWNER_AVATARS = [
+  {
+    label: 'Chủ quán Nam 1',
+    url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
+  },
+  {
+    label: 'Chủ quán Nữ 1',
+    url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=300&auto=format&fit=crop&q=80',
+  },
+  {
+    label: 'Đầu bếp / Chủ quán',
+    url: 'https://images.unsplash.com/photo-1583394838336-acd977736f90?w=300&auto=format&fit=crop&q=80',
+  },
+  {
+    label: 'Chủ quán Nữ 2',
+    url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=300&auto=format&fit=crop&q=80',
+  },
+];
 
 interface MerchantSetupScreenProps {
   currentUser: User;
@@ -68,14 +90,32 @@ export const MerchantSetupScreen: React.FC<MerchantSetupScreenProps> = ({
   const [storeAddress, setStoreAddress] = useState('');
   const [storeFrontImage, setStoreFrontImage] = useState(SAMPLE_STOREFRONT_PHOTOS[0].url);
 
-  // 2. Legal & Payout Info
+  // 2. Legal, Owner Identification & Payout Info
+  const [ownerAvatarUrl, setOwnerAvatarUrl] = useState(
+    currentUser.avatarUrl || SAMPLE_OWNER_AVATARS[0].url,
+  );
+  const [ownerNationalId, setOwnerNationalId] = useState('079095008821');
   const [businessLicense, setBusinessLicense] = useState('');
+  const [foodSafetyCert, setFoodSafetyCert] = useState('');
   const [taxCode, setTaxCode] = useState('');
   const [bankName, setBankName] = useState('Vietcombank');
   const [bankAccountNumber, setBankAccountNumber] = useState('');
   const [bankAccountHolder, setBankAccountHolder] = useState(
     (currentUser.fullName || '').toUpperCase(),
   );
+
+  const handleUploadOwnerAvatarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setOwnerAvatarUrl(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   // 3. Initial Menu Items Setup
   const [draftDishes, setDraftDishes] = useState<DraftDish[]>([
@@ -155,10 +195,13 @@ export const MerchantSetupScreen: React.FC<MerchantSetupScreenProps> = ({
       address: storeAddress.trim(),
       phoneNumber: storePhone.trim(),
       ownerName: currentUser.fullName,
+      ownerAvatarUrl: ownerAvatarUrl || SAMPLE_OWNER_AVATARS[0].url,
+      ownerNationalId: ownerNationalId.trim() || '079095008821',
       storeFrontImage,
       businessLicenseNumber:
         businessLicense.trim() || `GPKD-${Date.now().toString().slice(-6)}`,
-      foodSafetyCertNumber: `ATTP-VN-2026-${Date.now().toString().slice(-4)}`,
+      foodSafetyCertNumber:
+        foodSafetyCert.trim() || `ATTP-VN-2026-${Date.now().toString().slice(-4)}`,
       taxCode: taxCode.trim() || `031${Date.now().toString().slice(-7)}`,
       bankName: bankName.trim() || 'Vietcombank',
       bankAccountNumber: bankAccountNumber.trim() || '0071000889900',
@@ -187,7 +230,7 @@ export const MerchantSetupScreen: React.FC<MerchantSetupScreenProps> = ({
       bankAccountNumber: newMerchant.bankAccountNumber,
       bankAccountHolder: newMerchant.bankAccountHolder,
       merchantId: newMerchantId,
-      avatarUrl: storeFrontImage,
+      avatarUrl: ownerAvatarUrl || currentUser.avatarUrl || SAMPLE_OWNER_AVATARS[0].url,
     };
 
     const validDishes: MenuItem[] = draftDishes
@@ -214,6 +257,28 @@ export const MerchantSetupScreen: React.FC<MerchantSetupScreenProps> = ({
           },
         ],
       }));
+
+    pushMultiActorNotifications([
+      {
+        targetRole: 'MERCHANT',
+        targetMerchantId: newMerchant.id,
+        category: 'KYC',
+        title: `🎉 Chào mừng quán "${newMerchant.name}" gia nhập DineGo!`,
+        message: `Hồ sơ pháp lý, Avatar nhận diện chủ quán ${currentUser.fullName} và ${validDishes.length} món ăn đầu tiên đã được kích hoạt thành công.`,
+        priority: 'high',
+        actionTab: 'merchant-kyc',
+        senderLabel: 'DineGo Onboarding',
+      },
+      {
+        targetRole: 'ADMIN',
+        category: 'KYC',
+        title: `🏪 Đối tác Nhà hàng mới: "${newMerchant.name}" vừa hoàn tất hồ sơ KYC`,
+        message: `Chủ sở hữu: ${currentUser.fullName} (${currentUser.email}) • GPKD: ${newMerchant.businessLicenseNumber} • Đã cập nhật Avatar định danh chủ quán.`,
+        priority: 'high',
+        actionTab: 'admin-merchants',
+        senderLabel: newMerchant.name,
+      },
+    ]);
 
     onCompleteSetup(newMerchant, updatedUser, validDishes);
   };
@@ -536,7 +601,7 @@ export const MerchantSetupScreen: React.FC<MerchantSetupScreenProps> = ({
             </div>
           </div>
 
-          {/* SECTION 2: PHÁP LÝ & TÀI KHOẢN NGÂN HÀNG NHẬN ĐỐI SOÁT */}
+          {/* SECTION 2: ĐỊNH DANH CHỦ SỞ HỮU (AVATAR), PHÁP LÝ & TÀI KHOẢN NGÂN HÀNG */}
           <div
             style={{
               background: '#FFFFFF',
@@ -549,8 +614,182 @@ export const MerchantSetupScreen: React.FC<MerchantSetupScreenProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
               <CreditCard size={20} color="#0284C7" />
               <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                2. Thông tin Pháp lý & Tài khoản ngân hàng nhận doanh thu
+                2. Avatar Nhận diện Chủ sở hữu, Hồ sơ Pháp lý &amp; Ngân hàng Đối soát
               </h3>
+            </div>
+
+            {/* Owner Identity Avatar Card */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'auto 1fr',
+                gap: 18,
+                padding: 16,
+                borderRadius: 14,
+                background: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)',
+                border: '1.5px solid #FDE68A',
+                marginBottom: 18,
+                alignItems: 'center',
+              }}
+            >
+              <div style={{ position: 'relative', width: 88, height: 88 }}>
+                <img
+                  src={ownerAvatarUrl || SAMPLE_OWNER_AVATARS[0].url}
+                  alt={currentUser.fullName}
+                  style={{
+                    width: 88,
+                    height: 88,
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: '3px solid #D97706',
+                    background: '#FFFFFF',
+                    boxShadow: '0 6px 16px rgba(217, 119, 6, 0.25)',
+                  }}
+                />
+                <span
+                  style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    right: 0,
+                    width: 26,
+                    height: 26,
+                    borderRadius: '50%',
+                    background: '#00B14F',
+                    color: '#FFFFFF',
+                    border: '2px solid #FFFFFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  title="Chân dung định danh chủ sở hữu cửa hàng"
+                >
+                  <UserIcon size={13} />
+                </span>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                  <span style={{ fontWeight: 800, fontSize: '0.96rem', color: '#0F172A' }}>
+                    Avatar Nhận Diện Chủ Sở Hữu: {currentUser.fullName}
+                  </span>
+                  <span
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: 999,
+                      background: '#DCFCE7',
+                      color: '#15803D',
+                      fontSize: '0.7rem',
+                      fontWeight: 800,
+                    }}
+                  >
+                    ✓ Định danh KYC Chủ Quán
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#78350F', marginBottom: 10 }}>
+                  Ảnh chân dung chủ sở hữu dùng để đối chiếu CCCD/GPKD trong hồ sơ pháp lý nhà hàng và hiển thị trên kênh quản trị.
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                  <label
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '6px 12px',
+                      borderRadius: 8,
+                      background: '#D97706',
+                      color: '#FFFFFF',
+                      fontSize: '0.76rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Upload size={13} />
+                    <span>Tải ảnh từ máy</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleUploadOwnerAvatarFile}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+
+                  {SAMPLE_OWNER_AVATARS.map((av, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setOwnerAvatarUrl(av.url)}
+                      style={{
+                        padding: '5px 10px',
+                        borderRadius: 8,
+                        border: ownerAvatarUrl === av.url ? '1.5px solid #D97706' : '1px solid #CBD5E1',
+                        background: ownerAvatarUrl === av.url ? '#FFFFFF' : 'rgba(255,255,255,0.75)',
+                        color: ownerAvatarUrl === av.url ? '#B45309' : '#475569',
+                        fontSize: '0.73rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {av.label}
+                    </button>
+                  ))}
+                </div>
+
+                <input
+                  type="url"
+                  placeholder="Hoặc dán đường dẫn URL ảnh chân dung chủ sở hữu..."
+                  value={ownerAvatarUrl}
+                  onChange={(e) => setOwnerAvatarUrl(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '7px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #FCD34D',
+                    background: '#FFFFFF',
+                    fontSize: '0.8rem',
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                  Số CCCD / CMND Chủ sở hữu *
+                </label>
+                <input
+                  type="text"
+                  placeholder="VD: 079095008821"
+                  value={ownerNationalId}
+                  onChange={(e) => setOwnerNationalId(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: 10,
+                    border: '1px solid #CBD5E1',
+                    fontSize: '0.88rem',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                  Số Chứng nhận VSATTP
+                </label>
+                <input
+                  type="text"
+                  placeholder="VD: ATTP-HCM-2026-0891"
+                  value={foodSafetyCert}
+                  onChange={(e) => setFoodSafetyCert(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: 10,
+                    border: '1px solid #CBD5E1',
+                    fontSize: '0.88rem',
+                  }}
+                />
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>

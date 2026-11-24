@@ -5,6 +5,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -243,6 +244,54 @@ export class DashboardController {
     },
   ) {
     return this.dashboardService.resolveDatabaseComplaint(id, body);
+  }
+
+  @Post('admin/database/disputes')
+  @ApiOperation({ summary: 'Ghi nhận báo cáo bom hàng của tài xế trực tiếp vào SQL Server' })
+  createDatabaseDispute(@Body() body: Record<string, any>) {
+    return this.dashboardService.createDatabaseDispute(body);
+  }
+
+  @Patch('admin/database/disputes/:id/resolve')
+  @ApiOperation({ summary: 'Admin phân xử báo cáo bom hàng trực tiếp trên SQL Server' })
+  resolveDatabaseDispute(
+    @Param('id') id: string,
+    @Body() body: { status: 'COMPENSATED_DRIVER' | 'REJECTED'; adminNote?: string },
+  ) {
+    return this.dashboardService.resolveDatabaseDispute(id, body);
+  }
+
+  @Post('admin/database/withdrawals')
+  @ApiOperation({ summary: 'Lưu yêu cầu rút tiền của Nhà hàng / Tài xế vào SQL Server' })
+  createDatabaseWithdrawal(@Body() body: Record<string, any>) {
+    return this.dashboardService.createDatabaseWithdrawal(body);
+  }
+
+  @Patch('admin/database/withdrawals/:id/process')
+  @ApiOperation({ summary: 'Admin duyệt hoặc từ chối lệnh rút tiền trên SQL Server' })
+  processDatabaseWithdrawal(
+    @Param('id') id: string,
+    @Body() body: { status: 'APPROVED' | 'REJECTED'; note?: string },
+  ) {
+    return this.dashboardService.processDatabaseWithdrawal(id, body);
+  }
+
+  @Get('admin/database/knowledge')
+  @ApiOperation({ summary: 'Lấy danh sách tri thức AI RAG từ bảng knowledge_base_vectors' })
+  getKnowledgeChunks() {
+    return this.dashboardService.getKnowledgeChunks();
+  }
+
+  @Post('admin/database/knowledge')
+  @ApiOperation({ summary: 'Thêm đoạn tri thức mới vào bảng knowledge_base_vectors' })
+  createKnowledgeChunk(@Body() body: { source: string; content: string }) {
+    return this.dashboardService.createKnowledgeChunk(body);
+  }
+
+  @Delete('admin/database/knowledge/:id')
+  @ApiOperation({ summary: 'Xóa đoạn tri thức khỏi bảng knowledge_base_vectors' })
+  deleteKnowledgeChunk(@Param('id') id: string) {
+    return this.dashboardService.deleteKnowledgeChunk(id);
   }
 }
 
