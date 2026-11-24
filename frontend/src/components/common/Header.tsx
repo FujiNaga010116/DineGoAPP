@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import type { Role, User } from '../../types';
+import { NotificationBell } from './NotificationBell';
 
 export type NavTab =
   | 'home'
@@ -255,8 +256,16 @@ export const Header: React.FC<HeaderProps> = ({
           })}
         </nav>
 
-        {/* Right Section: Cart & User Account */}
+        {/* Right Section: Notifications, Cart & User Account */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <NotificationBell
+            actorRole="CUSTOMER"
+            userId={currentUser?.id}
+            actorDisplayName={currentUser?.fullName || 'Thực khách'}
+            onNavigate={onNavigate}
+            variant="light"
+          />
+
           <button
             onClick={() => onNavigate('checkout')}
             title="Giỏ hàng"

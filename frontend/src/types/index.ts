@@ -98,6 +98,13 @@ export interface Merchant {
   longitude?: number;
   phoneNumber: string;
   ownerName?: string;
+  ownerAvatarUrl?: string;
+  ownerNationalId?: string;
+  ownerIdIssuedDate?: string;
+  ownerIdIssuedPlace?: string;
+  businessType?: string;
+  foodSafetyIssuedBy?: string;
+  foodSafetyExpiryDate?: string;
   storeFrontImage?: string;
   businessLicenseImage?: string;
   businessLicenseNumber?: string;
@@ -129,6 +136,10 @@ export interface DriverProfile {
   email: string;
   phoneNumber: string;
   avatarUrl?: string;
+  portraitUrl?: string; // Ảnh chụp chân dung trực diện của tài xế (Bắt buộc để xác thực vào làm)
+  portraitVerifiedAt?: string; // Thời điểm chụp/xác thực ảnh chân dung
+  driverLicenseFrontUrl?: string; // Ảnh chụp Giấy phép lái xe (GPLX)
+  nationalIdFrontUrl?: string; // Ảnh chụp Căn cước công dân (CCCD)
   licensePlate: string;
   vehicleType: string;
   nationalId: string;
