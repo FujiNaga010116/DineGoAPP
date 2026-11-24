@@ -65,6 +65,7 @@ import {
   isDriverProfileVerified,
 } from '../api/client';
 import { DeliveryMap } from '../components/common/DeliveryMap';
+import { NotificationBell } from '../components/common/NotificationBell';
 import {
   calculateBearingDeg,
   calculateHaversineKm,
@@ -1997,6 +1998,15 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
               <div style={{ fontSize: '0.82rem', color: '#475569' }}>
                 Số dư ví: <strong style={{ color: '#0284C7' }}>{driverWalletBalance.toLocaleString('vi-VN')}đ</strong>
               </div>
+
+              <NotificationBell
+                actorRole="DRIVER"
+                userId={currentUser?.id}
+                driverId={currentDriver.id}
+                actorDisplayName={currentDriver.fullName}
+                onNavigate={onNavigate}
+                variant="light"
+              />
 
               {onLogout && (
                 <button

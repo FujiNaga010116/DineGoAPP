@@ -42,6 +42,7 @@ import type {
   User,
 } from './types';
 import { QrCode, CheckCircle2 } from 'lucide-react';
+import { pushActorNotification, pushMultiActorNotifications } from './utils/notifications';
 
 function createDriverShiftRecord(driver: DriverProfile, existingShifts: DriverShift[]): DriverShift {
   const driverShiftCount = existingShifts.filter((s) => s.driverId === driver.id).length;
@@ -74,8 +75,8 @@ function hydrateSeedCustomerCoords(rawUser: User): User {
   const normalizedRoles: Role[] = Array.isArray(rawUser?.roles)
     ? rawUser.roles
     : (rawUser as any)?.role
-    ? [(rawUser as any).role as Role]
-    : ['CUSTOMER'];
+      ? [(rawUser as any).role as Role]
+      : ['CUSTOMER'];
   const user: User = { ...rawUser, roles: normalizedRoles };
   const seedMatch = MOCK_USERS.find((m) => m.id === user.id);
   if (!seedMatch || user.addressLat != null) return user;
@@ -87,19 +88,19 @@ function hydrateSeedCustomerCoords(rawUser: User): User {
       savedAddresses:
         user.savedAddresses && user.savedAddresses.length > 0
           ? user.savedAddresses.map((addr, idx) =>
-              idx === 0 &&
+            idx === 0 &&
               seedMatch.savedAddresses?.[0] &&
               addr.fullAddress === seedMatch.savedAddresses[0].fullAddress
-                ? {
-                    ...addr,
-                    latitude: addr.latitude ?? seedMatch.savedAddresses[0].latitude,
-                    longitude: addr.longitude ?? seedMatch.savedAddresses[0].longitude,
-                    mapReferenceName:
-                      addr.mapReferenceName ?? seedMatch.savedAddresses[0].mapReferenceName,
-                    mapVerified: addr.mapVerified ?? seedMatch.savedAddresses[0].mapVerified,
-                  }
-                : addr,
-            )
+              ? {
+                ...addr,
+                latitude: addr.latitude ?? seedMatch.savedAddresses[0].latitude,
+                longitude: addr.longitude ?? seedMatch.savedAddresses[0].longitude,
+                mapReferenceName:
+                  addr.mapReferenceName ?? seedMatch.savedAddresses[0].mapReferenceName,
+                mapVerified: addr.mapVerified ?? seedMatch.savedAddresses[0].mapVerified,
+              }
+              : addr,
+          )
           : seedMatch.savedAddresses,
     };
   }
@@ -150,7 +151,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
             parsed.map((u) => hydrateSeedCustomerCoords(u)),
           );
         }
-      } catch {}
+      } catch { }
     }
     return MOCK_USERS;
   });
@@ -162,7 +163,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch {}
+      } catch { }
     }
     return MOCK_DRIVERS;
   });
@@ -207,7 +208,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
           const missingSeeds = MOCK_MERCHANTS.filter((sm) => !existingIds.has(sm.id));
           return [...normalized, ...missingSeeds];
         }
-      } catch {}
+      } catch { }
     }
     return MOCK_MERCHANTS;
   });
@@ -215,10 +216,10 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
   // Current merchant profile for the logged in merchant user (null if not set up yet)
   const ownedMerchant = currentUser?.roles?.includes('MERCHANT')
     ? merchants.find(
-        (m) =>
-          (currentUser.merchantId && m.id === currentUser.merchantId) ||
-          m.ownerUserId === currentUser.id,
-      ) || null
+      (m) =>
+        (currentUser.merchantId && m.id === currentUser.merchantId) ||
+        m.ownerUserId === currentUser.id,
+    ) || null
     : null;
 
   const selectedMerchant = ownedMerchant || merchants[0];
@@ -228,7 +229,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
   const currentDriverProfile =
     currentUser?.roles?.includes('DRIVER')
       ? drivers.find((d) => d.id === currentUser.driverId || d.userId === currentUser.id) ||
-        drivers[0]
+      drivers[0]
       : drivers[0];
 
   const [allMenuItems, setAllMenuItems] = useState<Record<string, MenuItem[]>>(() => {
@@ -242,14 +243,14 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
               merchantId,
               Array.isArray(items)
                 ? items.map((item: MenuItem) => ({
-                    ...item,
-                    imageUrl: fixLegacyTeaImage(item.imageUrl) || item.imageUrl,
-                  }))
+                  ...item,
+                  imageUrl: fixLegacyTeaImage(item.imageUrl) || item.imageUrl,
+                }))
                 : [],
             ]),
           );
         }
-      } catch {}
+      } catch { }
     }
     return MOCK_MENU_ITEMS;
   });
@@ -433,7 +434,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
               JSON.stringify(prev) === e.newValue ? prev : parsed.filter((o: Order) => o.id !== 'ord-sample-01'),
             );
           }
-        } catch {}
+        } catch { }
       }
       if (e.key === 'dinego_delivery_disputes' && e.newValue) {
         try {
@@ -441,7 +442,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
           if (Array.isArray(parsed)) {
             setDeliveryDisputes((prev) => (JSON.stringify(prev) === e.newValue ? prev : parsed));
           }
-        } catch {}
+        } catch { }
       }
     };
     window.addEventListener('storage', onStorage);
@@ -455,7 +456,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
             if (Array.isArray(parsed)) {
               setOrders((prev) => (JSON.stringify(prev) === ev.data ? prev : parsed));
             }
-          } catch {}
+          } catch { }
         }
       };
     }
@@ -469,7 +470,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
             if (Array.isArray(parsed)) {
               setDeliveryDisputes((prev) => (JSON.stringify(prev) === ev.data ? prev : parsed));
             }
-          } catch {}
+          } catch { }
         }
       };
     }
@@ -543,12 +544,12 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
       return prev.map((s, idx) =>
         idx === activeIdx
           ? {
-              ...s,
-              tripsCount: s.tripsCount + 1,
-              grossShippingEarned: s.grossShippingEarned + fee,
-              netIncomeEarned: s.netIncomeEarned + net,
-              trips: [trip, ...s.trips],
-            }
+            ...s,
+            tripsCount: s.tripsCount + 1,
+            grossShippingEarned: s.grossShippingEarned + fee,
+            netIncomeEarned: s.netIncomeEarned + net,
+            trips: [trip, ...s.trips],
+          }
           : s,
       );
     });
@@ -775,6 +776,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     reason?: string,
   ) => {
     void adminApi.updateMerchantStatus(merchantId, nextStatus, reason);
+    const targetMerchant = merchants.find((m) => m.id === merchantId);
     const isNowActive = nextStatus === 'APPROVED';
     setMerchants((prev) =>
       prev.map((m) => {
@@ -800,6 +802,25 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
         u.merchantId === merchantId ? { ...u, isActive: isNowActive } : u,
       ),
     );
+    pushActorNotification({
+      targetRole: 'MERCHANT',
+      targetMerchantId: merchantId,
+      category: 'KYC',
+      title:
+        nextStatus === 'APPROVED'
+          ? `✅ Hồ sơ pháp lý quán "${targetMerchant?.name || 'Cửa hàng'}" đã được Admin phê duyệt!`
+          : nextStatus === 'REJECTED'
+          ? `❌ Hồ sơ pháp lý quán "${targetMerchant?.name || 'Cửa hàng'}" bị từ chối`
+          : `⚠️ Gian hàng "${targetMerchant?.name || 'Cửa hàng'}" đang bị tạm khóa bởi Admin`,
+      message:
+        reason ||
+        (nextStatus === 'APPROVED'
+          ? 'Gian hàng đã được kích hoạt mở bán chính thức trên sàn DineGo.'
+          : 'Vui lòng kiểm tra và cập nhật lại Hồ sơ pháp lý & Avatar chủ sở hữu.'),
+      priority: 'urgent',
+      actionTab: 'merchant-kyc',
+      senderLabel: 'Ban Quản Trị DineGo',
+    });
   };
 
   // Admin updates driver active / suspended status (synchronized with User account)
@@ -822,6 +843,19 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
         u.driverId === driverId ? { ...u, isActive: isNowActive } : u,
       ),
     );
+    pushActorNotification({
+      targetRole: 'DRIVER',
+      targetDriverId: driverId,
+      category: 'KYC',
+      title:
+        nextStatus === 'ACTIVE'
+          ? '✅ Tài khoản Tài xế của bạn đã được Admin mở khóa hoạt động'
+          : '⚠️ Tài khoản Tài xế của bạn đã bị tạm đình chỉ nhận chuyến',
+      message: reason || 'Cập nhật trạng thái vận hành từ Ban Quản Trị DineGo.',
+      priority: 'urgent',
+      actionTab: 'driver-profile',
+      senderLabel: 'Ban Quản Trị DineGo',
+    });
   };
 
   const [activeBrowseMerchant, setActiveBrowseMerchant] = useState<Merchant>(merchants[0]);
@@ -854,6 +888,53 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     if (ownedOrder.orderType !== 'CATERING') {
       void adminApi.saveDatabaseOrder(ownedOrder);
     }
+    const itemsSummary = (ownedOrder.items || [])
+      .map((i) => `${i.quantity}x ${i.itemName}`)
+      .join(', ');
+    pushMultiActorNotifications([
+      {
+        targetRole: 'MERCHANT',
+        targetMerchantId: ownedOrder.merchant?.id,
+        category: ownedOrder.orderType === 'CATERING' ? 'CATERING' : 'ORDER',
+        title: `🔔 Đơn hàng mới #${ownedOrder.orderNumber} từ ${ownedOrder.recipientName}`,
+        message: `${itemsSummary || 'Đơn đặt món mới'} • Tổng: ${ownedOrder.finalTotal.toLocaleString('vi-VN')}đ. Hãy tiếp nhận đơn ngay!`,
+        priority: 'urgent',
+        actionTab: ownedOrder.orderType === 'CATERING' ? 'merchant-catering' : 'merchant-orders',
+        orderRef: ownedOrder.orderNumber,
+        senderLabel: ownedOrder.recipientName,
+      },
+      {
+        targetRole: 'CUSTOMER',
+        targetUserId: ownedOrder.customerId,
+        category: ownedOrder.orderType === 'CATERING' ? 'CATERING' : 'ORDER',
+        title: `✅ Đặt đơn thành công #${ownedOrder.orderNumber}`,
+        message: `Đơn hàng tại "${ownedOrder.merchant?.name}" (${ownedOrder.finalTotal.toLocaleString('vi-VN')}đ) đang chờ quán xác nhận.`,
+        priority: 'normal',
+        actionTab: 'orders',
+        orderRef: ownedOrder.orderNumber,
+        senderLabel: ownedOrder.merchant?.name || 'DineGo',
+      },
+      {
+        targetRole: 'DRIVER',
+        category: 'DELIVERY',
+        title: `🛵 Có đơn hàng mới #${ownedOrder.orderNumber} tại ${ownedOrder.merchant?.name}`,
+        message: `Giao tới: ${ownedOrder.deliveryAddress} • Cước vận chuyển: ${(ownedOrder.deliveryFee || 20000).toLocaleString('vi-VN')}đ.`,
+        priority: 'high',
+        actionTab: 'driver-orders',
+        orderRef: ownedOrder.orderNumber,
+        senderLabel: ownedOrder.merchant?.name || 'Điều phối DineGo',
+      },
+      {
+        targetRole: 'ADMIN',
+        category: 'ORDER',
+        title: `📦 Giao dịch đơn mới #${ownedOrder.orderNumber} (${ownedOrder.finalTotal.toLocaleString('vi-VN')}đ)`,
+        message: `Khách: ${ownedOrder.recipientName} • Quán: ${ownedOrder.merchant?.name}.`,
+        priority: 'normal',
+        actionTab: 'admin-overview',
+        orderRef: ownedOrder.orderNumber,
+        senderLabel: 'Sổ cái Giao dịch',
+      },
+    ]);
     setCurrentTab('orders');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -865,12 +946,12 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
   };
 
   const handleUpdateOrderStatus = (orderId: string, newStatus: OrderStatus) => {
-    const completedOrder = orders.find((o) => o.id === orderId);
+    const targetOrder = orders.find((o) => o.id === orderId);
     let merchantComp = 0;
     // Operational Case 6: Quán hủy khi tài xế đã đến nơi -> Bồi thường tài xế 15.000đ cước di chuyển
-    if (newStatus === 'CANCELLED' && completedOrder && (completedOrder.driverArrivedAtStore || completedOrder.assignedDriverId)) {
+    if (newStatus === 'CANCELLED' && targetOrder && (targetOrder.driverArrivedAtStore || targetOrder.assignedDriverId)) {
       merchantComp = 15000;
-      const assignedDrvId = completedOrder.assignedDriverId;
+      const assignedDrvId = targetOrder.assignedDriverId;
       if (assignedDrvId) {
         setDrivers((prev) =>
           prev.map((drv) =>
@@ -896,13 +977,103 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     );
     void adminApi.updateDatabaseOrderStatus(orderId, {
       status: newStatus,
-      assignedDriverId: completedOrder?.assignedDriverId || undefined,
-      assignedDriverName: completedOrder?.assignedDriverName || undefined,
+      assignedDriverId: targetOrder?.assignedDriverId || undefined,
+      assignedDriverName: targetOrder?.assignedDriverName || undefined,
     });
-    if (newStatus === 'COMPLETED' && completedOrder && completedOrder.assignedDriverId) {
-      const assignedDrv = drivers.find((d) => d.id === completedOrder.assignedDriverId);
+    if (targetOrder) {
+      const statusNotifMap: Partial<Record<OrderStatus, { title: string; msg: string; cat: 'ORDER' | 'KITCHEN' | 'DELIVERY' }>> = {
+        CONFIRMED: {
+          title: `🏪 Quán "${targetOrder.merchant?.name}" đã tiếp nhận đơn #${targetOrder.orderNumber}`,
+          msg: 'Nhà hàng đã xác nhận đơn hàng của bạn và chuẩn bị chuyển vào bếp.',
+          cat: 'ORDER',
+        },
+        PREPARING: {
+          title: `🍳 Bếp quán "${targetOrder.merchant?.name}" đang nấu đơn #${targetOrder.orderNumber}`,
+          msg: 'Đầu bếp đang chế biến món ăn nóng hổi cho bạn.',
+          cat: 'KITCHEN',
+        },
+        READY_FOR_PICKUP: {
+          title: `🍲 Món ăn đơn #${targetOrder.orderNumber} đã nấu xong!`,
+          msg: 'Quán đã đóng gói hoàn tất và đang chờ bàn giao cho tài xế.',
+          cat: 'KITCHEN',
+        },
+        DELIVERING: {
+          title: `🚚 Tài xế đang giao đơn #${targetOrder.orderNumber} tới bạn`,
+          msg: `Tài xế ${targetOrder.assignedDriverName || 'DineGo Express'} đã nhận món từ quán và đang trên đường giao.`,
+          cat: 'DELIVERY',
+        },
+        COMPLETED: {
+          title: `🎉 Đơn hàng #${targetOrder.orderNumber} đã giao thành công!`,
+          msg: `Chúc bạn ngon miệng! Hãy bấm "Đánh giá món ăn & Tài xế" để gửi phản hồi cho quán ${targetOrder.merchant?.name} nhé.`,
+          cat: 'ORDER',
+        },
+        CANCELLED: {
+          title: `❌ Đơn hàng #${targetOrder.orderNumber} đã bị hủy`,
+          msg: targetOrder.cancelReason || 'Đơn hàng đã chuyển sang trạng thái hủy.',
+          cat: 'ORDER',
+        },
+      };
+      const meta = statusNotifMap[newStatus];
+      if (meta) {
+        const batch: Parameters<typeof pushMultiActorNotifications>[0] = [
+          {
+            targetRole: 'CUSTOMER',
+            targetUserId: targetOrder.customerId,
+            category: meta.cat,
+            title: meta.title,
+            message: meta.msg,
+            priority: newStatus === 'COMPLETED' || newStatus === 'DELIVERING' ? 'high' : 'normal',
+            actionTab: 'orders',
+            orderRef: targetOrder.orderNumber,
+            senderLabel: targetOrder.merchant?.name || 'DineGo',
+          },
+        ];
+        if (newStatus === 'READY_FOR_PICKUP') {
+          batch.push({
+            targetRole: 'DRIVER',
+            targetDriverId: targetOrder.assignedDriverId,
+            category: 'DELIVERY',
+            title: `📦 Món đơn #${targetOrder.orderNumber} tại "${targetOrder.merchant?.name}" đã sẵn sàng!`,
+            message: 'Vui lòng di chuyển tới quán và bấm "Báo đã đến nhà hàng" để nhận bàn giao món.',
+            priority: 'urgent',
+            actionTab: 'driver-orders',
+            orderRef: targetOrder.orderNumber,
+            senderLabel: targetOrder.merchant?.name,
+          });
+        }
+        if (newStatus === 'COMPLETED') {
+          batch.push(
+            {
+              targetRole: 'MERCHANT',
+              targetMerchantId: targetOrder.merchant?.id,
+              category: 'ORDER',
+              title: `💰 Đơn hàng #${targetOrder.orderNumber} đã giao thành công`,
+              message: `Doanh thu đơn (${targetOrder.finalTotal.toLocaleString('vi-VN')}đ) đã được ghi nhận vào báo cáo đối soát của quán.`,
+              priority: 'normal',
+              actionTab: 'merchant-analytics',
+              orderRef: targetOrder.orderNumber,
+              senderLabel: 'DineGo Đối soát',
+            },
+            {
+              targetRole: 'DRIVER',
+              targetDriverId: targetOrder.assignedDriverId,
+              category: 'DELIVERY',
+              title: `💵 Hoàn tất chuyến giao #${targetOrder.orderNumber}`,
+              message: `Cước phí chuyến giao đã được cộng vào Ví thu nhập tài xế của bạn.`,
+              priority: 'normal',
+              actionTab: 'driver-earnings',
+              orderRef: targetOrder.orderNumber,
+              senderLabel: 'DineGo Express',
+            },
+          );
+        }
+        pushMultiActorNotifications(batch);
+      }
+    }
+    if (newStatus === 'COMPLETED' && targetOrder && targetOrder.assignedDriverId) {
+      const assignedDrv = drivers.find((d) => d.id === targetOrder.assignedDriverId);
       if (assignedDrv) {
-        recordOrderCompletedInShift(completedOrder, assignedDrv);
+        recordOrderCompletedInShift(targetOrder, assignedDrv);
       }
     }
   };
@@ -925,21 +1096,21 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
             status: o.status === 'PENDING' ? 'CONFIRMED' : o.status,
             payment: o.payment
               ? {
-                  ...o.payment,
-                  paymentStatus: 'SUCCESS',
-                  transactionRef:
-                    o.payment.transactionRef?.startsWith('MOMO-PENDING-')
-                      ? `MOMO-FEAST-${bookingCode.slice(-6)}`
-                      : o.payment.transactionRef || `MOMO-FEAST-${bookingCode.slice(-6)}`,
-                  paidAt: nowIso,
-                }
+                ...o.payment,
+                paymentStatus: 'SUCCESS',
+                transactionRef:
+                  o.payment.transactionRef?.startsWith('MOMO-PENDING-')
+                    ? `MOMO-FEAST-${bookingCode.slice(-6)}`
+                    : o.payment.transactionRef || `MOMO-FEAST-${bookingCode.slice(-6)}`,
+                paidAt: nowIso,
+              }
               : o.payment,
             cateringDetails: o.cateringDetails
               ? {
-                  ...o.cateringDetails,
-                  depositConfirmedByMerchant: true,
-                  depositConfirmedAt: nowIso,
-                }
+                ...o.cateringDetails,
+                depositConfirmedByMerchant: true,
+                depositConfirmedAt: nowIso,
+              }
               : o.cateringDetails,
           };
         }
@@ -950,18 +1121,18 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
             payment:
               o.payment && o.payment.paymentStatus !== 'SUCCESS'
                 ? {
-                    ...o.payment,
-                    paymentStatus: 'SUCCESS',
-                    paidAt: o.payment.paidAt || nowIso,
-                  }
+                  ...o.payment,
+                  paymentStatus: 'SUCCESS',
+                  paidAt: o.payment.paidAt || nowIso,
+                }
                 : o.payment,
             cateringDetails: o.cateringDetails
               ? {
-                  ...o.cateringDetails,
-                  depositConfirmedByMerchant: true,
-                  depositConfirmedAt: o.cateringDetails.depositConfirmedAt || nowIso,
-                  merchantApproved: true,
-                }
+                ...o.cateringDetails,
+                depositConfirmedByMerchant: true,
+                depositConfirmedAt: o.cateringDetails.depositConfirmedAt || nowIso,
+                merchantApproved: true,
+              }
               : o.cateringDetails,
           };
         }
@@ -978,20 +1149,20 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
           payment:
             o.payment && o.payment.paymentStatus !== 'SUCCESS'
               ? {
-                  ...o.payment,
-                  paymentStatus: 'SUCCESS',
-                  paidAt: o.payment.paidAt || nowIso,
-                }
+                ...o.payment,
+                paymentStatus: 'SUCCESS',
+                paidAt: o.payment.paidAt || nowIso,
+              }
               : o.payment,
           cateringDetails: o.cateringDetails
             ? {
-                ...o.cateringDetails,
-                depositConfirmedByMerchant: true,
-                merchantApproved: true,
-                finalBillIssued: true,
-                finalBillCode: meta?.finalBillCode,
-                completedAt: meta?.completedAt,
-              }
+              ...o.cateringDetails,
+              depositConfirmedByMerchant: true,
+              merchantApproved: true,
+              finalBillIssued: true,
+              finalBillCode: meta?.finalBillCode,
+              completedAt: meta?.completedAt,
+            }
             : o.cateringDetails,
         };
       }),
@@ -1009,10 +1180,10 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
           action === 'COMPLETED'
             ? 'COMPLETED'
             : action === 'REJECTED'
-            ? 'CANCELLED'
-            : action === 'CONFIRM_DEPOSIT' || action === 'APPROVED'
-            ? 'DEPOSIT_PAID'
-            : null;
+              ? 'CANCELLED'
+              : action === 'CONFIRM_DEPOSIT' || action === 'APPROVED'
+                ? 'DEPOSIT_PAID'
+                : null;
         if (!nextStatus) continue;
         localStorage.setItem(
           key,
@@ -1043,11 +1214,11 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
       prev.map((o) =>
         o.id === orderId
           ? {
-              ...o,
-              assignedDriverId: driver.id,
-              assignedDriverName: driver.fullName,
-              status: o.status === 'PENDING' ? 'CONFIRMED' : o.status,
-            }
+            ...o,
+            assignedDriverId: driver.id,
+            assignedDriverName: driver.fullName,
+            status: o.status === 'PENDING' ? 'CONFIRMED' : o.status,
+          }
           : o,
       ),
     );
@@ -1056,40 +1227,107 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
       assignedDriverId: driver.id,
       assignedDriverName: driver.fullName,
     });
+    if (targetOrder) {
+      pushMultiActorNotifications([
+        {
+          targetRole: 'MERCHANT',
+          targetMerchantId: targetOrder.merchant?.id,
+          category: 'DELIVERY',
+          title: `🛵 Tài xế ${driver.fullName} (${driver.licensePlate}) đã nhận giao đơn #${targetOrder.orderNumber}`,
+          message: 'Tài xế đang di chuyển tới quán để nhận món.',
+          priority: 'normal',
+          actionTab: 'merchant-orders',
+          orderRef: targetOrder.orderNumber,
+          senderLabel: driver.fullName,
+        },
+        {
+          targetRole: 'CUSTOMER',
+          targetUserId: targetOrder.customerId,
+          category: 'DELIVERY',
+          title: `🛵 Tài xế ${driver.fullName} đã nhận đơn #${targetOrder.orderNumber}`,
+          message: `Biển số: ${driver.licensePlate} • SĐT: ${driver.phoneNumber}.`,
+          priority: 'normal',
+          actionTab: 'orders',
+          orderRef: targetOrder.orderNumber,
+          senderLabel: 'DineGo Express',
+        },
+      ]);
+    }
   };
 
   const handleMarkDriverArrivedAtStore = (orderId: string) => {
     const arrivedAt = new Date().toISOString();
+    const targetOrder = orders.find((o) => o.id === orderId);
     setOrders((prev) =>
       prev.map((o) =>
         o.id === orderId
           ? {
-              ...o,
-              driverArrivedAtStore: true,
-              driverArrivedAtStoreAt: o.driverArrivedAtStoreAt || arrivedAt,
-            }
+            ...o,
+            driverArrivedAtStore: true,
+            driverArrivedAtStoreAt: o.driverArrivedAtStoreAt || arrivedAt,
+          }
           : o,
       ),
     );
+    if (targetOrder) {
+      pushActorNotification({
+        targetRole: 'MERCHANT',
+        targetMerchantId: targetOrder.merchant?.id,
+        category: 'DELIVERY',
+        title: `📍 Tài xế ${targetOrder.assignedDriverName || 'Shipper'} đã có mặt tại quán!`,
+        message: `Đơn #${targetOrder.orderNumber}: Vui lòng kiểm tra và bấm "Xác nhận bàn giao món cho Shipper".`,
+        priority: 'urgent',
+        actionTab: 'merchant-orders',
+        orderRef: targetOrder.orderNumber,
+        senderLabel: targetOrder.assignedDriverName || 'Tài xế',
+      });
+    }
   };
 
   const handleConfirmMerchantPickup = (orderId: string) => {
     const confirmedAt = new Date().toISOString();
+    const targetOrder = orders.find((o) => o.id === orderId);
     setOrders((prev) =>
       prev.map((o) =>
         o.id === orderId
           ? {
-              ...o,
-              merchantConfirmedPickup: true,
-              merchantConfirmedPickupAt: confirmedAt,
-              status:
-                o.status === 'PENDING' || o.status === 'CONFIRMED' || o.status === 'PREPARING'
-                  ? 'READY_FOR_PICKUP'
-                  : o.status,
-            }
+            ...o,
+            merchantConfirmedPickup: true,
+            merchantConfirmedPickupAt: confirmedAt,
+            status:
+              o.status === 'PENDING' || o.status === 'CONFIRMED' || o.status === 'PREPARING'
+                ? 'READY_FOR_PICKUP'
+                : o.status,
+          }
           : o,
       ),
     );
+    if (targetOrder) {
+      pushMultiActorNotifications([
+        {
+          targetRole: 'DRIVER',
+          targetDriverId: targetOrder.assignedDriverId,
+          category: 'DELIVERY',
+          title: `🤝 Quán "${targetOrder.merchant?.name}" đã xác nhận bàn giao đơn #${targetOrder.orderNumber}`,
+          message: 'Bạn đã có thể bấm "Bắt đầu giao hàng" tới địa chỉ của khách.',
+          priority: 'urgent',
+          actionTab: 'driver-orders',
+          orderRef: targetOrder.orderNumber,
+          senderLabel: targetOrder.merchant?.name,
+        },
+        {
+          targetRole: 'CUSTOMER',
+          targetUserId: targetOrder.customerId,
+          category: 'DELIVERY',
+          title: `🤝 Quán đã bàn giao túi món ăn #${targetOrder.orderNumber} cho Tài xế`,
+          message: `Tài xế ${targetOrder.assignedDriverName || 'Shipper'} chuẩn bị xuất phát giao tới bạn.`,
+          priority: 'normal',
+          actionTab: 'orders',
+          orderRef: targetOrder.orderNumber,
+          senderLabel: targetOrder.merchant?.name,
+        },
+      ]);
+    }
   };
 
   const handleConfirmCustomerReceipt = (orderId: string) => {
@@ -1098,10 +1336,10 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
       prev.map((o) =>
         o.id === orderId
           ? {
-              ...o,
-              customerConfirmedReceipt: true,
-              customerConfirmedAt: confirmedAt,
-            }
+            ...o,
+            customerConfirmedReceipt: true,
+            customerConfirmedAt: confirmedAt,
+          }
           : o,
       ),
     );
@@ -1113,12 +1351,12 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
       prev.map((o) =>
         o.id === report.orderId
           ? {
-              ...o,
-              status: 'CANCELLED',
-              cancelledBy: 'DRIVER_DISPUTE',
-              cancelReason: `Khách bom hàng / Không nhận: ${report.reasonLabel}`,
-              deliveryDispute: report,
-            }
+            ...o,
+            status: 'CANCELLED',
+            cancelledBy: 'DRIVER_DISPUTE',
+            cancelReason: `Khách bom hàng / Không nhận: ${report.reasonLabel}`,
+            deliveryDispute: report,
+          }
           : o,
       ),
     );
@@ -1134,10 +1372,10 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
       prev.map((d) =>
         d.id === reportId
           ? {
-              ...d,
-              status: decision,
-              adminNote: adminNote || d.adminNote,
-            }
+            ...d,
+            status: decision,
+            adminNote: adminNote || d.adminNote,
+          }
           : d,
       ),
     );
@@ -1151,9 +1389,9 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
         prev.map((drv) =>
           drv.id === target.driverId
             ? {
-                ...drv,
-                walletBalance: drv.walletBalance + (target.compensationAmount || 15000),
-              }
+              ...drv,
+              walletBalance: drv.walletBalance + (target.compensationAmount || 15000),
+            }
             : drv,
         ),
       );
@@ -1277,12 +1515,12 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
   // Strictly scope orders by owning account / merchant
   const customerOrders = currentUser
     ? orders.filter(
-        (o) =>
-          o.customerId === currentUser.id ||
-          (!o.customerId &&
-            !!o.customerEmail &&
-            o.customerEmail.toLowerCase() === currentUser.email.toLowerCase()),
-      )
+      (o) =>
+        o.customerId === currentUser.id ||
+        (!o.customerId &&
+          !!o.customerEmail &&
+          o.customerEmail.toLowerCase() === currentUser.email.toLowerCase()),
+    )
     : orders.filter((o) => o.customerId === 'guest');
 
   const driverActiveOrder =
@@ -1443,8 +1681,8 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
               isDriverPortalMode
                 ? driverActiveOrder
                 : (selectedTrackingOrderId
-                    ? orders.find((o) => o.id === selectedTrackingOrderId)
-                    : null) || customerOrders[0] || null
+                  ? orders.find((o) => o.id === selectedTrackingOrderId)
+                  : null) || customerOrders[0] || null
             }
             allOrders={isDriverPortalMode ? orders : customerOrders}
             activeTab={currentTab}
@@ -1653,7 +1891,30 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
                 ch.postMessage(serializedComplaints);
                 ch.close();
               }
-            } catch {}
+              pushMultiActorNotifications([
+                {
+                  targetRole: 'ADMIN',
+                  category: 'DISPUTE',
+                  title: `⚠️ Khiếu nại mới #${newComplaint.code} cho đơn #${reviewModalOrder.orderNumber}`,
+                  message: `Khách ${newComplaint.customerName} phản ánh quán "${newComplaint.merchantName}": ${newComplaint.issueType}.`,
+                  priority: 'urgent',
+                  actionTab: 'admin-complaints',
+                  orderRef: reviewModalOrder.orderNumber,
+                  senderLabel: newComplaint.customerName,
+                },
+                {
+                  targetRole: 'MERCHANT',
+                  targetMerchantId: reviewModalOrder.merchant?.id,
+                  category: 'DISPUTE',
+                  title: `⚠️ Đơn hàng #${reviewModalOrder.orderNumber} có phản ánh từ khách hàng`,
+                  message: `Nội dung: "${newComplaint.issueType}". Vui lòng kiểm tra chất lượng món và phối hợp xử lý.`,
+                  priority: 'high',
+                  actionTab: 'merchant-orders',
+                  orderRef: reviewModalOrder.orderNumber,
+                  senderLabel: newComplaint.customerName,
+                },
+              ]);
+            } catch { }
           } else if (data.type === 'REVIEW') {
             try {
               const saved = localStorage.getItem('dinego_merchant_reviews');
@@ -1702,6 +1963,34 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
                 ch.postMessage(serialized);
                 ch.close();
               }
+              pushMultiActorNotifications([
+                {
+                  targetRole: 'MERCHANT',
+                  targetMerchantId: targetMerchantId,
+                  category: 'REVIEW',
+                  title: `⭐ Khách hàng ${newReview.customerName} vừa đánh giá ${newReview.rating} sao cho đơn #${newReview.orderRef}`,
+                  message: `"${newReview.comment}" (${itemsSummary || 'Món ăn của quán'}). Bấm để xem và gửi phản hồi ngay!`,
+                  priority: 'high',
+                  actionTab: 'merchant-analytics',
+                  orderRef: newReview.orderRef,
+                  senderLabel: newReview.customerName,
+                },
+                ...(reviewModalOrder.assignedDriverId
+                  ? [
+                    {
+                      targetRole: 'DRIVER' as const,
+                      targetDriverId: reviewModalOrder.assignedDriverId,
+                      category: 'REVIEW' as const,
+                      title: `⭐ Khách hàng đánh giá ${newReview.driverRating} sao cho chuyến giao #${newReview.orderRef}`,
+                      message: `Cảm ơn bạn đã hoàn thành tốt chuyến giao đơn #${newReview.orderRef}!`,
+                      priority: 'normal' as const,
+                      actionTab: 'driver-history' as const,
+                      orderRef: newReview.orderRef,
+                      senderLabel: newReview.customerName,
+                    },
+                  ]
+                  : []),
+              ]);
 
               // Update merchant rating & review count
               if (targetMerchantId) {
@@ -1716,22 +2005,22 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
                     Math.round(
                       (mReviews.reduce((s, r) => s + (Number(r.rating) || 5), 0) /
                         mReviews.length) *
-                        10,
+                      10,
                     ) / 10;
                   setMerchants((prev) =>
                     prev.map((m) =>
                       m.id === targetMerchantId
                         ? {
-                            ...m,
-                            rating: avg,
-                            reviewCount: Math.max(Number(m.reviewCount || 0), mReviews.length),
-                          }
+                          ...m,
+                          rating: avg,
+                          reviewCount: Math.max(Number(m.reviewCount || 0), mReviews.length),
+                        }
                         : m,
                     ),
                   );
                 }
               }
-            } catch {}
+            } catch { }
           }
         }}
       />
