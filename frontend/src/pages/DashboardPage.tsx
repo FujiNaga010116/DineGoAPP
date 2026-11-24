@@ -2608,36 +2608,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               </span>
             </div>
             <button
-              onClick={() => onNavigate?.('home')}
-              style={{
-                width: '100%',
-                padding: '9px 12px',
-                borderRadius: 8,
-                background: 'rgba(0, 177, 79, 0.12)',
-                border: '1px solid rgba(0, 177, 79, 0.3)',
-                color: '#34D399',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                cursor: 'pointer',
-                marginBottom: 8,
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#00B14F';
-                e.currentTarget.style.color = '#FFFFFF';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(0, 177, 79, 0.12)';
-                e.currentTarget.style.color = '#34D399';
-              }}
-            >
-              <Compass size={15} /> Xem Website Khách hàng
-            </button>
-            <button
               onClick={() => onLogout?.()}
               style={{
                 width: '100%',

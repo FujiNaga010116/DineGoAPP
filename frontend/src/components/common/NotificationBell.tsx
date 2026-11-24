@@ -330,7 +330,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
         </div>
       )}
 
-      {/* Bell Trigger Button */}
+      {/* Bell Trigger Button (Icon Only with Badge) */}
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
@@ -340,8 +340,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 6,
-          padding: '7px 11px',
+          width: 38,
+          height: 38,
           borderRadius: 10,
           background: isOpen
             ? roleMeta.bg
@@ -357,31 +357,45 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
             ? roleMeta.color
             : variant === 'dark'
             ? '#F8FAFC'
-            : '#0F172A',
+            : '#334155',
           cursor: 'pointer',
-          fontWeight: 700,
-          fontSize: '0.82rem',
           transition: 'all 0.15s ease',
+          flexShrink: 0,
+        }}
+        onMouseEnter={(e) => {
+          if (!isOpen) {
+            e.currentTarget.style.borderColor = '#CBD5E1';
+            e.currentTarget.style.background = variant === 'dark' ? '#334155' : '#F1F5F9';
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!isOpen) {
+            e.currentTarget.style.borderColor = variant === 'dark' ? '#334155' : '#E2E8F0';
+            e.currentTarget.style.background = variant === 'dark' ? '#1E293B' : '#F8FAFC';
+          }
         }}
       >
-        <Bell size={16} color={unreadCount > 0 ? roleMeta.color : undefined} />
-        <span className="hide-mobile" style={{ fontSize: '0.78rem' }}>
-          Thông báo
-        </span>
+        <Bell size={18} color={unreadCount > 0 ? roleMeta.color : undefined} />
         {unreadCount > 0 && (
           <span
             style={{
+              position: 'absolute',
+              top: -3,
+              right: -3,
               minWidth: 18,
               height: 18,
-              padding: '0 5px',
+              padding: '0 4px',
               borderRadius: 999,
               background: '#EF4444',
               color: '#FFFFFF',
-              fontSize: '0.68rem',
+              fontSize: '0.66rem',
               fontWeight: 800,
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
+              border: '2px solid #FFFFFF',
+              boxShadow: '0 1px 3px rgba(239, 68, 68, 0.4)',
+              lineHeight: 1,
             }}
           >
             {unreadCount > 9 ? '9+' : unreadCount}
