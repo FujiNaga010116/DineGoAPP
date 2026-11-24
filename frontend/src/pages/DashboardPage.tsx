@@ -39,17 +39,19 @@ import {
   AlertTriangle,
   Camera,
   Phone,
-  Compass,
-  User as UserIcon,
-  Upload,
   FileText,
+  Building2,
+  BadgeCheck,
+  Award,
+  Upload,
+  Eye,
+  Check,
+  Briefcase,
   CreditCard,
 } from 'lucide-react';
 import type { Role, User, Order, OrderStatus, MenuItem, Merchant, DriverProfile, DeliveryDisputeReport } from '../types';
 import { OrderChatModal } from '../components/common/OrderChatModal';
 import type { NavTab } from '../components/common/Header';
-import { NotificationBell } from '../components/common/NotificationBell';
-import { pushActorNotification, pushMultiActorNotifications } from '../utils/notifications';
 import { adminApi } from '../api/client';
 import {
   EVENT_THEME_OPTIONS,
@@ -271,20 +273,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [merchantWithdrawError, setMerchantWithdrawError] = useState('');
 
   // Merchant KYC & Store Settings Editable States
-  const loadStoredOwnerKycMeta = (merchantId?: string) => {
-    if (!merchantId) return null;
-    try {
-      const raw = localStorage.getItem(`dinego_merchant_kyc_meta_${merchantId}`);
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const initialKycMeta = loadStoredOwnerKycMeta(currentMerchant?.id);
-
   const [isEditingMerchantKyc, setIsEditingMerchantKyc] = useState(true);
-  const [kycSectionFilter, setKycSectionFilter] = useState<'OWNER_LEGAL' | 'STORE_OPS' | 'BANK_PAYOUT'>('OWNER_LEGAL');
   const [merchantKycSavedBanner, setMerchantKycSavedBanner] = useState('');
   const [kycStoreName, setKycStoreName] = useState(currentMerchant?.name || '');
   const [kycCategory, setKycCategory] = useState(
@@ -295,34 +284,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   );
   const [kycOwnerEmail, setKycOwnerEmail] = useState(
     currentMerchant?.ownerEmail || currentUser?.email || '',
-  );
-  const [kycOwnerAvatar, setKycOwnerAvatar] = useState(
-    initialKycMeta?.ownerAvatarUrl ||
-      currentMerchant?.ownerAvatarUrl ||
-      currentUser?.avatarUrl ||
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
-  );
-  const [kycOwnerNationalId, setKycOwnerNationalId] = useState(
-    initialKycMeta?.ownerNationalId || currentMerchant?.ownerNationalId || '079095008821',
-  );
-  const [kycOwnerIdIssuedDate, setKycOwnerIdIssuedDate] = useState(
-    initialKycMeta?.ownerIdIssuedDate || currentMerchant?.ownerIdIssuedDate || '2022-05-18',
-  );
-  const [kycOwnerIdIssuedPlace, setKycOwnerIdIssuedPlace] = useState(
-    initialKycMeta?.ownerIdIssuedPlace ||
-      currentMerchant?.ownerIdIssuedPlace ||
-      'Cục Cảnh sát QLHC về TTXH',
-  );
-  const [kycBusinessType, setKycBusinessType] = useState(
-    initialKycMeta?.businessType || currentMerchant?.businessType || 'Hộ Kinh Doanh Cá Thể',
-  );
-  const [kycFoodSafetyIssuedBy, setKycFoodSafetyIssuedBy] = useState(
-    initialKycMeta?.foodSafetyIssuedBy ||
-      currentMerchant?.foodSafetyIssuedBy ||
-      'Sở An Toàn Thực Phẩm TP. Hồ Chí Minh',
-  );
-  const [kycFoodSafetyExpiryDate, setKycFoodSafetyExpiryDate] = useState(
-    initialKycMeta?.foodSafetyExpiryDate || currentMerchant?.foodSafetyExpiryDate || '2028-12-31',
   );
   const [kycPhone, setKycPhone] = useState(
     currentMerchant?.phoneNumber || currentUser?.phoneNumber || '',
@@ -362,69 +323,50 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       currentMerchant?.coverUrl ||
       'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80',
   );
+  const [kycSubTab, setKycSubTab] = useState<'ALL' | 'LEGAL_DOCS' | 'STORE_IDENTITY' | 'BANK_TAX' | 'CONTRACT'>('ALL');
+  const [kycBusinessLicenseImg, setKycBusinessLicenseImg] = useState<string>(
+    'https://images.unsplash.com/photo-1568667256549-094345857637?w=1000&auto=format&fit=crop&q=80',
+  );
+  const [kycFoodSafetyCertImg, setKycFoodSafetyCertImg] = useState<string>(
+    'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=1000&auto=format&fit=crop&q=80',
+  );
+  const [kycOwnerCccd, setKycOwnerCccd] = useState<string>('079185002914');
+  const [kycOwnerCccdFrontImg, setKycOwnerCccdFrontImg] = useState<string>(
+    'https://images.unsplash.com/photo-1633265486064-086b219458ec?w=1000&auto=format&fit=crop&q=80',
+  );
+  const [kycOwnerCccdBackImg, setKycOwnerCccdBackImg] = useState<string>(
+    'https://images.unsplash.com/photo-1554415707-9e49667ffee9?w=1000&auto=format&fit=crop&q=80',
+  );
+  const [previewKycDoc, setPreviewKycDoc] = useState<{
+    title: string;
+    image: string;
+    type: string;
+    code: string;
+    authority: string;
+    date: string;
+  } | null>(null);
+  const [showContractPdfModal, setShowContractPdfModal] = useState<boolean>(false);
 
-  const handleUploadOwnerAvatarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleKycDocUpload = (setter: (url: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setKycOwnerAvatar(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
-  };
-
-  const handleUploadStoreFrontFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setKycStoreFrontImage(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          setter(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   useEffect(() => {
     if (!currentMerchant) return;
-    const meta = loadStoredOwnerKycMeta(currentMerchant.id);
     setStoreOpen(currentMerchant.isOpen ?? true);
     setKycStoreName(currentMerchant.name || '');
     setKycCategory(currentMerchant.categories?.[0] || 'Cơm & Món Việt');
     setKycOwnerName(currentMerchant.ownerName || currentUser?.fullName || '');
     setKycOwnerEmail(currentMerchant.ownerEmail || currentUser?.email || '');
-    setKycOwnerAvatar(
-      meta?.ownerAvatarUrl ||
-        currentMerchant.ownerAvatarUrl ||
-        currentUser?.avatarUrl ||
-        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
-    );
-    setKycOwnerNationalId(
-      meta?.ownerNationalId || currentMerchant.ownerNationalId || '079095008821',
-    );
-    setKycOwnerIdIssuedDate(
-      meta?.ownerIdIssuedDate || currentMerchant.ownerIdIssuedDate || '2022-05-18',
-    );
-    setKycOwnerIdIssuedPlace(
-      meta?.ownerIdIssuedPlace ||
-        currentMerchant.ownerIdIssuedPlace ||
-        'Cục Cảnh sát QLHC về TTXH',
-    );
-    setKycBusinessType(
-      meta?.businessType || currentMerchant.businessType || 'Hộ Kinh Doanh Cá Thể',
-    );
-    setKycFoodSafetyIssuedBy(
-      meta?.foodSafetyIssuedBy ||
-        currentMerchant.foodSafetyIssuedBy ||
-        'Sở An Toàn Thực Phẩm TP. Hồ Chí Minh',
-    );
-    setKycFoodSafetyExpiryDate(
-      meta?.foodSafetyExpiryDate || currentMerchant.foodSafetyExpiryDate || '2028-12-31',
-    );
     setKycPhone(currentMerchant.phoneNumber || currentUser?.phoneNumber || '');
     setKycOpeningHours(currentMerchant.openingHours || '07:00 - 22:00');
     setKycDeliveryMin(currentMerchant.deliveryTimeMin || 20);
@@ -453,25 +395,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     e.preventDefault();
     if (!currentMerchant) return;
 
-    const resolvedOwnerAvatar =
-      kycOwnerAvatar.trim() ||
-      currentMerchant.ownerAvatarUrl ||
-      currentUser?.avatarUrl ||
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80';
-
     const updatedMerchant: Merchant = {
       ...currentMerchant,
       name: kycStoreName.trim() || currentMerchant.name,
       categories: [kycCategory],
       ownerName: kycOwnerName.trim() || currentMerchant.ownerName,
       ownerEmail: kycOwnerEmail.trim() || currentMerchant.ownerEmail,
-      ownerAvatarUrl: resolvedOwnerAvatar,
-      ownerNationalId: kycOwnerNationalId.trim() || '079095008821',
-      ownerIdIssuedDate: kycOwnerIdIssuedDate || '2022-05-18',
-      ownerIdIssuedPlace: kycOwnerIdIssuedPlace.trim() || 'Cục Cảnh sát QLHC về TTXH',
-      businessType: kycBusinessType,
-      foodSafetyIssuedBy: kycFoodSafetyIssuedBy.trim() || 'Sở An Toàn Thực Phẩm TP. Hồ Chí Minh',
-      foodSafetyExpiryDate: kycFoodSafetyExpiryDate || '2028-12-31',
       phoneNumber: kycPhone.trim() || currentMerchant.phoneNumber,
       openingHours: kycOpeningHours.trim() || '07:00 - 22:00',
       deliveryTimeMin: Number(kycDeliveryMin) > 0 ? Number(kycDeliveryMin) : 20,
@@ -488,23 +417,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       storeFrontImage: kycStoreFrontImage.trim() || currentMerchant.storeFrontImage,
       coverUrl: kycStoreFrontImage.trim() || currentMerchant.coverUrl,
       logoUrl: kycStoreFrontImage.trim() || currentMerchant.logoUrl,
+      businessLicenseImage: kycBusinessLicenseImg,
       isOpen: storeOpen,
     };
-
-    try {
-      localStorage.setItem(
-        `dinego_merchant_kyc_meta_${currentMerchant.id}`,
-        JSON.stringify({
-          ownerAvatarUrl: resolvedOwnerAvatar,
-          ownerNationalId: updatedMerchant.ownerNationalId,
-          ownerIdIssuedDate: updatedMerchant.ownerIdIssuedDate,
-          ownerIdIssuedPlace: updatedMerchant.ownerIdIssuedPlace,
-          businessType: updatedMerchant.businessType,
-          foodSafetyIssuedBy: updatedMerchant.foodSafetyIssuedBy,
-          foodSafetyExpiryDate: updatedMerchant.foodSafetyExpiryDate,
-        }),
-      );
-    } catch {}
 
     const updatedUser: User | undefined = currentUser
       ? {
@@ -516,34 +431,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           bankName: updatedMerchant.bankName,
           bankAccountNumber: updatedMerchant.bankAccountNumber,
           bankAccountHolder: updatedMerchant.bankAccountHolder,
-          avatarUrl: resolvedOwnerAvatar,
+          avatarUrl: updatedMerchant.storeFrontImage || currentUser.avatarUrl,
         }
       : undefined;
 
     onUpdateMerchantProfile?.(updatedMerchant, updatedUser);
-    pushMultiActorNotifications([
-      {
-        targetRole: 'MERCHANT',
-        targetMerchantId: updatedMerchant.id,
-        category: 'KYC',
-        title: `🛡️ Đã cập nhật Hồ sơ pháp lý & Avatar Chủ sở hữu`,
-        message: `Chủ quán ${updatedMerchant.ownerName} (CCCD: ${updatedMerchant.ownerNationalId}) • GPKD: ${updatedMerchant.businessLicenseNumber} đã được lưu thành công.`,
-        priority: 'normal',
-        actionTab: 'merchant-kyc',
-        senderLabel: updatedMerchant.name,
-      },
-      {
-        targetRole: 'ADMIN',
-        category: 'KYC',
-        title: `📋 Quán "${updatedMerchant.name}" vừa cập nhật Hồ sơ Pháp lý & Avatar Chủ quán`,
-        message: `Đại diện pháp lý: ${updatedMerchant.ownerName} • CCCD: ${updatedMerchant.ownerNationalId} • GPKD: ${updatedMerchant.businessLicenseNumber}.`,
-        priority: 'normal',
-        actionTab: 'admin-merchants',
-        senderLabel: updatedMerchant.name,
-      },
-    ]);
     setMerchantKycSavedBanner(
-      `Đã lưu cập nhật Hồ sơ pháp lý, Avatar nhận diện chủ sở hữu & Cài đặt gian hàng "${updatedMerchant.name}" thành công lúc ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}!`,
+      `Đã lưu cập nhật Hồ sơ pháp lý & Cài đặt gian hàng "${updatedMerchant.name}" thành công lúc ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}!`,
     );
     setTimeout(() => setMerchantKycSavedBanner(''), 5000);
   };
@@ -729,13 +623,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   // Admin Complaints State — Loaded directly from SQL Server database (No hardcoded demo complaints)
   const [complaints, setComplaints] = useState<any[]>([]);
-  const lastComplaintsJsonRef = React.useRef<string>('[]');
 
   useEffect(() => {
     try {
       const serialized = JSON.stringify(complaints);
-      if (serialized === lastComplaintsJsonRef.current) return;
-      lastComplaintsJsonRef.current = serialized;
       localStorage.setItem('dinego_admin_complaints', serialized);
       window.dispatchEvent(new CustomEvent('dinego_complaints_updated'));
       if (typeof BroadcastChannel !== 'undefined') {
@@ -750,11 +641,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     const refreshComplaints = () => {
       try {
         const saved = localStorage.getItem('dinego_admin_complaints');
-        if (!saved || saved === lastComplaintsJsonRef.current) return;
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          lastComplaintsJsonRef.current = saved;
-          setComplaints(parsed);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setComplaints(parsed);
         }
       } catch {}
     };
@@ -765,20 +654,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     const ch =
       typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('dinego_complaints_sync') : null;
     if (ch) {
-      ch.onmessage = (ev) => {
-        if (typeof ev.data === 'string' && ev.data !== lastComplaintsJsonRef.current) {
-          try {
-            const parsed = JSON.parse(ev.data);
-            if (Array.isArray(parsed)) {
-              lastComplaintsJsonRef.current = ev.data;
-              localStorage.setItem('dinego_admin_complaints', ev.data);
-              setComplaints(parsed);
-            }
-          } catch {}
-        } else {
-          refreshComplaints();
-        }
-      };
+      ch.onmessage = () => refreshComplaints();
     }
     return () => {
       window.removeEventListener('storage', onStorage);
@@ -786,19 +662,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     };
   }, []);
 
-  const [complaintNoteInputs, setComplaintNoteInputs] = useState<Record<string, string>>(() => {
-    try {
-      const saved = localStorage.getItem('dinego_complaint_note_drafts');
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return {};
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('dinego_complaint_note_drafts', JSON.stringify(complaintNoteInputs));
-    } catch {}
-  }, [complaintNoteInputs]);
+  const [complaintNoteInputs, setComplaintNoteInputs] = useState<Record<string, string>>({});
 
   const handleResolveComplaint = (
     id: string,
@@ -824,18 +688,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         : 'Bằng chứng chưa đủ cơ sở bồi hoàn theo quy định sàn.';
 
     const note = complaintNoteInputs[id]?.trim() || defaultNote;
-    const finalCompensationAmount = action !== 'REJECT' ? target?.compensationAmount : 0;
 
     void adminApi.resolveComplaint(id, {
       decision: action === 'REJECT' ? 'REJECTED' : 'RESOLVED_REFUND',
       resolutionNotes: note,
-      compensationAmount: finalCompensationAmount,
+      compensationAmount: action !== 'REJECT' ? target?.compensationAmount : 0,
       faultParty,
     });
     void adminApi.resolveDatabaseComplaint(id, {
       status: action === 'REJECT' ? 'REJECTED' : 'REFUNDED',
       resolutionNotes: note,
-      compensationAmount: finalCompensationAmount,
+      compensationAmount: action !== 'REJECT' ? target?.compensationAmount : 0,
       faultParty,
     });
 
@@ -851,11 +714,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           : c,
       ),
     );
-    setComplaintNoteInputs((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
 
     if (target) {
       const logTitle =
@@ -1081,7 +939,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         ? 'Admin đã giải ngân doanh thu ròng về tài khoản ngân hàng nhà hàng'
         : 'Từ chối yêu cầu rút tiền do chưa khớp biên bản đối soát';
 
-    void adminApi.processDatabaseWithdrawal(id, nextStatus, note);
     setMerchantWithdrawals((prev) =>
       prev.map((w) =>
         w.id === id ? { ...w, status: nextStatus, processedAt: nowStr, note } : w,
@@ -1396,7 +1253,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         ? 'Admin đã đối soát và giải ngân về tài khoản ngân hàng tài xế'
         : 'Từ chối yêu cầu rút tiền do cần đối soát lại cước chuyến';
 
-    void adminApi.processDatabaseWithdrawal(id, nextStatus, note);
     setDriverWithdrawals((prev) =>
       prev.map((w) =>
         w.id === id ? { ...w, status: nextStatus, processedAt: nowStr, note } : w,
@@ -1662,84 +1518,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     triggerAdminToast('Đã xuất tệp báo cáo đối soát công nợ (.CSV) thành công.');
   };
 
-  const handleExportPdf = () => {
-    const printWin = window.open('', '_blank', 'width=1024,height=760');
-    if (!printWin) {
-      triggerAdminToast('Trình duyệt đang chặn cửa sổ bật lên (Pop-up). Vui lòng cho phép Pop-up để xuất PDF.');
-      return;
-    }
-    const rowsHtml = filteredReconciliations
-      .map(
-        (r, i) => `
-          <tr>
-            <td style="text-align:center;">${i + 1}</td>
-            <td><strong>${r.merchantName}</strong><div style="font-size:11px;color:#64748b;">${r.bankAccount || '—'}</div></td>
-            <td style="text-align:center;">${r.period}</td>
-            <td style="text-align:right;">${r.totalOrders}</td>
-            <td style="text-align:right;">${r.grossRevenue.toLocaleString('vi-VN')}đ</td>
-            <td style="text-align:right;color:#dc2626;">-${r.commission15.toLocaleString('vi-VN')}đ</td>
-            <td style="text-align:right;color:#dc2626;">-${r.refundDeducted.toLocaleString('vi-VN')}đ</td>
-            <td style="text-align:right;font-weight:700;">${r.netPayout85.toLocaleString('vi-VN')}đ</td>
-            <td style="text-align:right;font-weight:700;color:#059669;">${r.remainingPayout.toLocaleString('vi-VN')}đ</td>
-            <td style="text-align:center;">${r.status === 'PAID' ? 'Đã giải ngân' : r.status === 'PENDING' ? 'Chờ chi trả' : 'Hết dư'}</td>
-          </tr>
-        `,
-      )
-      .join('');
-    const totalGross = filteredReconciliations.reduce((s, r) => s + r.grossRevenue, 0);
-    const totalComm = filteredReconciliations.reduce((s, r) => s + r.commission15, 0);
-    const totalRemain = filteredReconciliations.reduce((s, r) => s + r.remainingPayout, 0);
-
-    printWin.document.write(`
-      <!doctype html>
-      <html lang="vi">
-      <head>
-        <meta charset="utf-8" />
-        <title>Báo Cáo Đối Soát Công Nợ DineGo - Kỳ ${reconciliationPeriodFilter}</title>
-        <style>
-          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 28px; color: #0f172a; }
-          h1 { font-size: 20px; margin: 0 0 4px 0; color: #0f172a; }
-          .sub { font-size: 13px; color: #475569; margin-bottom: 18px; }
-          .kpi-row { display: flex; gap: 16px; margin-bottom: 18px; }
-          .kpi { flex: 1; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; background: #f8fafc; }
-          .kpi-label { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; }
-          .kpi-val { font-size: 16px; font-weight: 800; margin-top: 4px; }
-          table { width: 100%; border-collapse: collapse; font-size: 12px; }
-          th, td { border: 1px solid #cbd5e1; padding: 8px 10px; }
-          th { background: #0f172a; color: #ffffff; text-align: left; font-size: 11px; text-transform: uppercase; }
-          .footer { margin-top: 28px; display: flex; justify-content: space-between; font-size: 12px; color: #475569; }
-          @media print { body { padding: 12px; } }
-        </style>
-      </head>
-      <body>
-        <h1>BÁO CÁO ĐỐI SOÁT CÔNG NỢ &amp; GIẢI NGÂN ĐỐI TÁC DINEGO</h1>
-        <div class="sub">Kỳ đối soát: <strong>${reconciliationPeriodFilter}</strong> • Ngày xuất: ${new Date().toLocaleString('vi-VN')} • Áp dụng hoa hồng chuẩn BR-42 (${platformCommissionRate}% đơn thường / 8% mâm cỗ)</div>
-        <div class="kpi-row">
-          <div class="kpi"><div class="kpi-label">Tổng Doanh Thu Gộp</div><div class="kpi-val">${totalGross.toLocaleString('vi-VN')}đ</div></div>
-          <div class="kpi"><div class="kpi-label">Tổng Phí Hoa Hồng Sàn</div><div class="kpi-val" style="color:#4f46e5;">${totalComm.toLocaleString('vi-VN')}đ</div></div>
-          <div class="kpi"><div class="kpi-label">Tổng Còn Phải Chi Trả</div><div class="kpi-val" style="color:#059669;">${totalRemain.toLocaleString('vi-VN')}đ</div></div>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>STT</th><th>Nhà hàng &amp; STK</th><th>Kỳ</th><th>Số đơn</th><th>Doanh thu gộp</th><th>Phí sàn</th><th>Hoàn tiền</th><th>Thực nhận ròng</th><th>Còn phải trả</th><th>Trạng thái</th>
-            </tr>
-          </thead>
-          <tbody>${rowsHtml}</tbody>
-        </table>
-        <div class="footer">
-          <div>Người lập biểu<br/><em>(Ký &amp; ghi rõ họ tên)</em></div>
-          <div>Kế toán trưởng / Admin Sàn DineGo<br/><em>(Xác nhận đối soát)</em></div>
-        </div>
-      </body>
-      </html>
-    `);
-    printWin.document.close();
-    printWin.focus();
-    setTimeout(() => printWin.print(), 300);
-    triggerAdminToast('Đã mở bản in Báo cáo Đối soát (.PDF) chuẩn UTF-8.');
-  };
-
   // Admin Platform & Store Event/Holiday Vouchers State (U052) — Persisted in localStorage & Backend Live Sync
   const [vouchers, setVouchers] = useState<ManagedVoucher[]>(() => loadAdminVouchers());
 
@@ -1887,15 +1665,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       code,
       `${themeLabel} • ${merchantName} (${title}, Tối đa ${newVoucherMaxUsage} lượt, HSD ${newVoucherEndDate})`,
     );
-    pushActorNotification({
-      targetRole: 'CUSTOMER',
-      category: 'VOUCHER',
-      title: `🎟️ Voucher mới: ${code} — ${merchantName}`,
-      message: `${title}. Săn mã ngay tại mục Săn Voucher!`,
-      priority: 'high',
-      actionTab: 'vouchers',
-      senderLabel: 'Ban Quản Trị DineGo',
-    });
     triggerAdminToast(`Đã phát hành mã voucher "${code}" (${merchantName}) thành công.`);
     setNewVoucherCode('');
     setShowAdminVoucherForm(false);
@@ -1986,26 +1755,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
     setVouchers((prev) => [created, ...prev]);
     setShopVoucherCode('');
-    pushMultiActorNotifications([
-      {
-        targetRole: 'CUSTOMER',
-        category: 'VOUCHER',
-        title: `🎟️ Quán "${merchantName}" vừa tung mã ưu đãi: ${code}`,
-        message: `${title}. Vào gian hàng lưu mã và đặt món ngay!`,
-        priority: 'high',
-        actionTab: 'vouchers',
-        senderLabel: merchantName,
-      },
-      {
-        targetRole: 'ADMIN',
-        category: 'VOUCHER',
-        title: `🏷️ Quán "${merchantName}" vừa phát hành Voucher: ${code}`,
-        message: `${title} • Tối đa ${created.maxUsage} lượt sử dụng.`,
-        priority: 'normal',
-        actionTab: 'admin-reconciliation',
-        senderLabel: merchantName,
-      },
-    ]);
     setShopVoucherBanner(
       `🎉 Đã phát hành mã "${code}" cho quán ${merchantName}! Khách hàng có thể săn và áp mã ngay tại gian hàng.`,
     );
@@ -2052,117 +1801,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     }
   };
 
-  const [voucherToDelete, setVoucherToDelete] = useState<{ id: string; code: string } | null>(null);
-
   const handleDeleteVoucher = (vId: string, code: string) => {
-    setVoucherToDelete({ id: vId, code });
-  };
-
-  const confirmDeleteVoucher = () => {
-    if (!voucherToDelete) return;
-    const { id, code } = voucherToDelete;
-    setVouchers((prev) => prev.filter((v) => v.id !== id));
+    if (!window.confirm(`Xóa mã khuyến mãi "${code}" khỏi hệ thống?`)) return;
+    setVouchers((prev) => prev.filter((v) => v.id !== vId));
     appendAuditLog('XÓA VOUCHER SỰ KIỆN', code, 'Đã gỡ bỏ mã khỏi danh sách khuyến mãi');
     triggerAdminToast(`Đã xóa mã khuyến mãi "${code}" khỏi hệ thống.`);
-    setVoucherToDelete(null);
   };
-
-  const deleteVoucherModalJsx = voucherToDelete ? (
-    <div
-      onClick={() => setVoucherToDelete(null)}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(15, 23, 42, 0.55)',
-        backdropFilter: 'blur(3px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1300,
-        padding: 16,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: '#FFFFFF',
-          borderRadius: 16,
-          width: '100%',
-          maxWidth: 420,
-          padding: 24,
-          boxShadow: '0 24px 48px rgba(15, 23, 42, 0.22)',
-          border: '1px solid #E2E8F0',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-          <div
-            style={{
-              width: 42,
-              height: 42,
-              borderRadius: 12,
-              background: '#FEE2E2',
-              color: '#DC2626',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <AlertTriangle size={22} />
-          </div>
-          <div>
-            <h3 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 800, color: '#0F172A' }}>
-              Xác nhận xóa mã khuyến mãi
-            </h3>
-            <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: '#64748B' }}>
-              Thao tác này sẽ đồng bộ xóa cả trên SQL Server
-            </p>
-          </div>
-        </div>
-        <p style={{ fontSize: '0.86rem', color: '#334155', lineHeight: 1.5, margin: '0 0 18px 0' }}>
-          Bạn có chắc chắn muốn xóa mã{' '}
-          <strong style={{ color: '#DC2626', background: '#FEF2F2', padding: '2px 8px', borderRadius: 6, border: '1px solid #FECACA' }}>
-            {voucherToDelete.code}
-          </strong>{' '}
-          khỏi hệ thống? Khách hàng sẽ không thể săn hoặc áp dụng mã này ở bước Thanh toán nữa.
-        </p>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-          <button
-            type="button"
-            onClick={() => setVoucherToDelete(null)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 8,
-              border: '1px solid #CBD5E1',
-              background: '#FFFFFF',
-              color: '#334155',
-              fontSize: '0.83rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            Hủy bỏ
-          </button>
-          <button
-            type="button"
-            onClick={confirmDeleteVoucher}
-            style={{
-              padding: '8px 18px',
-              borderRadius: 8,
-              border: 'none',
-              background: '#DC2626',
-              color: '#FFFFFF',
-              fontSize: '0.83rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            Xác nhận xóa
-          </button>
-        </div>
-      </div>
-    </div>
-  ) : null;
 
   // Merchant Reviews & Replies State (Loaded directly from SQL Server database — No hardcoded demo reviews)
   const loadStoredReviews = () => {
@@ -2177,50 +1821,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   };
 
   const [reviews, setReviews] = useState<any[]>([]);
-
-  // AI Knowledge Base (RAG) State — Loaded from SQL Server knowledge_base_vectors
-  const [knowledgeChunks, setKnowledgeChunks] = useState<
-    Array<{ id: string; source: string; content: string; authorName: string; createdAt: string }>
-  >([]);
-  const [kbSourceInput, setKbSourceInput] = useState('');
-  const [kbContentInput, setKbContentInput] = useState('');
-  const [kbSearchQuery, setKbSearchQuery] = useState('');
-  const [kbSaving, setKbSaving] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    void adminApi.getKnowledgeChunks().then((rows) => {
-      if (active && Array.isArray(rows)) setKnowledgeChunks(rows);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const handleAddKnowledgeChunk = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!kbContentInput.trim() || kbSaving) return;
-    setKbSaving(true);
-    const created = await adminApi.createKnowledgeChunk({
-      source: kbSourceInput.trim() || 'Cẩm nang ẩm thực DineGo',
-      content: kbContentInput.trim(),
-    });
-    setKbSaving(false);
-    if (created) {
-      setKnowledgeChunks((prev) => [created, ...prev]);
-      setKbSourceInput('');
-      setKbContentInput('');
-      appendAuditLog('THÊM TRI THỨC AI (RAG)', created.source, created.content.slice(0, 80));
-      triggerAdminToast('Đã thêm đoạn tri thức mới vào cơ sở dữ liệu AI (SQL Server).');
-    }
-  };
-
-  const handleDeleteKnowledgeChunk = async (chunkId: string) => {
-    await adminApi.deleteKnowledgeChunk(chunkId);
-    setKnowledgeChunks((prev) => prev.filter((k) => k.id !== chunkId));
-    appendAuditLog('XÓA TRI THỨC AI (RAG)', chunkId, 'Gỡ bỏ đoạn tri thức khỏi knowledge_base_vectors');
-    triggerAdminToast('Đã xóa đoạn tri thức khỏi cơ sở dữ liệu AI.');
-  };
 
   // Load real feastBookings, complaints, and reviews directly from SQL Server database on mount
   useEffect(() => {
@@ -2241,12 +1841,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         setReviews(ledger.reviews);
         localStorage.setItem('dinego_merchant_reviews', JSON.stringify(ledger.reviews));
         window.dispatchEvent(new CustomEvent('dinego_reviews_updated'));
-      }
-      if (Array.isArray(ledger.merchantWithdrawals) && ledger.merchantWithdrawals.length > 0) {
-        setMerchantWithdrawals(ledger.merchantWithdrawals);
-      }
-      if (Array.isArray(ledger.driverWithdrawals) && ledger.driverWithdrawals.length > 0) {
-        setDriverWithdrawals(ledger.driverWithdrawals);
       }
     };
     void loadFromSqlServer();
@@ -2317,20 +1911,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           }
         : r,
     );
-    const targetReview = baseList.find((r: any) => r.id === reviewId);
     setReviews(nextReviews);
     setReplyInput({ ...replyInput, [reviewId]: '' });
-    pushActorNotification({
-      targetRole: 'CUSTOMER',
-      targetUserId: targetReview?.customerId || undefined,
-      category: 'REVIEW',
-      title: `💬 Quán "${currentMerchant?.name || 'Nhà hàng'}" vừa phản hồi đánh giá của bạn`,
-      message: `Đơn #${targetReview?.orderRef || ''}: "${text.trim()}"`,
-      priority: 'high',
-      actionTab: 'orders',
-      orderRef: targetReview?.orderRef,
-      senderLabel: currentMerchant?.name || 'Chủ quán',
-    });
     try {
       const serialized = JSON.stringify(nextReviews);
       localStorage.setItem('dinego_merchant_reviews', serialized);
@@ -2718,52 +2300,23 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           {/* Top Operational Header (Always Sticky with Direct Logout) */}
           <header
             style={{
-              height: 64,
+              minHeight: 64,
               background: '#FFFFFF',
               borderBottom: '1px solid #E2E8F0',
-              padding: '0 24px',
+              padding: '10px 24px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              flexWrap: 'nowrap',
-              gap: 16,
+              flexWrap: 'wrap',
+              gap: 12,
               position: 'sticky',
               top: 0,
               zIndex: 30,
-              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
             }}
           >
-            {/* Left: Admin Badge + Title + System Status on 1 single row */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flexShrink: 1 }}>
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 8,
-                  background: 'linear-gradient(135deg, #4F46E5 0%, #3730A3 100%)',
-                  color: '#FFFFFF',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)',
-                }}
-              >
-                <ShieldCheck size={18} />
-              </div>
-              <h1
-                style={{
-                  fontSize: '1.05rem',
-                  fontWeight: 800,
-                  color: '#0F172A',
-                  margin: 0,
-                  letterSpacing: -0.2,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  flexShrink: 1,
-                }}
-              >
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <h1 style={{ fontSize: '1.08rem', fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: -0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {currentAdminTab === 'admin-overview' && 'Tổng quan vận hành & Giám sát giao dịch toàn sàn'}
                 {currentAdminTab === 'admin-merchants' && 'Quản lý Đối tác Nhà hàng & Hồ sơ Pháp lý'}
                 {currentAdminTab === 'admin-drivers' && 'Quản lý Đội ngũ Tài xế Giao hàng (DineGo Express)'}
@@ -2774,137 +2327,75 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 {currentAdminTab === 'admin-knowledge' && 'Quản trị Cơ sở Tri thức Ẩm thực Địa phương'}
                 {currentAdminTab === 'admin-settings' && 'Cấu Hình Tham Số Sàn & Nhật Ký Kiểm Toán Quản Trị'}
               </h1>
-              <div
-                style={{
-                  background: '#ECFDF5',
-                  color: '#047857',
-                  border: '1px solid #A7F3D0',
-                  padding: '4px 10px',
-                  borderRadius: 999,
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                }}
-              >
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    background: '#10B981',
-                    boxShadow: '0 0 6px #10B981',
-                  }}
-                />
-                <span>Hệ thống: Đang kết nối</span>
-              </div>
             </div>
 
-            {/* Right: Notification Center & Admin Profile Chip & Top-Right Logout */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 'auto' }}>
-              <NotificationBell
-                actorRole="ADMIN"
-                userId={currentUser?.id}
-                actorDisplayName={currentUser?.fullName || 'Ban Quản Trị Hệ Thống'}
-                onNavigate={onNavigate}
-                variant="light"
-              />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: '#475569', background: '#F1F5F9', padding: '6px 12px', borderRadius: 20 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
+                <span style={{ fontWeight: 600 }}>Cơ sở dữ liệu máy chủ: Đang kết nối</span>
+              </div>
 
-              {/* Admin Profile Card Chip */}
-              <div
-                onClick={() => onNavigate?.('admin-settings')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  background: '#F8FAFC',
-                  border: '1px solid #E2E8F0',
-                  padding: '4px 10px 4px 5px',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                  transition: 'all 0.15s ease',
-                }}
-                title="Tài khoản quản trị — Bấm để mở Cài đặt Sàn"
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#CBD5E1';
-                  e.currentTarget.style.background = '#F1F5F9';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = '#E2E8F0';
-                  e.currentTarget.style.background = '#F8FAFC';
-                }}
-              >
+              <div style={{ height: 20, width: 1, background: '#E2E8F0' }} />
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div
                   style={{
-                    width: 30,
-                    height: 30,
+                    width: 32,
+                    height: 32,
                     borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #4F46E5 0%, #3730A3 100%)',
+                    background: 'linear-gradient(135deg, #00B14F 0%, #059669 100%)',
                     color: '#FFFFFF',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontWeight: 800,
-                    fontSize: '0.78rem',
-                    flexShrink: 0,
+                    fontSize: '0.82rem',
+                    boxShadow: '0 2px 8px rgba(0, 177, 79, 0.35)',
                   }}
                 >
                   AD
                 </div>
-                <div style={{ textAlign: 'left', lineHeight: 1.15 }}>
-                  <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#0F172A', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {currentUser?.fullName || 'Ban Quản Trị'}
+                <div>
+                  <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0F172A', lineHeight: 1.2 }}>
+                    {currentUser?.fullName || 'Ban Quản Trị Hệ Thống'}
                   </div>
-                  <div style={{ fontSize: '0.67rem', color: '#4F46E5', fontWeight: 600 }}>
-                    DineGo Administrator
-                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#00B14F', fontWeight: 600 }}>DINEGO ADMINISTRATOR</div>
                 </div>
               </div>
 
-              {/* Subtle Divider */}
-              <div style={{ height: 20, width: 1, background: '#E2E8F0', flexShrink: 0 }} />
-
-              {/* Nút Đăng xuất ở góc phải trên cùng */}
-              {onLogout && (
-                <button
-                  onClick={() => onLogout()}
-                  title="Đăng xuất khỏi hệ thống quản trị"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '7px 14px',
-                    borderRadius: 8,
-                    background: '#FEF2F2',
-                    border: '1px solid #FECACA',
-                    color: '#DC2626',
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0,
-                    transition: 'all 0.15s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#DC2626';
-                    e.currentTarget.style.color = '#FFFFFF';
-                    e.currentTarget.style.borderColor = '#DC2626';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = '#FEF2F2';
-                    e.currentTarget.style.color = '#DC2626';
-                    e.currentTarget.style.borderColor = '#FECACA';
-                  }}
-                >
-                  <LogOut size={13} />
-                  <span>Đăng xuất</span>
-                </button>
-              )}
+              {/* Direct Header Logout Button — 100% Never Missed */}
+              <button
+                onClick={() => onLogout?.()}
+                title="Đăng xuất khỏi hệ thống quản trị"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 14px',
+                  borderRadius: 8,
+                  background: '#FEF2F2',
+                  border: '1px solid #FECACA',
+                  color: '#DC2626',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  marginLeft: 6,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#DC2626';
+                  e.currentTarget.style.color = '#FFFFFF';
+                  e.currentTarget.style.borderColor = '#DC2626';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#FEF2F2';
+                  e.currentTarget.style.color = '#DC2626';
+                  e.currentTarget.style.borderColor = '#FECACA';
+                }}
+              >
+                <LogOut size={14} />
+                <span>Đăng xuất</span>
+              </button>
             </div>
           </header>
 
@@ -3642,11 +3133,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                 letterSpacing: '0.04em',
                               }}
                             >
-                              <th style={{ padding: '11px 14px' }}>Gian hàng</th>
-                              <th style={{ padding: '11px 12px' }}>Đại diện &amp; Giấy phép</th>
-                              <th style={{ padding: '11px 12px' }}>Địa chỉ kinh doanh</th>
-                              <th style={{ padding: '11px 12px' }}>Trạng thái</th>
-                              <th style={{ padding: '11px 14px', textAlign: 'right' }}>Ghi chú &amp; Thao tác</th>
+                              <th style={{ padding: '11px 20px' }}>Gian hàng</th>
+                              <th style={{ padding: '11px 16px' }}>Đại diện &amp; Giấy phép</th>
+                              <th style={{ padding: '11px 16px' }}>Địa chỉ kinh doanh</th>
+                              <th style={{ padding: '11px 16px' }}>Trạng thái</th>
+                              <th style={{ padding: '11px 20px', textAlign: 'right' }}>Ghi chú &amp; Thao tác</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3685,8 +3176,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                     }}
                                   >
                                     {/* Column 1: Store Identity (Single-line protected) */}
-                                    <td style={{ padding: '12px 14px' }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, maxWidth: 195 }}>
+                                    <td style={{ padding: '12px 20px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 11, maxWidth: 230 }}>
                                         <img
                                           src={
                                             m.storeFrontImage ||
@@ -3695,8 +3186,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                           }
                                           alt={m.name}
                                           style={{
-                                            width: 36,
-                                            height: 36,
+                                            width: 38,
+                                            height: 38,
                                             borderRadius: 8,
                                             objectFit: 'cover',
                                             flexShrink: 0,
@@ -3704,7 +3195,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                             opacity: isSuspended ? 0.6 : 1,
                                           }}
                                         />
-                                        <div style={{ minWidth: 0, maxWidth: 150 }}>
+                                        <div style={{ minWidth: 0, maxWidth: 180 }}>
                                           <div
                                             title={m.name}
                                             style={{
@@ -3734,75 +3225,47 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                       </div>
                                     </td>
 
-                                    {/* Column 2: Representative, Owner Identity Avatar & Business License */}
-                                    <td style={{ padding: '12px 12px' }}>
-                                      {(() => {
-                                        const savedMeta = loadStoredOwnerKycMeta(m.id);
-                                        const ownerAv =
-                                          savedMeta?.ownerAvatarUrl ||
-                                          m.ownerAvatarUrl ||
-                                          'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80';
-                                        const ownerCccd =
-                                          savedMeta?.ownerNationalId || m.ownerNationalId || '079095008821';
-                                        return (
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                            <img
-                                              src={ownerAv}
-                                              alt={m.ownerName || 'Chủ quán'}
-                                              title="Avatar nhận diện chủ sở hữu cửa hàng"
-                                              style={{
-                                                width: 32,
-                                                height: 32,
-                                                borderRadius: '50%',
-                                                objectFit: 'cover',
-                                                border: '2px solid #D97706',
-                                                flexShrink: 0,
-                                              }}
-                                            />
-                                            <div style={{ minWidth: 0 }}>
-                                              <div
-                                                title={m.ownerName || 'Chủ Hộ Kinh Doanh'}
-                                                style={{
-                                                  fontWeight: 600,
-                                                  color: '#1E293B',
-                                                  fontSize: '0.82rem',
-                                                  maxWidth: 135,
-                                                  whiteSpace: 'nowrap',
-                                                  overflow: 'hidden',
-                                                  textOverflow: 'ellipsis',
-                                                }}
-                                              >
-                                                {m.ownerName || 'Chủ Hộ Kinh Doanh'}
-                                              </div>
-                                              <div
-                                                title={`CCCD: ${ownerCccd} • GPKD: ${m.businessLicenseNumber || 'VSATTP-2026-HCM'}`}
-                                                style={{
-                                                  fontSize: '0.71rem',
-                                                  color: '#64748B',
-                                                  marginTop: 2,
-                                                  maxWidth: 145,
-                                                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                                                  whiteSpace: 'nowrap',
-                                                  overflow: 'hidden',
-                                                  textOverflow: 'ellipsis',
-                                                }}
-                                              >
-                                                CCCD: {ownerCccd} • {m.businessLicenseNumber || 'VSATTP-2026-HCM'}
-                                              </div>
-                                            </div>
-                                          </div>
-                                        );
-                                      })()}
+                                    {/* Column 2: Representative & Business License */}
+                                    <td style={{ padding: '12px 14px' }}>
+                                      <div
+                                        title={m.ownerName || 'Chủ Hộ Kinh Doanh'}
+                                        style={{
+                                          fontWeight: 500,
+                                          color: '#1E293B',
+                                          fontSize: '0.82rem',
+                                          maxWidth: 175,
+                                          whiteSpace: 'nowrap',
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                        }}
+                                      >
+                                        {m.ownerName || 'Chủ Hộ Kinh Doanh'}
+                                      </div>
+                                      <div
+                                        title={m.businessLicenseNumber || 'VSATTP-2026-HCM'}
+                                        style={{
+                                          fontSize: '0.72rem',
+                                          color: '#64748B',
+                                          marginTop: 2,
+                                          maxWidth: 175,
+                                          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                                          whiteSpace: 'nowrap',
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                        }}
+                                      >
+                                        {m.businessLicenseNumber || 'VSATTP-2026-HCM'}
+                                      </div>
                                     </td>
 
                                     {/* Column 3: Business Address (Single-line truncated with tooltip) */}
-                                    <td style={{ padding: '12px 12px' }}>
+                                    <td style={{ padding: '12px 14px' }}>
                                       <div
                                         title={m.address}
                                         style={{
                                           color: '#475569',
                                           fontSize: '0.8rem',
-                                          maxWidth: 175,
+                                          maxWidth: 230,
                                           whiteSpace: 'nowrap',
                                           overflow: 'hidden',
                                           textOverflow: 'ellipsis',
@@ -3880,7 +3343,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                     </td>
 
                                     {/* Column 5: Unified Note & Restrained Action Controls */}
-                                    <td style={{ padding: '12px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                    <td style={{ padding: '12px 20px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                       <div
                                         style={{
                                           display: 'inline-flex',
@@ -3900,13 +3363,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                             }))
                                           }
                                           style={{
-                                            padding: '5px 8px',
+                                            padding: '5px 10px',
                                             borderRadius: 6,
                                             border: '1px solid #E2E8F0',
                                             background: '#F8FAFC',
                                             color: '#0F172A',
                                             fontSize: '0.76rem',
-                                            width: 100,
+                                            width: 145,
                                             outline: 'none',
                                           }}
                                         />
@@ -4468,18 +3931,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                   <div style={{ fontWeight: 700, color: '#0F172A' }}>{cmp.code}</div>
                                   <div style={{ fontSize: '0.74rem', color: '#4F46E5', fontWeight: 600 }}>#{cmp.orderNumber}</div>
                                 </td>
-                                <td style={{ padding: '14px 16px', minWidth: 165 }}>
-                                  <div style={{ fontWeight: 600, color: '#0F172A', whiteSpace: 'nowrap' }}>{cmp.customerName}</div>
-                                  <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: 2 }}>
+                                <td style={{ padding: '14px 16px' }}>
+                                  <div style={{ fontWeight: 600, color: '#0F172A' }}>{cmp.customerName}</div>
+                                  <div style={{ fontSize: '0.75rem', color: '#64748B' }}>
                                     Quán: <strong>{cmp.merchantName}</strong>
                                   </div>
                                   {cmp.driverName && (
-                                    <div style={{ fontSize: '0.72rem', color: '#0284C7', marginTop: 2, whiteSpace: 'nowrap' }}>
+                                    <div style={{ fontSize: '0.72rem', color: '#0284C7', marginTop: 2 }}>
                                       Shipper: {cmp.driverName}
                                     </div>
                                   )}
                                 </td>
-                                <td style={{ padding: '14px 16px', color: '#334155', minWidth: 220, maxWidth: 280 }}>
+                                <td style={{ padding: '14px 16px', color: '#334155', maxWidth: 290 }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                     {cmp.evidenceImage && (
                                       <button
@@ -4506,17 +3969,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                       </button>
                                     )}
                                     <div>
-                                      <span style={{ fontSize: '0.81rem', display: 'block', lineHeight: 1.4 }}>{cmp.issueType}</span>
+                                      <span style={{ fontSize: '0.81rem', display: 'block', lineHeight: 1.35 }}>{cmp.issueType}</span>
                                       {cmp.faultParty && cmp.status === 'REFUNDED' && (
                                         <span
                                           style={{
                                             display: 'inline-block',
-                                            marginTop: 5,
+                                            marginTop: 4,
                                             fontSize: '0.7rem',
                                             fontWeight: 600,
-                                            padding: '2px 7px',
+                                            padding: '1px 6px',
                                             borderRadius: 4,
-                                            whiteSpace: 'nowrap',
                                             background:
                                               cmp.faultParty === 'DRIVER'
                                                 ? '#EFF6FF'
@@ -4541,14 +4003,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                     </div>
                                   </div>
                                 </td>
-                                <td style={{ padding: '14px 16px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', minWidth: 105 }}>
-                                  {(Number(cmp.compensationAmount) || 0).toLocaleString('vi-VN')}đ
+                                <td style={{ padding: '14px 16px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap' }}>
+                                  {cmp.compensationAmount.toLocaleString('vi-VN')}đ
                                 </td>
-                                <td style={{ padding: '14px 16px', minWidth: 210 }}>
+                                <td style={{ padding: '14px 16px' }}>
                                   {cmp.status === 'OPEN' ? (
                                     <input
                                       type="text"
-                                      placeholder="Nhập ghi chú trước khi chọn xử lý..."
+                                      placeholder="Ghi chú phân xử..."
                                       value={complaintNoteInputs[cmp.id] || ''}
                                       onChange={(e) =>
                                         setComplaintNoteInputs((prev) => ({
@@ -4557,19 +4019,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                         }))
                                       }
                                       style={{
-                                        padding: '7px 10px',
+                                        padding: '6px 10px',
                                         borderRadius: 6,
-                                        border: '1px solid #CBD5E1',
-                                        background: '#FFFFFF',
-                                        color: '#0F172A',
-                                        fontSize: '0.78rem',
-                                        width: '100%',
-                                        minWidth: 195,
+                                        border: '1px solid #E2E8F0',
+                                        background: '#F8FAFC',
+                                        fontSize: '0.76rem',
+                                        width: 195,
                                         outline: 'none',
                                       }}
                                     />
                                   ) : (
-                                    <span style={{ fontSize: '0.77rem', color: '#334155', lineHeight: 1.45, display: 'block' }}>
+                                    <span style={{ fontSize: '0.76rem', color: '#475569' }}>
                                       {cmp.resolutionNotes || 'Đã hoàn tất xử lý'}
                                     </span>
                                   )}
@@ -5258,25 +4718,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                           }}
                         >
                           <Download size={14} /> Xuất CSV
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleExportPdf}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            padding: '6px 12px',
-                            borderRadius: 8,
-                            background: '#DC2626',
-                            color: '#FFFFFF',
-                            fontWeight: 600,
-                            fontSize: '0.78rem',
-                            border: 'none',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <Printer size={14} /> Xuất PDF
                         </button>
                       </div>
                     </div>
@@ -6559,179 +6000,39 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               </div>
             )}
 
-            {/* ADMIN TAB: AI LOCAL CULINARY KNOWLEDGE BASE (RAG CRUD - SQL SERVER) */}
+            {/* ADMIN TAB: AI LOCAL CULINARY KNOWLEDGE BASE (ĐANG BẢO TRÌ) */}
             {currentAdminTab === 'admin-knowledge' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <div
+                style={{
+                  background: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: 12,
+                  padding: '64px 24px',
+                  textAlign: 'center',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                }}
+              >
                 <div
                   style={{
-                    background: '#FFFFFF',
-                    border: '1px solid #E2E8F0',
-                    borderRadius: 12,
-                    padding: '20px 24px',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                    width: 56,
+                    height: 56,
+                    borderRadius: '50%',
+                    background: '#FEF3C7',
+                    color: '#D97706',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 16,
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
-                    <div>
-                      <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                        Quản trị Cơ sở Tri thức AI (RAG Knowledge Base)
-                      </h3>
-                      <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '4px 0 0 0' }}>
-                        Quản lý trực tiếp các đoạn tri thức ẩm thực trong bảng <code>knowledge_base_vectors</code> (SQL Server) phục vụ trợ lý DineGo Guide
-                      </p>
-                    </div>
-                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#059669', background: '#ECFDF5', padding: '5px 12px', borderRadius: 999 }}>
-                      {knowledgeChunks.length} đoạn tri thức đang hoạt động
-                    </span>
-                  </div>
-
-                  <form onSubmit={handleAddKnowledgeChunk} style={{ display: 'flex', flexDirection: 'column', gap: 12, background: '#F8FAFC', padding: 16, borderRadius: 10, border: '1px solid #E2E8F0' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center' }}>
-                      <input
-                        type="text"
-                        placeholder="Nguồn / Chủ đề tri thức (VD: Cẩm nang ẩm thực Quận 1 TP.HCM)"
-                        value={kbSourceInput}
-                        onChange={(e) => setKbSourceInput(e.target.value)}
-                        style={{
-                          padding: '9px 12px',
-                          borderRadius: 8,
-                          border: '1px solid #CBD5E1',
-                          background: '#FFFFFF',
-                          fontSize: '0.84rem',
-                          color: '#0F172A',
-                          outline: 'none',
-                        }}
-                      />
-                      <button
-                        type="submit"
-                        disabled={kbSaving || !kbContentInput.trim()}
-                        style={{
-                          padding: '9px 18px',
-                          borderRadius: 8,
-                          background: kbSaving || !kbContentInput.trim() ? '#CBD5E1' : '#0F172A',
-                          color: '#FFFFFF',
-                          fontWeight: 700,
-                          fontSize: '0.83rem',
-                          border: 'none',
-                          cursor: kbSaving || !kbContentInput.trim() ? 'not-allowed' : 'pointer',
-                        }}
-                      >
-                        {kbSaving ? 'Đang lưu...' : '+ Thêm đoạn tri thức'}
-                      </button>
-                    </div>
-                    <textarea
-                      rows={3}
-                      placeholder="Nhập nội dung tri thức chi tiết về món ăn, quán đặc sản, quy định đặt mâm cỗ..."
-                      value={kbContentInput}
-                      onChange={(e) => setKbContentInput(e.target.value)}
-                      style={{
-                        padding: '10px 12px',
-                        borderRadius: 8,
-                        border: '1px solid #CBD5E1',
-                        background: '#FFFFFF',
-                        fontSize: '0.84rem',
-                        color: '#0F172A',
-                        resize: 'vertical',
-                        outline: 'none',
-                      }}
-                    />
-                  </form>
+                  <AlertTriangle size={28} />
                 </div>
-
-                <div
-                  style={{
-                    background: '#FFFFFF',
-                    border: '1px solid #E2E8F0',
-                    borderRadius: 12,
-                    padding: '18px 24px',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
-                    <h4 style={{ fontSize: '0.94rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                      Danh sách Tri thức trong SQL Server
-                    </h4>
-                    <input
-                      type="text"
-                      placeholder="Tìm theo nguồn hoặc nội dung..."
-                      value={kbSearchQuery}
-                      onChange={(e) => setKbSearchQuery(e.target.value)}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: 8,
-                        border: '1px solid #E2E8F0',
-                        background: '#F8FAFC',
-                        fontSize: '0.8rem',
-                        width: 240,
-                        outline: 'none',
-                      }}
-                    />
-                  </div>
-
-                  {knowledgeChunks.length === 0 ? (
-                    <div style={{ padding: '32px 16px', textAlign: 'center', color: '#64748B', fontSize: '0.86rem' }}>
-                      Chưa có đoạn tri thức nào trong cơ sở dữ liệu. Hãy thêm đoạn tri thức mới ở khung phía trên!
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {knowledgeChunks
-                        .filter((k) => {
-                          const q = kbSearchQuery.trim().toLowerCase();
-                          if (!q) return true;
-                          return (
-                            k.source.toLowerCase().includes(q) ||
-                            k.content.toLowerCase().includes(q)
-                          );
-                        })
-                        .map((k) => (
-                          <div
-                            key={k.id}
-                            style={{
-                              padding: '14px 16px',
-                              borderRadius: 10,
-                              border: '1px solid #E2E8F0',
-                              background: '#F8FAFC',
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'flex-start',
-                              gap: 14,
-                            }}
-                          >
-                            <div style={{ flex: 1 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#4F46E5', background: '#EEF2FF', padding: '2px 8px', borderRadius: 6 }}>
-                                  {k.source}
-                                </span>
-                                <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
-                                  {k.authorName} • {k.createdAt || 'Mới tạo'}
-                                </span>
-                              </div>
-                              <p style={{ margin: 0, fontSize: '0.85rem', color: '#1E293B', lineHeight: 1.5 }}>
-                                {k.content}
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteKnowledgeChunk(k.id)}
-                              style={{
-                                padding: '6px 12px',
-                                borderRadius: 6,
-                                border: '1px solid #FECACA',
-                                background: '#FFFFFF',
-                                color: '#DC2626',
-                                fontSize: '0.76rem',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                flexShrink: 0,
-                              }}
-                            >
-                              Xóa
-                            </button>
-                          </div>
-                        ))}
-                    </div>
-                  )}
-                </div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', margin: '0 0 8px 0' }}>
+                  Phân hệ Tri thức AI (RAG) đang bảo trì
+                </h3>
+                <p style={{ fontSize: '0.88rem', color: '#64748B', maxWidth: 460, margin: '0 auto' }}>
+                  Chức năng quản trị cơ sở tri thức AI hiện đang để trống và tạm ngưng để bảo trì nâng cấp hệ thống.
+                </p>
               </div>
             )}
 
@@ -7784,7 +7085,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
           </div>
         )}
-        {deleteVoucherModalJsx}
       </div>
     );
   }
@@ -7858,59 +7158,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
           </div>
 
-          {/* Store Info Banner (1-to-1 Merchant Account with Owner Identity Avatar) */}
-          <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 10, border: '1px solid #E2E8F0' }}>
-            <div style={{ fontSize: '0.68rem', color: '#D97706', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>
+          {/* Store Info Banner (1-to-1 Merchant Account) */}
+          <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 8, border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '0.68rem', color: '#D97706', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>
               Gian hàng độc lập
             </div>
-            <div style={{ fontWeight: 800, fontSize: '0.94rem', color: '#0F172A', lineHeight: 1.3, marginBottom: 8 }}>
+            <div style={{ fontWeight: 800, fontSize: '0.94rem', color: '#0F172A', lineHeight: 1.3 }}>
               {currentMerchant?.name || 'Gian hàng của bạn'}
             </div>
-            <div
-              onClick={() => onNavigate?.('merchant-kyc')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 9,
-                paddingTop: 8,
-                borderTop: '1px dashed #E2E8F0',
-                cursor: 'pointer',
-              }}
-              title="Bấm để xem Hồ sơ Pháp lý & Avatar nhận diện Chủ sở hữu"
-            >
-              <div style={{ position: 'relative', flexShrink: 0 }}>
-                <img
-                  src={kycOwnerAvatar}
-                  alt={kycOwnerName || 'Chủ quán'}
-                  style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: '50%',
-                    objectFit: 'cover',
-                    border: '2px solid #D97706',
-                  }}
-                />
-                <span
-                  style={{
-                    position: 'absolute',
-                    bottom: -1,
-                    right: -1,
-                    width: 13,
-                    height: 13,
-                    borderRadius: '50%',
-                    background: '#00B14F',
-                    border: '2px solid #FFFFFF',
-                  }}
-                />
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: '0.77rem', color: '#0F172A', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {kycOwnerName || currentMerchant?.ownerName || currentUser?.fullName || 'Chủ sở hữu'}
-                </div>
-                <div style={{ fontSize: '0.69rem', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  Chủ sở hữu • CCCD: {kycOwnerNationalId}
-                </div>
-              </div>
+            <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 4 }}>
+              Chủ quán: <strong>{currentMerchant?.ownerName || currentUser?.fullName || 'Chưa cập nhật'}</strong>
+            </div>
+            <div style={{ fontSize: '0.72rem', color: '#94A3B8', marginTop: 1 }}>
+              TK: {currentMerchant?.ownerEmail || currentUser?.email || 'Chưa cập nhật'}
             </div>
           </div>
         </div>
@@ -8034,27 +7294,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </button>
           )}
           <button
-            onClick={() => onNavigate?.('home')}
-            style={{
-              width: '100%',
-              padding: '9px 12px',
-              borderRadius: 8,
-              background: '#F0FDF4',
-              border: '1px solid #BBF7D0',
-              color: '#00B14F',
-              fontSize: '0.82rem',
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              cursor: 'pointer',
-              marginBottom: 4,
-            }}
-          >
-            <Compass size={15} /> Xem Gian hàng trên Sàn
-          </button>
-          <button
             onClick={() => onLogout?.()}
             style={{
               width: '100%',
@@ -8084,49 +7323,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             height: 64,
             background: '#FFFFFF',
             borderBottom: '1px solid #E2E8F0',
-            padding: '0 24px',
+            padding: '0 28px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            flexWrap: 'nowrap',
-            gap: 16,
             position: 'sticky',
             top: 0,
             zIndex: 30,
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
           }}
         >
-          {/* Left: Merchant Title & Store Status Badge on 1 single row */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flexShrink: 1 }}>
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                background: 'linear-gradient(135deg, #D97706 0%, #B45309 100%)',
-                color: '#FFFFFF',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                boxShadow: '0 2px 6px rgba(217, 119, 6, 0.25)',
-              }}
-            >
-              <Store size={18} />
-            </div>
-            <h1
-              style={{
-                fontSize: '1.05rem',
-                fontWeight: 800,
-                color: '#0F172A',
-                margin: 0,
-                letterSpacing: -0.2,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                flexShrink: 1,
-              }}
-            >
+          <div>
+            <h1 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
               {currentMerchantTab === 'merchant-orders' && 'Điều phối đơn hàng & Bếp trực tiếp'}
               {currentMerchantTab === 'merchant-menu' && 'Quản lý danh mục Thực đơn & Trạng thái món'}
               {currentMerchantTab === 'merchant-vouchers' && 'Quản lý Mã Ưu Đãi & Voucher Độc Quyền Của Quán'}
@@ -8134,138 +7342,61 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               {currentMerchantTab === 'merchant-analytics' && 'Báo cáo Doanh thu, Đối soát & Đánh giá'}
               {currentMerchantTab === 'merchant-kyc' && 'Hồ sơ Pháp lý Gian hàng & Cài đặt Vận hành'}
             </h1>
-            <button
-              onClick={() => setStoreOpen(!storeOpen)}
-              title={storeOpen ? 'Bấm để chuyển sang tạm đóng cửa' : 'Bấm để mở cửa nhận đơn'}
-              style={{
-                background: storeOpen ? '#ECFDF5' : '#FEF2F2',
-                color: storeOpen ? '#047857' : '#DC2626',
-                border: `1px solid ${storeOpen ? '#A7F3D0' : '#FECACA'}`,
-                padding: '4px 10px',
-                borderRadius: 999,
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <span
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background: storeOpen ? '#10B981' : '#EF4444',
-                  boxShadow: storeOpen ? '0 0 6px #10B981' : 'none',
-                }}
-              />
-              <span>{storeOpen ? 'Đang mở cửa nhận đơn' : 'Tạm đóng cửa'}</span>
-            </button>
           </div>
 
-          {/* Right: Operational Controls & Store Profile Chip & Top-Right Logout */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 'auto' }}>
-            {/* Notification Center */}
-            <NotificationBell
-              actorRole="MERCHANT"
-              userId={currentUser?.id}
-              merchantId={currentMerchant?.id}
-              actorDisplayName={currentMerchant?.name || 'Cửa hàng'}
-              onNavigate={onNavigate}
-              variant="light"
-            />
-
-            {/* Merchant Store & Owner Profile Card Chip */}
-            <div
-              onClick={() => onNavigate?.('merchant-kyc')}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <button
+              onClick={() => setStoreOpen(!storeOpen)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                background: '#F8FAFC',
-                border: '1px solid #E2E8F0',
-                padding: '4px 10px 4px 5px',
-                borderRadius: 8,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-                transition: 'all 0.15s ease',
-              }}
-              title="Chủ sở hữu gian hàng — Bấm để mở Hồ sơ Pháp lý & Cài đặt"
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = '#CBD5E1';
-                e.currentTarget.style.background = '#F1F5F9';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = '#E2E8F0';
-                e.currentTarget.style.background = '#F8FAFC';
+                padding: '6px 14px',
+                borderRadius: 6,
+                border: storeOpen ? '1px solid #86EFAC' : '1px solid #FCA5A5',
+                background: storeOpen ? '#F0FDF4' : '#FEF2F2',
+                color: storeOpen ? '#15803D' : '#DC2626',
+                fontSize: '0.8rem',
+                fontWeight: 700,
               }}
             >
-              <img
-                src={kycOwnerAvatar}
-                alt={kycOwnerName || 'Chủ quán'}
+              <span
                 style={{
-                  width: 30,
-                  height: 30,
+                  width: 7,
+                  height: 7,
                   borderRadius: '50%',
-                  objectFit: 'cover',
-                  border: '2px solid #D97706',
-                  flexShrink: 0,
+                  background: storeOpen ? '#16A34A' : '#DC2626',
                 }}
               />
-              <div style={{ textAlign: 'left', lineHeight: 1.15 }}>
-                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#0F172A', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {currentMerchant?.name || 'Cơm Tấm Sài Gòn 1985'}
-                </div>
-                <div style={{ fontSize: '0.67rem', color: '#64748B', fontWeight: 600 }}>
-                  Chủ quán: {kycOwnerName || currentMerchant?.ownerName || currentUser?.fullName || 'Võ Thị Bích Thùy'}
-                </div>
-              </div>
+              <span>{storeOpen ? 'Trạng thái: Đang mở cửa nhận đơn' : 'Trạng thái: Tạm đóng cửa'}</span>
+            </button>
+
+            <div style={{ height: 18, width: 1, background: '#E2E8F0' }} />
+
+            <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0F172A' }}>
+              {currentMerchant?.name || 'Cơm Tấm Sài Gòn 1985'}
             </div>
 
-            {/* Subtle Divider */}
-            <div style={{ height: 20, width: 1, background: '#E2E8F0', flexShrink: 0 }} />
-
-            {/* Nút Đăng xuất ở góc phải trên cùng */}
-            {onLogout && (
-              <button
-                onClick={onLogout}
-                title="Đăng xuất khỏi Kênh Người Bán"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '7px 14px',
-                  borderRadius: 8,
-                  background: '#FEF2F2',
-                  border: '1px solid #FECACA',
-                  color: '#DC2626',
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                  transition: 'all 0.15s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#DC2626';
-                  e.currentTarget.style.color = '#FFFFFF';
-                  e.currentTarget.style.borderColor = '#DC2626';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#FEF2F2';
-                  e.currentTarget.style.color = '#DC2626';
-                  e.currentTarget.style.borderColor = '#FECACA';
-                }}
-              >
-                <LogOut size={13} />
-                <span>Đăng xuất</span>
-              </button>
-            )}
+            <button
+              onClick={() => onLogout?.()}
+              title="Đăng xuất khỏi Kênh Người Bán"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 12px',
+                borderRadius: 6,
+                background: '#FEF2F2',
+                border: '1px solid #FECACA',
+                color: '#DC2626',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              <LogOut size={13} />
+              <span>Đăng xuất</span>
+            </button>
           </div>
         </header>
 
@@ -8775,29 +7906,71 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                             </button>
                           )}
 
-                          {order.status === 'READY_FOR_PICKUP' && !order.merchantConfirmedPickup && (
-                            <button
-                              type="button"
-                              onClick={() => onConfirmMerchantPickup?.(order.id)}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 7,
-                                padding: '9px 20px',
-                                borderRadius: 8,
-                                background: '#00B14F',
-                                color: '#FFFFFF',
-                                fontSize: '0.86rem',
-                                fontWeight: 800,
-                                border: 'none',
-                                cursor: 'pointer',
-                                boxShadow: '0 4px 12px rgba(0, 177, 79, 0.25)',
-                              }}
-                            >
-                              <CheckCircle2 size={16} />
-                              <span>Xác nhận bàn giao món cho Tài xế</span>
-                            </button>
-                          )}
+                          {order.status === 'READY_FOR_PICKUP' && !order.merchantConfirmedPickup && (() => {
+                            const hasAssignedDriver = Boolean(
+                              order.assignedDriverId ||
+                              (order.assignedDriverName &&
+                                order.assignedDriverName !== 'Chưa ghép tài xế' &&
+                                order.assignedDriverName !== 'Chưa chỉ định')
+                            );
+                            const isDriverAtStore = Boolean(order.driverArrivedAtStore);
+                            const canHandover = hasAssignedDriver && isDriverAtStore;
+
+                            return (
+                              <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
+                                <button
+                                  type="button"
+                                  disabled={!canHandover}
+                                  onClick={() => {
+                                    if (!canHandover) return;
+                                    onConfirmMerchantPickup?.(order.id);
+                                  }}
+                                  title={
+                                    !hasAssignedDriver
+                                      ? 'Chưa có tài xế nhận đơn! Không thể bàn giao món.'
+                                      : !isDriverAtStore
+                                      ? `Tài xế ${order.assignedDriverName} chưa đến quán. Chỉ được bàn giao khi tài xế đã có mặt trong bán kính <100m.`
+                                      : 'Xác nhận bàn giao món cho tài xế đã có mặt'
+                                  }
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 7,
+                                    padding: '9px 20px',
+                                    borderRadius: 8,
+                                    background: canHandover ? '#00B14F' : '#E2E8F0',
+                                    color: canHandover ? '#FFFFFF' : '#94A3B8',
+                                    fontSize: '0.86rem',
+                                    fontWeight: 800,
+                                    border: canHandover ? 'none' : '1px solid #CBD5E1',
+                                    cursor: canHandover ? 'pointer' : 'not-allowed',
+                                    boxShadow: canHandover ? '0 4px 12px rgba(0, 177, 79, 0.25)' : 'none',
+                                    transition: 'all 0.2s',
+                                  }}
+                                >
+                                  <CheckCircle2 size={16} />
+                                  <span>Xác nhận bàn giao món cho Tài xế</span>
+                                </button>
+
+                                {!hasAssignedDriver ? (
+                                  <span style={{ fontSize: '0.74rem', color: '#D97706', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                    <AlertTriangle size={13} color="#D97706" />
+                                    Chưa ghép tài xế • Quán không thể bàn giao suông khi chưa có shipper nhận đơn
+                                  </span>
+                                ) : !isDriverAtStore ? (
+                                  <span style={{ fontSize: '0.74rem', color: '#B45309', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                    <Bike size={13} color="#B45309" />
+                                    Tài xế {order.assignedDriverName} đang di chuyển tới quán • Chưa có mặt trong bán kính 100m
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: '0.74rem', color: '#059669', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                    <CheckCircle2 size={13} color="#059669" />
+                                    Tài xế {order.assignedDriverName} ĐÃ CÓ MẶT TẠI QUÁN (&le; 100m) • Sẵn sàng bàn giao
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
 
                           {order.status === 'READY_FOR_PICKUP' && order.merchantConfirmedPickup && (
                             <div
@@ -9982,12 +9155,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                 minute: '2-digit',
                               }),
                             };
-                            void adminApi.createDatabaseWithdrawal({
-                              ...newReq,
-                              actorType: 'MERCHANT',
-                              actorId: currentMerchantId,
-                              actorName: newReq.merchantName,
-                            });
                             setMerchantWithdrawals((prev) => [newReq, ...prev]);
                             setMerchantWithdrawAmountInput('');
                             setMerchantWithdrawError('');
@@ -10163,63 +9330,52 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       </div>
                     ) : (
                       currentMerchantReviews.map((rev: any) => (
-                        <div
-                          key={rev.id}
-                          style={{
-                            padding: 14,
-                            borderRadius: 10,
-                            border: '1px solid #E2E8F0',
-                            background: '#F8FAFC',
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                            <div style={{ fontWeight: 700, fontSize: '0.86rem', color: '#0F172A' }}>
-                              {rev.customerName || 'Thực khách'} •{' '}
-                              <span style={{ color: '#D97706' }}>{'★'.repeat(Number(rev.rating) || 5)}</span>
+                        <div key={rev.id} style={{ padding: 14, borderRadius: 8, background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+                            <div>
+                              <span style={{ fontWeight: 800, fontSize: '0.88rem', color: '#0F172A' }}>
+                                {rev.customerName}{' '}
+                                <span style={{ color: '#64748B', fontWeight: 600 }}>(#{rev.orderRef})</span>
+                              </span>
+                              {rev.date && (
+                                <span style={{ fontSize: '0.75rem', color: '#94A3B8', marginLeft: 8 }}>
+                                  • {rev.date}
+                                </span>
+                              )}
+                              {rev.itemsSummary && (
+                                <div style={{ fontSize: '0.76rem', color: '#059669', fontWeight: 700, marginTop: 2 }}>
+                                  Món đã đặt: {rev.itemsSummary}
+                                </div>
+                              )}
                             </div>
-                            <span style={{ fontSize: '0.74rem', color: '#64748B' }}>{rev.createdAt}</span>
+                            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#D97706', background: '#FEF3C7', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>
+                              {'★'.repeat(Math.max(1, Math.min(5, Number(rev.rating) || 5)))} ({rev.rating}.0)
+                            </span>
                           </div>
-                          {rev.dishOrdered && (
-                            <div style={{ fontSize: '0.76rem', color: '#4F46E5', fontWeight: 600, marginBottom: 4 }}>
-                              Món: {rev.dishOrdered}
-                            </div>
-                          )}
-                          <p style={{ margin: '0 0 8px 0', fontSize: '0.84rem', color: '#334155', lineHeight: 1.45 }}>
-                            {rev.comment}
+                          <p style={{ fontSize: '0.86rem', color: '#1E293B', margin: '6px 0 10px 0', fontWeight: 500 }}>
+                            &ldquo;{rev.comment}&rdquo;
                           </p>
                           {rev.reply ? (
-                            <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: '8px 10px', fontSize: '0.8rem', color: '#065F46' }}>
-                              <strong>Phản hồi của quán:</strong> {rev.reply}
+                            <div style={{ background: '#FFFFFF', borderLeft: '3px solid #D97706', padding: '8px 12px', borderRadius: 4, fontSize: '0.8rem', color: '#475569' }}>
+                              <strong style={{ color: '#B45309' }}>Phản hồi của quán:</strong> {rev.reply}
+                              {rev.repliedAt && (
+                                <span style={{ fontSize: '0.72rem', color: '#94A3B8', marginLeft: 6 }}>
+                                  ({rev.repliedAt})
+                                </span>
+                              )}
                             </div>
                           ) : (
-                            <div style={{ display: 'flex', gap: 8 }}>
+                            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                               <input
                                 type="text"
-                                placeholder="Nhập phản hồi gửi thực khách..."
+                                placeholder="Nhập nội dung phản hồi thực khách..."
                                 value={replyInput[rev.id] || ''}
                                 onChange={(e) => setReplyInput({ ...replyInput, [rev.id]: e.target.value })}
-                                style={{
-                                  flex: 1,
-                                  padding: '7px 10px',
-                                  borderRadius: 6,
-                                  border: '1px solid #CBD5E1',
-                                  background: '#FFFFFF',
-                                  fontSize: '0.8rem',
-                                }}
+                                style={{ flex: 1, padding: '7px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.82rem', background: '#FFFFFF' }}
                               />
                               <button
-                                type="button"
                                 onClick={() => handleSendReply(rev.id)}
-                                style={{
-                                  padding: '7px 14px',
-                                  borderRadius: 6,
-                                  background: '#0F172A',
-                                  color: '#FFFFFF',
-                                  fontSize: '0.78rem',
-                                  fontWeight: 700,
-                                  border: 'none',
-                                  cursor: 'pointer',
-                                }}
+                                style={{ padding: '7px 14px', borderRadius: 6, background: '#0F172A', color: '#FFFFFF', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', border: 'none' }}
                               >
                                 Gửi phản hồi
                               </button>
@@ -10234,241 +9390,124 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
           )}
 
-          {/* MERCHANT TAB 5: STOREFRONT KYC PROFILE & SETTINGS (OPTIMIZED + OWNER AVATAR) */}
-          {currentMerchantTab === 'merchant-kyc' && (() => {
-            const kycChecklist = [
-              { label: 'Avatar nhận diện chủ sở hữu', done: Boolean(kycOwnerAvatar.trim()) },
-              { label: 'Họ tên & CCCD chủ quán', done: Boolean(kycOwnerName.trim() && kycOwnerNationalId.trim()) },
-              { label: 'Giấy phép ĐKKD & Mã số thuế', done: Boolean(kycBusinessLicense.trim() && kycTaxCode.trim()) },
-              { label: 'Chứng nhận VSATTP', done: Boolean(kycFoodSafetyCert.trim()) },
-              { label: 'Địa chỉ & Ảnh mặt tiền quán', done: Boolean(kycAddress.trim() && kycStoreFrontImage.trim()) },
-              { label: 'Tài khoản ngân hàng đối soát', done: Boolean(kycBankName.trim() && kycBankAccountNumber.trim() && kycBankAccountHolder.trim()) },
-            ];
-            const completedCount = kycChecklist.filter((c) => c.done).length;
-            const completionPct = Math.round((completedCount / kycChecklist.length) * 100);
-
-            return (
+          {/* MERCHANT TAB 5: STOREFRONT KYC PROFILE & SETTINGS (ENTERPRISE GRADE) */}
+          {currentMerchantTab === 'merchant-kyc' && (
             <form
               onSubmit={handleSaveMerchantKycAndSettings}
-              style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 22 }}
             >
-              {/* Header Banner, Owner Quick Identity Card & Edit/Save Action Bar */}
+              {/* Header Action Bar with Enterprise Badges & PDF Export */}
               <div
                 style={{
                   background: '#FFFFFF',
                   border: '1px solid #E2E8F0',
                   borderRadius: 14,
-                  padding: '20px 24px',
+                  padding: '20px 26px',
                   display: 'flex',
-                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
                   gap: 16,
-                  boxShadow: '0 2px 8px rgba(15, 23, 42, 0.03)',
+                  boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
                 }}
               >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    gap: 14,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <div style={{ position: 'relative', flexShrink: 0 }}>
-                      <img
-                        src={kycOwnerAvatar}
-                        alt={kycOwnerName || 'Chủ sở hữu'}
-                        style={{
-                          width: 60,
-                          height: 60,
-                          borderRadius: '50%',
-                          objectFit: 'cover',
-                          border: '3px solid #D97706',
-                          boxShadow: '0 4px 12px rgba(217, 119, 6, 0.25)',
-                        }}
-                      />
-                      <span
-                        style={{
-                          position: 'absolute',
-                          bottom: 0,
-                          right: 0,
-                          width: 20,
-                          height: 20,
-                          borderRadius: '50%',
-                          background: '#00B14F',
-                          color: '#FFFFFF',
-                          border: '2px solid #FFFFFF',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                        title="Đã định danh chủ sở hữu"
-                      >
-                        <CheckCircle2 size={11} />
-                      </span>
-                    </div>
-
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 4 }}>
-                        <h3 style={{ fontSize: '1.12rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                          Hồ sơ Pháp lý, Định danh Chủ sở hữu &amp; Cài đặt Gian hàng
-                        </h3>
-                        <span
-                          style={{
-                            background:
-                              currentMerchant?.kycStatus === 'REJECTED'
-                                ? '#FEE2E2'
-                                : currentMerchant?.kycStatus === 'PENDING_APPROVAL'
-                                ? '#FEF3C7'
-                                : '#DCFCE7',
-                            color:
-                              currentMerchant?.kycStatus === 'REJECTED'
-                                ? '#DC2626'
-                                : currentMerchant?.kycStatus === 'PENDING_APPROVAL'
-                                ? '#B45309'
-                                : '#15803D',
-                            padding: '4px 12px',
-                            borderRadius: 6,
-                            fontSize: '0.75rem',
-                            fontWeight: 800,
-                          }}
-                        >
-                          {currentMerchant?.kycStatus === 'REJECTED'
-                            ? 'Hồ sơ bị từ chối'
-                            : currentMerchant?.kycStatus === 'PENDING_APPROVAL'
-                            ? 'Đang chờ thẩm định'
-                            : `Đã xác thực KYC${currentMerchant?.verifiedAt ? ` • ${currentMerchant.verifiedAt}` : ''}`}
-                        </span>
-                      </div>
-                      <p style={{ fontSize: '0.81rem', color: '#64748B', margin: 0 }}>
-                        Chủ sở hữu đại diện: <strong style={{ color: '#0F172A' }}>{kycOwnerName}</strong> • CCCD: <strong style={{ color: '#0F172A' }}>{kycOwnerNationalId}</strong> • GPKD: <strong style={{ color: '#0F172A' }}>{kycBusinessLicense}</strong>
-                      </p>
-                    </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.74rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+                    <span>Kênh Đối Tác Nhà Hàng</span>
+                    <span>/</span>
+                    <span style={{ color: '#00B14F' }}>Trung Tâm Pháp Lý &amp; Thẩm Định Doanh Nghiệp (KYC)</span>
                   </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingMerchantKyc((prev) => !prev)}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.02em' }}>
+                      Hồ Sơ Pháp Lý &amp; Định Danh Doanh Nghiệp
+                    </h2>
+                    <span
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: 6,
-                        padding: '9px 16px',
-                        borderRadius: 8,
-                        border: '1px solid #CBD5E1',
-                        background: isEditingMerchantKyc ? '#F8FAFC' : '#FFFFFF',
-                        color: '#334155',
-                        fontSize: '0.84rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <Edit3 size={15} />
-                      <span>{isEditingMerchantKyc ? 'Khóa chỉnh sửa (Chỉ xem)' : 'Bật chế độ chỉnh sửa'}</span>
-                    </button>
-
-                    <button
-                      type="submit"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 7,
-                        padding: '9px 20px',
-                        borderRadius: 8,
-                        background: '#00B14F',
-                        color: '#FFFFFF',
-                        fontSize: '0.85rem',
+                        background: '#DCFCE7',
+                        border: '1px solid #86EFAC',
+                        color: '#15803D',
+                        padding: '4px 12px',
+                        borderRadius: 20,
+                        fontSize: '0.76rem',
                         fontWeight: 800,
-                        border: 'none',
-                        cursor: 'pointer',
-                        boxShadow: '0 4px 12px rgba(0, 177, 79, 0.25)',
                       }}
                     >
-                      <CheckCircle2 size={16} />
-                      <span>Lưu cập nhật hồ sơ</span>
-                    </button>
+                      <BadgeCheck size={15} color="#15803D" />
+                      <span>ĐÃ THẨM ĐỊNH PHÁP LÝ CHÍNH THỨC • GOLD TIER</span>
+                    </span>
                   </div>
+                  <p style={{ fontSize: '0.82rem', color: '#64748B', margin: '4px 0 0 0' }}>
+                    Hồ sơ kinh doanh, chứng nhận VSATTP và tài khoản thanh toán đã được chuẩn hóa theo quy định Pháp luật và Sàn TMĐT DineGo.
+                  </p>
                 </div>
 
-                {/* KYC Completeness Progress Bar & Quick Section Filter */}
-                <div
-                  style={{
-                    paddingTop: 14,
-                    borderTop: '1px solid #F1F5F9',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexWrap: 'wrap',
-                    gap: 14,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: '0.76rem', fontWeight: 800, color: '#0F172A' }}>
-                        Mức độ hoàn thiện hồ sơ pháp lý:
-                      </span>
-                      <span
-                        style={{
-                          padding: '2px 9px',
-                          borderRadius: 999,
-                          background: completionPct === 100 ? '#DCFCE7' : '#FEF3C7',
-                          color: completionPct === 100 ? '#15803D' : '#B45309',
-                          fontSize: '0.75rem',
-                          fontWeight: 800,
-                        }}
-                      >
-                        {completionPct}% ({completedCount}/{kycChecklist.length} hạng mục)
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {kycChecklist.map((item, i) => (
-                        <span
-                          key={i}
-                          style={{
-                            padding: '2px 8px',
-                            borderRadius: 6,
-                            background: item.done ? '#F0FDF4' : '#FEF2F2',
-                            border: `1px solid ${item.done ? '#BBF7D0' : '#FECACA'}`,
-                            color: item.done ? '#15803D' : '#DC2626',
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                          }}
-                        >
-                          {item.done ? '✓' : '•'} {item.label}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowContractPdfModal(true)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 7,
+                      padding: '9px 16px',
+                      borderRadius: 8,
+                      border: '1px solid #CBD5E1',
+                      background: '#FFFFFF',
+                      color: '#1E293B',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                    }}
+                  >
+                    <FileText size={15} color="#475569" />
+                    <span>Xuất Trích Lục Hợp Đồng (PDF)</span>
+                  </button>
 
-                  {/* Filter Tabs for Fast Navigation */}
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {[
-                      { id: 'OWNER_LEGAL' as const, label: 'Định danh Chủ quán & GPKD' },
-                      { id: 'STORE_OPS' as const, label: 'Thương hiệu & Mặt tiền' },
-                      { id: 'BANK_PAYOUT' as const, label: 'Ngân hàng Đối soát' },
-                    ].map((tab) => (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => setKycSectionFilter(tab.id)}
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: 8,
-                          border:
-                            kycSectionFilter === tab.id ? '1.5px solid #D97706' : '1px solid #CBD5E1',
-                          background: kycSectionFilter === tab.id ? '#FFFBEB' : '#F8FAFC',
-                          color: kycSectionFilter === tab.id ? '#B45309' : '#475569',
-                          fontSize: '0.75rem',
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {tab.label}
-                      </button>
-                    ))}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingMerchantKyc((prev) => !prev)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '9px 16px',
+                      borderRadius: 8,
+                      border: isEditingMerchantKyc ? '1.5px solid #00B14F' : '1px solid #CBD5E1',
+                      background: isEditingMerchantKyc ? '#F0FDF4' : '#FFFFFF',
+                      color: isEditingMerchantKyc ? '#15803D' : '#334155',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Edit3 size={15} />
+                    <span>{isEditingMerchantKyc ? 'Khóa chỉnh sửa (Chỉ xem)' : 'Bật chế độ cập nhật hồ sơ'}</span>
+                  </button>
+
+                  <button
+                    type="submit"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 7,
+                      padding: '9px 22px',
+                      borderRadius: 8,
+                      background: '#00B14F',
+                      color: '#FFFFFF',
+                      fontSize: '0.84rem',
+                      fontWeight: 800,
+                      border: 'none',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 14px rgba(0, 177, 79, 0.28)',
+                    }}
+                  >
+                    <CheckCircle2 size={16} />
+                    <span>Lưu cập nhật thông tin</span>
+                  </button>
                 </div>
               </div>
 
@@ -10492,192 +9531,708 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 </div>
               )}
 
-              {/* DEDICATED ROW 1: OWNER IDENTIFICATION AVATAR & LEGAL KYC CERTIFICATES */}
-              {kycSectionFilter === 'OWNER_LEGAL' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 1fr', gap: 20, alignItems: 'start' }}>
-                  {/* Card A: Định danh Chủ sở hữu Cửa hàng & Avatar Nhận diện */}
-                  <div
-                    style={{
-                      background: '#FFFFFF',
-                      border: '1.5px solid #FDE68A',
-                      borderRadius: 12,
-                      padding: 22,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 14,
-                      boxShadow: '0 4px 14px rgba(217, 119, 6, 0.05)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid #FEF3C7' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <UserIcon size={18} color="#D97706" />
-                        <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                          1. Định danh Chủ sở hữu &amp; Avatar Nhận diện (Owner KYC)
-                        </h4>
-                      </div>
-                      <span
-                        style={{
-                          padding: '2px 9px',
-                          borderRadius: 999,
-                          background: '#FFFBEB',
-                          border: '1px solid #FDE68A',
-                          color: '#B45309',
-                          fontSize: '0.7rem',
-                          fontWeight: 800,
-                        }}
-                      >
-                        Bắt buộc đối chiếu CCCD
-                      </span>
-                    </div>
+              {/* 1. ENTERPRISE COMPLIANCE TRUST BANNER (HIGH-END GRADIENT) */}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 55%, #064E3B 100%)',
+                  borderRadius: 16,
+                  padding: '24px 28px',
+                  color: '#FFFFFF',
+                  boxShadow: '0 8px 24px rgba(15, 23, 42, 0.16)',
+                  border: '1px solid rgba(16, 185, 129, 0.25)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: -40,
+                    right: -40,
+                    width: 220,
+                    height: 220,
+                    background: 'radial-gradient(circle, rgba(16, 185, 129, 0.18) 0%, rgba(16, 185, 129, 0) 70%)',
+                    borderRadius: '50%',
+                    pointerEvents: 'none',
+                  }}
+                />
 
-                    {/* Owner Portrait Avatar Preview + Upload Box */}
-                    <div
+                <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.1fr 0.9fr', gap: 24, alignItems: 'center' }}>
+                  {/* Store Identity & Brand */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <img
+                      src={kycStoreFrontImage || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=200&auto=format&fit=crop&q=80'}
+                      alt="Avatar Quán"
                       style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'auto 1fr',
-                        gap: 16,
-                        padding: 14,
-                        borderRadius: 12,
-                        background: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)',
-                        border: '1px solid #FDE68A',
-                        alignItems: 'center',
+                        width: 72,
+                        height: 72,
+                        borderRadius: 14,
+                        objectFit: 'cover',
+                        border: '2px solid rgba(255, 255, 255, 0.2)',
+                        boxShadow: '0 4px 10px rgba(0,0,0,0.25)',
                       }}
-                    >
-                      <div style={{ position: 'relative', width: 92, height: 92 }}>
-                        <img
-                          src={kycOwnerAvatar}
-                          alt={kycOwnerName || 'Chủ sở hữu cửa hàng'}
-                          style={{
-                            width: 92,
-                            height: 92,
-                            borderRadius: '50%',
-                            objectFit: 'cover',
-                            border: '3px solid #D97706',
-                            background: '#FFFFFF',
-                            boxShadow: '0 6px 16px rgba(217, 119, 6, 0.25)',
-                          }}
-                        />
+                    />
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <h3 style={{ fontSize: '1.18rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
+                          {kycStoreName || currentMerchant?.name || 'Cơm Tấm Sài Gòn 1985'}
+                        </h3>
                         <span
                           style={{
-                            position: 'absolute',
-                            bottom: 2,
-                            right: 2,
-                            padding: '2px 6px',
-                            borderRadius: 999,
-                            background: '#00B14F',
-                            color: '#FFFFFF',
-                            fontSize: '0.62rem',
+                            background: 'rgba(16, 185, 129, 0.22)',
+                            color: '#6EE7B7',
+                            border: '1px solid rgba(110, 231, 183, 0.4)',
+                            padding: '2px 8px',
+                            borderRadius: 6,
+                            fontSize: '0.68rem',
                             fontWeight: 800,
-                            border: '1.5px solid #FFFFFF',
+                            letterSpacing: '0.04em',
                           }}
                         >
-                          KYC
+                          OFFICIAL FLAGSHIP
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: '#CBD5E1', marginTop: 4 }}>
+                        Đại diện pháp luật: <strong style={{ color: '#FFFFFF' }}>{kycOwnerName}</strong> • MST: <strong style={{ color: '#FCD34D' }}>{kycTaxCode}</strong>
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: '#94A3B8', marginTop: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <MapPin size={13} color="#94A3B8" />
+                        <span>{kycAddress || '123 Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. HCM'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Audit Trail Details */}
+                  <div
+                    style={{
+                      borderLeft: '1px solid rgba(255, 255, 255, 0.12)',
+                      paddingLeft: 20,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4,
+                      fontSize: '0.76rem',
+                    }}
+                  >
+                    <div style={{ color: '#94A3B8' }}>Mã định danh hồ sơ KYC:</div>
+                    <div style={{ fontFamily: 'monospace', fontWeight: 800, color: '#6EE7B7', fontSize: '0.88rem', letterSpacing: '0.06em' }}>
+                      DG-KYC-HCM-2026-0891
+                    </div>
+                    <div style={{ color: '#94A3B8', marginTop: 4 }}>Đơn vị thẩm định:</div>
+                    <div style={{ fontWeight: 700, color: '#E2E8F0' }}>
+                      Ban Pháp Chế &amp; An Toàn Thực Phẩm DineGo Global
+                    </div>
+                  </div>
+
+                  {/* Official DINEGO VERIFIED Seal Stamp */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <div
+                      style={{
+                        border: '2px dashed #10B981',
+                        borderRadius: 14,
+                        padding: '10px 18px',
+                        textAlign: 'center',
+                        background: 'rgba(6, 78, 59, 0.4)',
+                        transform: 'rotate(-3deg)',
+                        boxShadow: '0 0 0 4px rgba(16, 185, 129, 0.12)',
+                      }}
+                    >
+                      <div style={{ fontSize: '0.62rem', letterSpacing: '0.15em', fontWeight: 900, color: '#6EE7B7', textTransform: 'uppercase' }}>
+                        DINEGO VERIFIED
+                      </div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 900, color: '#ECFDF5', marginTop: 2 }}>
+                        ★ CHỨNG NHẬN ★
+                      </div>
+                      <div style={{ fontSize: '0.64rem', fontFamily: 'monospace', color: '#A7F3D0', marginTop: 2 }}>
+                        HIỆU LỰC: 2026 - 2028
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4 Compliance Checklist Tags Bar */}
+                <div
+                  style={{
+                    marginTop: 18,
+                    paddingTop: 14,
+                    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: 12,
+                    fontSize: '0.76rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: '#6EE7B7', fontWeight: 700 }}>
+                    <CheckCircle2 size={15} color="#10B981" />
+                    <span>Giấy ĐKKD / Hộ KD: Hợp lệ</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: '#6EE7B7', fontWeight: 700 }}>
+                    <CheckCircle2 size={15} color="#10B981" />
+                    <span>Chứng nhận VSATTP: Loại A (Bộ Y Tế)</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: '#6EE7B7', fontWeight: 700 }}>
+                    <CheckCircle2 size={15} color="#10B981" />
+                    <span>CCCD Người Đại Diện: Đã đối soát</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: '#6EE7B7', fontWeight: 700 }}>
+                    <CheckCircle2 size={15} color="#10B981" />
+                    <span>Tài Khoản Đối Soát: Napas 247 Khớp 100%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. SUB-TABS NAVIGATION FOR STRUCTURED EXPERIENCE */}
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 8,
+                  borderBottom: '2px solid #E2E8F0',
+                  paddingBottom: 2,
+                  overflowX: 'auto',
+                }}
+              >
+                {[
+                  { id: 'ALL', label: 'Tất cả danh mục hồ sơ', icon: Store },
+                  { id: 'LEGAL_DOCS', label: '1. Giấy Phép & Bản Scan Pháp Lý (GPKD & VSATTP)', icon: FileText },
+                  { id: 'STORE_IDENTITY', label: '2. Điểm Bán & Thiết Lập Bếp', icon: Building2 },
+                  { id: 'BANK_TAX', label: '3. Tài Khoản Ngân Hàng & Khai Báo Thuế', icon: CreditCard },
+                  { id: 'CONTRACT', label: '4. Hợp Đồng Hợp Tác & Chiết Khấu Sàn', icon: Award },
+                ].map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = kycSubTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setKycSubTab(tab.id as any)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 7,
+                        padding: '10px 16px',
+                        border: 'none',
+                        borderBottom: isActive ? '3px solid #00B14F' : '3px solid transparent',
+                        background: 'transparent',
+                        color: isActive ? '#00B14F' : '#64748B',
+                        fontWeight: isActive ? 800 : 600,
+                        fontSize: '0.82rem',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        marginBottom: -2,
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <Icon size={16} />
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 3. SECTION: LEGAL DOCUMENTS (GPKD & VSATTP & CCCD) */}
+              {(kycSubTab === 'ALL' || kycSubTab === 'LEGAL_DOCS') && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <ShieldCheck size={20} color="#00B14F" />
+                    <h3 style={{ fontSize: '1.02rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      1. Hồ Sơ Pháp Lý, Giấy Phép Kinh Doanh &amp; An Toàn Vệ Sinh Thực Phẩm (KYC)
+                    </h3>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                    {/* DOC CARD 1: GPKD */}
+                    <div
+                      style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: 14,
+                        padding: 22,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 14,
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div
+                            style={{
+                              width: 38,
+                              height: 38,
+                              borderRadius: 10,
+                              background: '#ECFDF5',
+                              color: '#059669',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <FileText size={20} />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0F172A' }}>
+                              Giấy Chứng Nhận Đăng Ký Hộ Kinh Doanh / GPKD
+                            </div>
+                            <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                              Giấy tờ cơ sở pháp nhân hoạt động hợp pháp
+                            </div>
+                          </div>
+                        </div>
+                        <span
+                          style={{
+                            padding: '3px 10px',
+                            borderRadius: 6,
+                            background: '#DCFCE7',
+                            color: '#15803D',
+                            fontSize: '0.74rem',
+                            fontWeight: 800,
+                          }}
+                        >
+                          Hợp lệ ✓
                         </span>
                       </div>
 
-                      <div>
-                        <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#0F172A', marginBottom: 3 }}>
-                          Ảnh chân dung nhận diện Chủ sở hữu: {kycOwnerName || 'Chủ quán'}
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: '#78350F', lineHeight: 1.4, marginBottom: 10 }}>
-                          Ảnh nhận diện chính chủ được hiển thị trên Hồ sơ pháp lý, Sidebar quản trị quán và gửi tới Admin khi thẩm định KYC.
-                        </div>
-
-                        {isEditingMerchantKyc && (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-                            <label
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 5,
-                                padding: '6px 11px',
-                                borderRadius: 7,
-                                background: '#D97706',
-                                color: '#FFFFFF',
-                                fontSize: '0.74rem',
-                                fontWeight: 800,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              <Upload size={13} />
-                              <span>Tải ảnh từ máy tính</span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleUploadOwnerAvatarFile}
-                                style={{ display: 'none' }}
-                              />
-                            </label>
-
-                            {[
-                              {
-                                label: 'Mẫu Nam 1',
-                                url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
-                              },
-                              {
-                                label: 'Mẫu Nữ 1',
-                                url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=300&auto=format&fit=crop&q=80',
-                              },
-                              {
-                                label: 'Bếp trưởng',
-                                url: 'https://images.unsplash.com/photo-1583394838336-acd977736f90?w=300&auto=format&fit=crop&q=80',
-                              },
-                              {
-                                label: 'Mẫu Nữ 2',
-                                url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=300&auto=format&fit=crop&q=80',
-                              },
-                            ].map((preset, idx) => (
-                              <button
-                                key={idx}
-                                type="button"
-                                onClick={() => setKycOwnerAvatar(preset.url)}
-                                style={{
-                                  padding: '5px 9px',
-                                  borderRadius: 6,
-                                  border:
-                                    kycOwnerAvatar === preset.url
-                                      ? '1.5px solid #D97706'
-                                      : '1px solid #CBD5E1',
-                                  background: kycOwnerAvatar === preset.url ? '#FFFFFF' : 'rgba(255,255,255,0.75)',
-                                  color: kycOwnerAvatar === preset.url ? '#B45309' : '#475569',
-                                  fontSize: '0.71rem',
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                {preset.label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                        ĐƯỜNG DẪN ẢNH AVATAR NHẬN DIỆN CHỦ SỞ HỮU (URL / BASE64)
-                      </label>
-                      <input
-                        type="text"
-                        readOnly={!isEditingMerchantKyc}
-                        value={kycOwnerAvatar}
-                        onChange={(e) => setKycOwnerAvatar(e.target.value)}
-                        placeholder="https://images.unsplash.com/..."
+                      {/* Info Metadata Box */}
+                      <div
                         style={{
-                          width: '100%',
-                          padding: '8px 12px',
+                          background: '#F8FAFC',
                           borderRadius: 8,
-                          border: '1px solid #CBD5E1',
-                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                          fontSize: '0.81rem',
+                          padding: '10px 14px',
+                          border: '1px solid #F1F5F9',
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr',
+                          gap: 8,
+                          fontSize: '0.75rem',
                         }}
-                      />
+                      >
+                        <div>
+                          <span style={{ color: '#64748B' }}>Số GPKD: </span>
+                          <strong style={{ color: '#0F172A' }}>{kycBusinessLicense}</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: '#64748B' }}>Mã số thuế: </span>
+                          <strong style={{ color: '#0F172A' }}>{kycTaxCode}</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: '#64748B' }}>Cơ quan cấp: </span>
+                          <strong style={{ color: '#0F172A' }}>UBND Quận 1, TP. HCM</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: '#64748B' }}>Ngày cấp: </span>
+                          <strong style={{ color: '#0F172A' }}>12/03/2018</strong>
+                        </div>
+                      </div>
+
+                      {/* Document Preview Frame */}
+                      <div
+                        onClick={() =>
+                          setPreviewKycDoc({
+                            title: 'Giấy Chứng Nhận Đăng Ký Hộ Kinh Doanh',
+                            image: kycBusinessLicenseImg,
+                            type: 'GPKD',
+                            code: kycBusinessLicense,
+                            authority: 'UBND Quận 1, TP. Hồ Chí Minh',
+                            date: '12/03/2018',
+                          })
+                        }
+                        style={{
+                          position: 'relative',
+                          height: 180,
+                          borderRadius: 10,
+                          overflow: 'hidden',
+                          border: '1px solid #E2E8F0',
+                          cursor: 'pointer',
+                          background: '#0F172A',
+                        }}
+                      >
+                        <img
+                          src={kycBusinessLicenseImg}
+                          alt="Bản Scan GPKD"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.9 }}
+                        />
+                        <div
+                          style={{
+                            position: 'absolute',
+                            inset: 0,
+                            background: 'linear-gradient(to top, rgba(15,23,42,0.85) 0%, rgba(15,23,42,0.2) 60%)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'flex-end',
+                            padding: 12,
+                            color: '#FFFFFF',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.76rem', fontWeight: 700 }}>
+                              <Eye size={14} color="#6EE7B7" />
+                              <span>Nhấp để phóng to Bản Scan Gốc có Dấu Đỏ</span>
+                            </div>
+                            <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: 4, background: 'rgba(255,255,255,0.2)', fontFamily: 'monospace' }}>
+                              GPKD_SCAN_2026.PDF
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Inputs in Edit Mode */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                            SỐ GIẤY PHÉP ĐKKD *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            readOnly={!isEditingMerchantKyc}
+                            value={kycBusinessLicense}
+                            onChange={(e) => setKycBusinessLicense(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: 6,
+                              border: '1px solid #CBD5E1',
+                              background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                              fontSize: '0.82rem',
+                              fontWeight: 700,
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                            MÃ SỐ THUẾ DOANH NGHIỆP *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            readOnly={!isEditingMerchantKyc}
+                            value={kycTaxCode}
+                            onChange={(e) => setKycTaxCode(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: 6,
+                              border: '1px solid #CBD5E1',
+                              background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                              fontSize: '0.82rem',
+                              fontWeight: 700,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {isEditingMerchantKyc && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <label
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '6px 12px',
+                              borderRadius: 6,
+                              border: '1px solid #00B14F',
+                              background: '#F0FDF4',
+                              color: '#15803D',
+                              fontSize: '0.76rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Upload size={13} />
+                            <span>Tải ảnh GPKD từ máy</span>
+                            <input
+                              type="file"
+                              accept="image/*,application/pdf"
+                              style={{ display: 'none' }}
+                              onChange={handleKycDocUpload(setKycBusinessLicenseImg)}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setKycBusinessLicenseImg(
+                                'https://images.unsplash.com/photo-1568667256549-094345857637?w=1000&auto=format&fit=crop&q=80',
+                              )
+                            }
+                            style={{
+                              padding: '6px 10px',
+                              borderRadius: 6,
+                              border: '1px solid #CBD5E1',
+                              background: '#F8FAFC',
+                              color: '#475569',
+                              fontSize: '0.74rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Dùng mẫu chuẩn
+                          </button>
+                        </div>
+                      )}
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    {/* DOC CARD 2: VSATTP */}
+                    <div
+                      style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: 14,
+                        padding: 22,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 14,
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div
+                            style={{
+                              width: 38,
+                              height: 38,
+                              borderRadius: 10,
+                              background: '#EFF6FF',
+                              color: '#2563EB',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <ShieldCheck size={20} />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0F172A' }}>
+                              Giấy Chứng Nhận An Toàn Thực Phẩm (VSATTP)
+                            </div>
+                            <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                              Tiêu chuẩn kiểm định cơ sở chế biến thực phẩm
+                            </div>
+                          </div>
+                        </div>
+                        <span
+                          style={{
+                            padding: '3px 10px',
+                            borderRadius: 6,
+                            background: '#DBEAFE',
+                            color: '#1E40AF',
+                            fontSize: '0.74rem',
+                            fontWeight: 800,
+                          }}
+                        >
+                          Loại A (Xuất sắc) ✓
+                        </span>
+                      </div>
+
+                      {/* Info Metadata Box */}
+                      <div
+                        style={{
+                          background: '#F8FAFC',
+                          borderRadius: 8,
+                          padding: '10px 14px',
+                          border: '1px solid #F1F5F9',
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr',
+                          gap: 8,
+                          fontSize: '0.75rem',
+                        }}
+                      >
+                        <div>
+                          <span style={{ color: '#64748B' }}>Số chứng nhận: </span>
+                          <strong style={{ color: '#0F172A' }}>{kycFoodSafetyCert}</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: '#64748B' }}>Thẩm định: </span>
+                          <strong style={{ color: '#0F172A' }}>Ban QLATTP TP. HCM</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: '#64748B' }}>Xếp loại: </span>
+                          <strong style={{ color: '#059669' }}>Loại A (Đạt chuẩn)</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: '#64748B' }}>Hiệu lực: </span>
+                          <strong style={{ color: '#0F172A' }}>18/09/2029 (Còn 3 năm)</strong>
+                        </div>
+                      </div>
+
+                      {/* Document Preview Frame */}
+                      <div
+                        onClick={() =>
+                          setPreviewKycDoc({
+                            title: 'Giấy Chứng Nhận Cơ Sở Đủ Điều Kiện An Toàn Thực Phẩm (VSATTP)',
+                            image: kycFoodSafetyCertImg,
+                            type: 'ATVSTP',
+                            code: kycFoodSafetyCert,
+                            authority: 'Ban Quản Lý An Toàn Thực Phẩm TP. Hồ Chí Minh',
+                            date: '18/09/2024',
+                          })
+                        }
+                        style={{
+                          position: 'relative',
+                          height: 180,
+                          borderRadius: 10,
+                          overflow: 'hidden',
+                          border: '1px solid #E2E8F0',
+                          cursor: 'pointer',
+                          background: '#0F172A',
+                        }}
+                      >
+                        <img
+                          src={kycFoodSafetyCertImg}
+                          alt="Bản Scan ATVSTP"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.9 }}
+                        />
+                        <div
+                          style={{
+                            position: 'absolute',
+                            inset: 0,
+                            background: 'linear-gradient(to top, rgba(15,23,42,0.85) 0%, rgba(15,23,42,0.2) 60%)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'flex-end',
+                            padding: 12,
+                            color: '#FFFFFF',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.76rem', fontWeight: 700 }}>
+                              <Eye size={14} color="#6EE7B7" />
+                              <span>Nhấp để phóng to Bản Scan Gốc có Dấu Đỏ</span>
+                            </div>
+                            <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: 4, background: 'rgba(255,255,255,0.2)', fontFamily: 'monospace' }}>
+                              ATVSTP_2026_0891.PDF
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Inputs in Edit Mode */}
                       <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                          HỌ VÀ TÊN CHỦ SỞ HỮU / ĐẠI DIỆN PHÁP LUẬT *
+                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                          SỐ CHỨNG NHẬN AN TOÀN VỆ SINH THỰC PHẨM *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          readOnly={!isEditingMerchantKyc}
+                          value={kycFoodSafetyCert}
+                          onChange={(e) => setKycFoodSafetyCert(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: 6,
+                            border: '1px solid #CBD5E1',
+                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                            fontSize: '0.82rem',
+                            fontWeight: 700,
+                          }}
+                        />
+                      </div>
+
+                      {isEditingMerchantKyc && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <label
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '6px 12px',
+                              borderRadius: 6,
+                              border: '1px solid #2563EB',
+                              background: '#EFF6FF',
+                              color: '#1D4ED8',
+                              fontSize: '0.76rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Upload size={13} />
+                            <span>Tải ảnh VSATTP từ máy</span>
+                            <input
+                              type="file"
+                              accept="image/*,application/pdf"
+                              style={{ display: 'none' }}
+                              onChange={handleKycDocUpload(setKycFoodSafetyCertImg)}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setKycFoodSafetyCertImg(
+                                'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=1000&auto=format&fit=crop&q=80',
+                              )
+                            }
+                            style={{
+                              padding: '6px 10px',
+                              borderRadius: 6,
+                              border: '1px solid #CBD5E1',
+                              background: '#F8FAFC',
+                              color: '#475569',
+                              fontSize: '0.74rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Dùng mẫu chuẩn
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* DOC CARD 3: CCCD NGƯỜI ĐẠI DIỆN PHÁP LUẬT */}
+                  <div
+                    style={{
+                      background: '#FFFFFF',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: 14,
+                      padding: 22,
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 14,
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div
+                          style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: 10,
+                            background: '#F5F3FF',
+                            color: '#7C3AED',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <BadgeCheck size={20} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0F172A' }}>
+                            Căn Cước Công Dân (CCCD Gắn Chip) Người Đại Diện Pháp Luật
+                          </div>
+                          <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                            Đối soát danh tính sinh trắc học và chữ ký hợp đồng sàn
+                          </div>
+                        </div>
+                      </div>
+                      <span
+                        style={{
+                          padding: '3px 10px',
+                          borderRadius: 6,
+                          background: '#F5F3FF',
+                          color: '#6D28D9',
+                          fontSize: '0.74rem',
+                          fontWeight: 800,
+                        }}
+                      >
+                        Đã Khớp CSDL Dân Cư Quốc Gia ✓
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 14 }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                          HỌ VÀ TÊN NGƯỜI ĐẠI DIỆN (CHỦ QUÁN) *
                         </label>
                         <input
                           type="text"
@@ -10687,84 +10242,42 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                           onChange={(e) => setKycOwnerName(e.target.value)}
                           style={{
                             width: '100%',
-                            padding: '9px 12px',
-                            borderRadius: 8,
+                            padding: '8px 10px',
+                            borderRadius: 6,
                             border: '1px solid #CBD5E1',
                             background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                            fontSize: '0.86rem',
+                            fontSize: '0.84rem',
                             fontWeight: 700,
                           }}
                         />
                       </div>
 
                       <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                          SỐ CCCD / CMND ĐỊNH DANH CÁ NHÂN *
+                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                          SỐ ĐỊNH DANH CÁ NHÂN / SỐ CCCD *
                         </label>
                         <input
                           type="text"
                           required
                           readOnly={!isEditingMerchantKyc}
-                          value={kycOwnerNationalId}
-                          onChange={(e) => setKycOwnerNationalId(e.target.value)}
-                          placeholder="079095008821"
+                          value={kycOwnerCccd}
+                          onChange={(e) => setKycOwnerCccd(e.target.value)}
                           style={{
                             width: '100%',
-                            padding: '9px 12px',
-                            borderRadius: 8,
+                            padding: '8px 10px',
+                            borderRadius: 6,
                             border: '1px solid #CBD5E1',
                             background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                            fontSize: '0.86rem',
+                            fontSize: '0.84rem',
                             fontWeight: 700,
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '0.9fr 1.3fr 1.1fr', gap: 12 }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                          NGÀY CẤP CCCD
-                        </label>
-                        <input
-                          type="date"
-                          readOnly={!isEditingMerchantKyc}
-                          value={kycOwnerIdIssuedDate}
-                          onChange={(e) => setKycOwnerIdIssuedDate(e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '8px 10px',
-                            borderRadius: 8,
-                            border: '1px solid #CBD5E1',
-                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                            fontSize: '0.82rem',
+                            letterSpacing: '0.04em',
                           }}
                         />
                       </div>
 
                       <div>
-                        <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                          NƠI CẤP CCCD
-                        </label>
-                        <input
-                          type="text"
-                          readOnly={!isEditingMerchantKyc}
-                          value={kycOwnerIdIssuedPlace}
-                          onChange={(e) => setKycOwnerIdIssuedPlace(e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '8px 10px',
-                            borderRadius: 8,
-                            border: '1px solid #CBD5E1',
-                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                            fontSize: '0.82rem',
-                          }}
-                        />
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                          EMAIL CHỦ SỞ HỮU *
+                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                          EMAIL QUẢN TRỊ ĐỐI TÁC *
                         </label>
                         <input
                           type="email"
@@ -10775,6 +10288,432 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                           style={{
                             width: '100%',
                             padding: '8px 10px',
+                            borderRadius: 6,
+                            border: '1px solid #CBD5E1',
+                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                            fontSize: '0.84rem',
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Dual Scan Cards: Mặt trước & Mặt sau */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                      {/* Mặt trước */}
+                      <div>
+                        <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: 6 }}>
+                          Ảnh Scan Mặt Trước CCCD (Rõ nét, thấy rõ chip và ảnh chân dung)
+                        </div>
+                        <div
+                          onClick={() =>
+                            setPreviewKycDoc({
+                              title: 'Căn Cước Công Dân - Mặt Trước',
+                              image: kycOwnerCccdFrontImg,
+                              type: 'CCCD',
+                              code: kycOwnerCccd,
+                              authority: 'Cục Cảnh sát Quản lý Hành chính về Trật tự Xã hội',
+                              date: '10/05/2021',
+                            })
+                          }
+                          style={{
+                            position: 'relative',
+                            height: 140,
+                            borderRadius: 10,
+                            overflow: 'hidden',
+                            border: '1px solid #E2E8F0',
+                            background: '#0F172A',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <img
+                            src={kycOwnerCccdFrontImg}
+                            alt="Mặt trước CCCD"
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.88 }}
+                          />
+                          <div
+                            style={{
+                              position: 'absolute',
+                              bottom: 8,
+                              left: 8,
+                              background: 'rgba(0,0,0,0.6)',
+                              padding: '2px 8px',
+                              borderRadius: 4,
+                              color: '#FFFFFF',
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                            }}
+                          >
+                            Mặt trước CCCD • Nhấp để xem
+                          </div>
+                        </div>
+                        {isEditingMerchantKyc && (
+                          <div style={{ marginTop: 6 }}>
+                            <label
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '4px 10px',
+                                borderRadius: 6,
+                                border: '1px solid #CBD5E1',
+                                background: '#F8FAFC',
+                                color: '#334155',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <Upload size={12} />
+                              <span>Chọn ảnh mặt trước</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                                onChange={handleKycDocUpload(setKycOwnerCccdFrontImg)}
+                              />
+                            </label>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Mặt sau */}
+                      <div>
+                        <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: 6 }}>
+                          Ảnh Scan Mặt Sau CCCD (Rõ vân tay, mã QR và ngày cấp)
+                        </div>
+                        <div
+                          onClick={() =>
+                            setPreviewKycDoc({
+                              title: 'Căn Cước Công Dân - Mặt Sau',
+                              image: kycOwnerCccdBackImg,
+                              type: 'CCCD',
+                              code: kycOwnerCccd,
+                              authority: 'Cục Cảnh sát Quản lý Hành chính về Trật tự Xã hội',
+                              date: '10/05/2021',
+                            })
+                          }
+                          style={{
+                            position: 'relative',
+                            height: 140,
+                            borderRadius: 10,
+                            overflow: 'hidden',
+                            border: '1px solid #E2E8F0',
+                            background: '#0F172A',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <img
+                            src={kycOwnerCccdBackImg}
+                            alt="Mặt sau CCCD"
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.88 }}
+                          />
+                          <div
+                            style={{
+                              position: 'absolute',
+                              bottom: 8,
+                              left: 8,
+                              background: 'rgba(0,0,0,0.6)',
+                              padding: '2px 8px',
+                              borderRadius: 4,
+                              color: '#FFFFFF',
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                            }}
+                          >
+                            Mặt sau CCCD • Nhấp để xem
+                          </div>
+                        </div>
+                        {isEditingMerchantKyc && (
+                          <div style={{ marginTop: 6 }}>
+                            <label
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '4px 10px',
+                                borderRadius: 6,
+                                border: '1px solid #CBD5E1',
+                                background: '#F8FAFC',
+                                color: '#334155',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <Upload size={12} />
+                              <span>Chọn ảnh mặt sau</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                                onChange={handleKycDocUpload(setKycOwnerCccdBackImg)}
+                              />
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 4. SECTION: STORE IDENTITY & OPERATIONS */}
+              {(kycSubTab === 'ALL' || kycSubTab === 'STORE_IDENTITY') && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Store size={20} color="#D97706" />
+                    <h3 style={{ fontSize: '1.02rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      2. Thông Tin Nhà Hàng &amp; Thiết Lập Vận Hành Bếp Thực Tế
+                    </h3>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.35fr 1fr', gap: 20, alignItems: 'start' }}>
+                    {/* Operational Settings */}
+                    <div
+                      style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: 14,
+                        padding: 22,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 14,
+                      }}
+                    >
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 14 }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                            TÊN NHÀ HÀNG / THƯƠNG HIỆU TRÊN SÀN *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            readOnly={!isEditingMerchantKyc}
+                            value={kycStoreName}
+                            onChange={(e) => setKycStoreName(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '9px 12px',
+                              borderRadius: 8,
+                              border: '1px solid #CBD5E1',
+                              background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                              fontWeight: 700,
+                              color: '#0F172A',
+                              fontSize: '0.88rem',
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                            NGÀNH HÀNG ẨM THỰC CHÍNH
+                          </label>
+                          <select
+                            disabled={!isEditingMerchantKyc}
+                            value={kycCategory}
+                            onChange={(e) => setKycCategory(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '9px 12px',
+                              borderRadius: 8,
+                              border: '1px solid #CBD5E1',
+                              background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                              fontWeight: 600,
+                              color: '#0F172A',
+                              fontSize: '0.86rem',
+                            }}
+                          >
+                            <option value="Cơm & Món Việt">Cơm văn phòng / Cơm tấm &amp; Món Việt</option>
+                            <option value="Cơm">Cơm tấm &amp; Cơm truyền thống</option>
+                            <option value="Phở / Bún">Phở / Bún / Mì truyền thống</option>
+                            <option value="Trà sữa">Trà sữa, Cà phê &amp; Đồ uống</option>
+                            <option value="Món Nướng">Lẩu &amp; Nướng BBQ</option>
+                            <option value="Pizza">Pizza, Mỳ Ý &amp; Đồ ăn nhanh</option>
+                            <option value="Mâm Cỗ">Đặt Tiệc &amp; Mâm Cỗ Sự Kiện</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                            SỐ ĐIỆN THOẠI HOTLINE QUÁN *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            readOnly={!isEditingMerchantKyc}
+                            value={kycPhone}
+                            onChange={(e) => setKycPhone(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '9px 12px',
+                              borderRadius: 8,
+                              border: '1px solid #CBD5E1',
+                              background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                              fontSize: '0.88rem',
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                            KHUNG GIỜ MỞ CỬA HOẠT ĐỘNG
+                          </label>
+                          <input
+                            type="text"
+                            readOnly={!isEditingMerchantKyc}
+                            value={kycOpeningHours}
+                            onChange={(e) => setKycOpeningHours(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '9px 12px',
+                              borderRadius: 8,
+                              border: '1px solid #CBD5E1',
+                              background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                              fontSize: '0.88rem',
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                          ĐỊA CHỈ MẶT BẰNG KINH DOANH THỰC TẾ *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          readOnly={!isEditingMerchantKyc}
+                          value={kycAddress}
+                          onChange={(e) => setKycAddress(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '9px 12px',
+                            borderRadius: 8,
+                            border: '1px solid #CBD5E1',
+                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                            fontSize: '0.88rem',
+                          }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: 12 }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                            TG CHUẨN BỊ TỐI THIỂU
+                          </label>
+                          <input
+                            type="number"
+                            min={5}
+                            max={90}
+                            readOnly={!isEditingMerchantKyc}
+                            value={kycDeliveryMin}
+                            onChange={(e) => setKycDeliveryMin(Number(e.target.value))}
+                            style={{
+                              width: '100%',
+                              padding: '9px 12px',
+                              borderRadius: 8,
+                              border: '1px solid #CBD5E1',
+                              background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                              fontSize: '0.86rem',
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                            TG GIAO TỐI ĐA (PHÚT)
+                          </label>
+                          <input
+                            type="number"
+                            min={10}
+                            max={120}
+                            readOnly={!isEditingMerchantKyc}
+                            value={kycDeliveryMax}
+                            onChange={(e) => setKycDeliveryMax(Number(e.target.value))}
+                            style={{
+                              width: '100%',
+                              padding: '9px 12px',
+                              borderRadius: 8,
+                              border: '1px solid #CBD5E1',
+                              background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                              fontSize: '0.86rem',
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                            CÀI ĐẶT TRẠNG THÁI MỞ BÁN
+                          </label>
+                          <button
+                            type="button"
+                            disabled={!isEditingMerchantKyc}
+                            onClick={() => setStoreOpen((prev) => !prev)}
+                            style={{
+                              width: '100%',
+                              padding: '9px 12px',
+                              borderRadius: 8,
+                              border: storeOpen ? '1px solid #86EFAC' : '1px solid #FCA5A5',
+                              background: storeOpen ? '#F0FDF4' : '#FEF2F2',
+                              color: storeOpen ? '#15803D' : '#DC2626',
+                              fontWeight: 700,
+                              fontSize: '0.82rem',
+                              cursor: isEditingMerchantKyc ? 'pointer' : 'default',
+                            }}
+                          >
+                            {storeOpen ? '● Đang mở cửa nhận đơn' : '○ Đang tạm đóng cửa'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Storefront Image */}
+                    <div
+                      style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: 14,
+                        padding: 22,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 12,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
+                        <Camera size={18} color="#0284C7" />
+                        <h4 style={{ fontSize: '0.94rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                          Hình Ảnh Mặt Tiền &amp; Bảng Hiệu Gian Hàng
+                        </h4>
+                      </div>
+
+                      <img
+                        src={kycStoreFrontImage}
+                        alt="Mặt tiền quán"
+                        style={{
+                          width: '100%',
+                          height: 190,
+                          objectFit: 'cover',
+                          borderRadius: 10,
+                          border: '1px solid #E2E8F0',
+                        }}
+                      />
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                          ĐƯỜNG DẪN ẢNH MẶT TIỀN (URL)
+                        </label>
+                        <input
+                          type="url"
+                          readOnly={!isEditingMerchantKyc}
+                          value={kycStoreFrontImage}
+                          onChange={(e) => setKycStoreFrontImage(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
                             borderRadius: 8,
                             border: '1px solid #CBD5E1',
                             background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
@@ -10782,685 +10721,761 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                           }}
                         />
                       </div>
+
+                      {isEditingMerchantKyc && (
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <label
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '5px 12px',
+                                borderRadius: 6,
+                                border: '1px solid #00B14F',
+                                background: '#F0FDF4',
+                                color: '#15803D',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <Upload size={13} />
+                              <span>Tải ảnh từ máy tính</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                                onChange={handleKycDocUpload(setKycStoreFrontImage)}
+                              />
+                            </label>
+                          </div>
+                          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748B', marginBottom: 6 }}>
+                            HOẶC CHỌN NHANH ẢNH MẪU:
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            {[
+                              { label: 'Quán Cơm & Món Việt', url: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80' },
+                              { label: 'Phở & Bún Truyền Thống', url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&auto=format&fit=crop&q=80' },
+                              { label: 'Tiệm Trà Sữa & Cà Phê', url: 'https://images.unsplash.com/photo-1559925393-8be0ec4767c8?w=800&auto=format&fit=crop&q=80' },
+                              { label: 'Nhà hàng Âu & Pizza', url: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800&auto=format&fit=crop&q=80' },
+                            ].map((preset, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => setKycStoreFrontImage(preset.url)}
+                                style={{
+                                  padding: '5px 10px',
+                                  borderRadius: 6,
+                                  border: kycStoreFrontImage === preset.url ? '1.5px solid #D97706' : '1px solid #CBD5E1',
+                                  background: kycStoreFrontImage === preset.url ? '#FFFBEB' : '#F8FAFC',
+                                  color: kycStoreFrontImage === preset.url ? '#B45309' : '#475569',
+                                  fontSize: '0.74rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
+                </div>
+              )}
 
-                  {/* Card B: Hồ sơ Pháp lý, Giấy phép ĐKKD & Chứng nhận VSATTP */}
+              {/* 5. SECTION: BANK ACCOUNT & TAX DECLARATION */}
+              {(kycSubTab === 'ALL' || kycSubTab === 'BANK_TAX') && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <DollarSign size={20} color="#4F46E5" />
+                    <h3 style={{ fontSize: '1.02rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      3. Tài Khoản Ngân Hàng Nhận Đối Soát &amp; Khai Báo Thuế Doanh Nghiệp
+                    </h3>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20 }}>
+                    {/* Bank Account Details */}
+                    <div
+                      style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: 14,
+                        padding: 22,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 14,
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0F172A' }}>
+                          Tài Khoản Ngân Hàng Thụ Hưởng Đối Soát Tự Động
+                        </div>
+                        <span style={{ fontSize: '0.74rem', color: '#15803D', fontWeight: 700, background: '#DCFCE7', padding: '3px 10px', borderRadius: 6 }}>
+                          Napas 247 Verified ✓
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                            NGÂN HÀNG THỤ HƯỞNG *
+                          </label>
+                          <select
+                            disabled={!isEditingMerchantKyc}
+                            value={kycBankName}
+                            onChange={(e) => setKycBankName(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '9px 12px',
+                              borderRadius: 8,
+                              border: '1px solid #CBD5E1',
+                              background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                              fontSize: '0.86rem',
+                              fontWeight: 600,
+                            }}
+                          >
+                            <option value="Vietcombank">Vietcombank - TMCP Ngoại Thương VN</option>
+                            <option value="Techcombank">Techcombank - TMCP Kỹ Thương VN</option>
+                            <option value="MB Bank">MB Bank - Ngân hàng Quân Đội</option>
+                            <option value="ACB">ACB - TMCP Á Châu</option>
+                            <option value="BIDV">BIDV - Đầu tư và Phát triển VN</option>
+                            <option value="VietinBank">VietinBank - Công Thương VN</option>
+                            <option value="VPBank">VPBank - TMCP Việt Nam Thịnh Vượng</option>
+                            <option value="TPBank">TPBank - TMCP Tiên Phong</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                            SỐ TÀI KHOẢN NHẬN ĐỐI SOÁT *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            readOnly={!isEditingMerchantKyc}
+                            value={kycBankAccountNumber}
+                            onChange={(e) => setKycBankAccountNumber(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '9px 12px',
+                              borderRadius: 8,
+                              border: '1px solid #CBD5E1',
+                              background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                              fontSize: '0.86rem',
+                              fontWeight: 700,
+                              fontFamily: 'monospace',
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                          TÊN CHỦ TÀI KHOẢN THỤ HƯỞNG (IN HOA KHÔNG DẤU) *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          readOnly={!isEditingMerchantKyc}
+                          value={kycBankAccountHolder}
+                          onChange={(e) => setKycBankAccountHolder(e.target.value.toUpperCase())}
+                          style={{
+                            width: '100%',
+                            padding: '9px 12px',
+                            borderRadius: 8,
+                            border: '1px solid #CBD5E1',
+                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                            fontSize: '0.86rem',
+                            fontWeight: 700,
+                          }}
+                        />
+                      </div>
+
+                      <div
+                        style={{
+                          padding: '10px 14px',
+                          borderRadius: 8,
+                          background: '#F0FDF4',
+                          border: '1px solid #BBF7D0',
+                          fontSize: '0.78rem',
+                          color: '#166534',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                        }}
+                      >
+                        <CheckCircle2 size={16} color="#15803D" />
+                        <span>Tên chủ tài khoản ngân hàng trùng khớp 100% với CCCD người đại diện pháp luật ({kycOwnerName}).</span>
+                      </div>
+                    </div>
+
+                    {/* Tax & Commission Agreement */}
+                    <div
+                      style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: 14,
+                        padding: 22,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 14,
+                      }}
+                    >
+                      <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0F172A' }}>
+                        Biểu Phí Chiết Khấu &amp; Tra Cứu Thuế
+                      </div>
+
+                      <div
+                        style={{
+                          background: '#F8FAFC',
+                          borderRadius: 10,
+                          padding: 14,
+                          border: '1px solid #E2E8F0',
+                          fontSize: '0.82rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 8,
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#64748B' }}>Biểu phí chiết khấu sàn:</span>
+                          <strong style={{ color: '#0F172A', fontSize: '0.9rem' }}>
+                            {currentMerchant?.commissionRate ?? platformCommissionRate}% / đơn hoàn tất
+                          </strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#64748B' }}>Tỷ lệ quán thực nhận:</span>
+                          <strong style={{ color: '#00B14F', fontSize: '0.95rem' }}>
+                            {100 - (currentMerchant?.commissionRate ?? platformCommissionRate)}% giá trị đơn hàng
+                          </strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#64748B' }}>Chu kỳ đối soát doanh thu:</span>
+                          <strong style={{ color: '#0F172A' }}>Tự động mỗi 24h (D+1)</strong>
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          background: '#FEF3C7',
+                          border: '1px solid #FDE68A',
+                          borderRadius: 10,
+                          padding: 12,
+                          fontSize: '0.78rem',
+                          color: '#92400E',
+                        }}
+                      >
+                        <div style={{ fontWeight: 700, marginBottom: 2 }}>Trạng thái mã số thuế tại Tổng cục Thuế:</div>
+                        <div>✓ MST: {kycTaxCode} • Người nộp thuế đang hoạt động tại địa chỉ đã đăng ký hợp lệ.</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 6. SECTION: E-CONTRACT & LEGAL AGREEMENT */}
+              {(kycSubTab === 'ALL' || kycSubTab === 'CONTRACT') && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Award size={20} color="#059669" />
+                    <h3 style={{ fontSize: '1.02rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      4. Hợp Đồng Hợp Tác Thương Mại Điện Tử &amp; Cam Kết Chất Lượng
+                    </h3>
+                  </div>
+
                   <div
                     style={{
                       background: '#FFFFFF',
                       border: '1px solid #E2E8F0',
-                      borderRadius: 12,
-                      padding: 22,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 14,
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
-                      <ShieldCheck size={18} color="#00B14F" />
-                      <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                        2. Hồ sơ Pháp lý, Giấy phép ĐKKD &amp; Chứng nhận VSATTP
-                      </h4>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                          LOẠI HÌNH PHÁP NHÂN KINH DOANH
-                        </label>
-                        <select
-                          disabled={!isEditingMerchantKyc}
-                          value={kycBusinessType}
-                          onChange={(e) => setKycBusinessType(e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '9px 12px',
-                            borderRadius: 8,
-                            border: '1px solid #CBD5E1',
-                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                            fontSize: '0.84rem',
-                            fontWeight: 600,
-                          }}
-                        >
-                          <option value="Hộ Kinh Doanh Cá Thể">Hộ Kinh Doanh Cá Thể</option>
-                          <option value="Công ty TNHH Một Thành Viên">Công ty TNHH Một Thành Viên</option>
-                          <option value="Công ty TNHH Hai Thành Viên trở lên">Công ty TNHH Hai Thành Viên trở lên</option>
-                          <option value="Công ty Cổ phần Ẩm thực (F&B)">Công ty Cổ phần Ẩm thực (F&amp;B)</option>
-                          <option value="Chuỗi Nhượng quyền Thương hiệu">Chuỗi Nhượng quyền Thương hiệu</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                          MÃ SỐ THUẾ ĐƠN VỊ KINH DOANH *
-                        </label>
-                        <input
-                          type="text"
-                          readOnly={!isEditingMerchantKyc}
-                          value={kycTaxCode}
-                          onChange={(e) => setKycTaxCode(e.target.value)}
-                          placeholder="VD: 0318992819"
-                          style={{
-                            width: '100%',
-                            padding: '9px 12px',
-                            borderRadius: 8,
-                            border: '1px solid #CBD5E1',
-                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                            fontSize: '0.86rem',
-                            fontWeight: 700,
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                          SỐ GIẤY PHÉP ĐĂNG KÝ KINH DOANH *
-                        </label>
-                        <input
-                          type="text"
-                          readOnly={!isEditingMerchantKyc}
-                          value={kycBusinessLicense}
-                          onChange={(e) => setKycBusinessLicense(e.target.value)}
-                          placeholder="VD: GPKD-41A8029144"
-                          style={{
-                            width: '100%',
-                            padding: '9px 12px',
-                            borderRadius: 8,
-                            border: '1px solid #CBD5E1',
-                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                            fontSize: '0.86rem',
-                            fontWeight: 700,
-                          }}
-                        />
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                          SỐ CHỨNG NHẬN VSATTP *
-                        </label>
-                        <input
-                          type="text"
-                          readOnly={!isEditingMerchantKyc}
-                          value={kycFoodSafetyCert}
-                          onChange={(e) => setKycFoodSafetyCert(e.target.value)}
-                          placeholder="VD: ATTP-HCM-2026-0891"
-                          style={{
-                            width: '100%',
-                            padding: '9px 12px',
-                            borderRadius: 8,
-                            border: '1px solid #CBD5E1',
-                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                            fontSize: '0.86rem',
-                            fontWeight: 700,
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 0.8fr', gap: 12 }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                          CƠ QUAN CẤP CHỨNG NHẬN VSATTP
-                        </label>
-                        <input
-                          type="text"
-                          readOnly={!isEditingMerchantKyc}
-                          value={kycFoodSafetyIssuedBy}
-                          onChange={(e) => setKycFoodSafetyIssuedBy(e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '9px 12px',
-                            borderRadius: 8,
-                            border: '1px solid #CBD5E1',
-                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                            fontSize: '0.84rem',
-                          }}
-                        />
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                          HIỆU LỰC ĐẾN NGÀY
-                        </label>
-                        <input
-                          type="date"
-                          readOnly={!isEditingMerchantKyc}
-                          value={kycFoodSafetyExpiryDate}
-                          onChange={(e) => setKycFoodSafetyExpiryDate(e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '9px 12px',
-                            borderRadius: 8,
-                            border: '1px solid #CBD5E1',
-                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                            fontSize: '0.84rem',
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Summary Verification Box */}
-                    <div
-                      style={{
-                        padding: '12px 14px',
-                        borderRadius: 10,
-                        background: '#F0FDF4',
-                        border: '1px solid #BBF7D0',
-                        fontSize: '0.78rem',
-                        color: '#166534',
-                        lineHeight: 1.45,
-                      }}
-                    >
-                      <strong>✓ Đồng bộ Hồ sơ Thẩm định Admin:</strong> Thông tin định danh chủ quán ({kycOwnerName} • CCCD {kycOwnerNationalId}), Avatar chân dung và giấy phép ({kycBusinessLicense}) được đồng bộ trực tiếp sang cổng kiểm duyệt KYC của Quản trị viên sàn.
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Grid Row 2: Store Identity & Operational Settings + Storefront Image */}
-              {kycSectionFilter === 'STORE_OPS' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1.35fr 1fr', gap: 20, alignItems: 'start' }}>
-                {/* Section 3: Thông tin Thương hiệu & Cài đặt Vận hành */}
-                <div
-                  style={{
-                    background: '#FFFFFF',
-                    border: '1px solid #E2E8F0',
-                    borderRadius: 12,
-                    padding: 22,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 14,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
-                    <Store size={18} color="#D97706" />
-                    <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                      3. Thông tin Nhà hàng &amp; Cài đặt Vận hành
-                    </h4>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 14 }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                        TÊN NHÀ HÀNG / THƯƠNG HIỆU TRÊN SÀN *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        readOnly={!isEditingMerchantKyc}
-                        value={kycStoreName}
-                        onChange={(e) => setKycStoreName(e.target.value)}
-                        placeholder="Nhập tên nhà hàng..."
-                        style={{
-                          width: '100%',
-                          padding: '9px 12px',
-                          borderRadius: 8,
-                          border: '1px solid #CBD5E1',
-                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                          fontWeight: 700,
-                          color: '#0F172A',
-                          fontSize: '0.88rem',
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                        NGÀNH HÀNG ẨM THỰC CHÍNH
-                      </label>
-                      <select
-                        disabled={!isEditingMerchantKyc}
-                        value={kycCategory}
-                        onChange={(e) => setKycCategory(e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: '9px 12px',
-                          borderRadius: 8,
-                          border: '1px solid #CBD5E1',
-                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                          fontWeight: 600,
-                          color: '#0F172A',
-                          fontSize: '0.86rem',
-                        }}
-                      >
-                        <option value="Cơm & Món Việt">Cơm văn phòng / Cơm tấm &amp; Món Việt</option>
-                        <option value="Cơm">Cơm tấm &amp; Cơm truyền thống</option>
-                        <option value="Phở / Bún">Phở / Bún / Mì truyền thống</option>
-                        <option value="Trà sữa">Trà sữa, Cà phê &amp; Đồ uống</option>
-                        <option value="Món Nướng">Lẩu &amp; Nướng BBQ</option>
-                        <option value="Pizza">Pizza, Mỳ Ý &amp; Đồ ăn nhanh</option>
-                        <option value="Mâm Cỗ">Đặt Tiệc &amp; Mâm Cỗ Sự Kiện</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                        SỐ ĐIỆN THOẠI HOTLINE QUÁN *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        readOnly={!isEditingMerchantKyc}
-                        value={kycPhone}
-                        onChange={(e) => setKycPhone(e.target.value)}
-                        placeholder="0909123456"
-                        style={{
-                          width: '100%',
-                          padding: '9px 12px',
-                          borderRadius: 8,
-                          border: '1px solid #CBD5E1',
-                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                          fontSize: '0.88rem',
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                        KHUNG GIỜ MỞ CỬA HOẠT ĐỘNG
-                      </label>
-                      <input
-                        type="text"
-                        readOnly={!isEditingMerchantKyc}
-                        value={kycOpeningHours}
-                        onChange={(e) => setKycOpeningHours(e.target.value)}
-                        placeholder="07:00 - 22:00"
-                        style={{
-                          width: '100%',
-                          padding: '9px 12px',
-                          borderRadius: 8,
-                          border: '1px solid #CBD5E1',
-                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                          fontSize: '0.88rem',
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                      ĐỊA CHỈ MẶT BẰNG KINH DOANH THỰC TẾ *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      readOnly={!isEditingMerchantKyc}
-                      value={kycAddress}
-                      onChange={(e) => setKycAddress(e.target.value)}
-                      placeholder="Số nhà, Tên đường, Phường/Xã, Quận/Huyện, Tỉnh/TP"
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        borderRadius: 8,
-                        border: '1px solid #CBD5E1',
-                        background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                        fontSize: '0.88rem',
-                      }}
-                    />
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: 12 }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                        TG CHUẨN BỊ TỐI THIỂU (PHÚT)
-                      </label>
-                      <input
-                        type="number"
-                        min={5}
-                        max={90}
-                        readOnly={!isEditingMerchantKyc}
-                        value={kycDeliveryMin}
-                        onChange={(e) => setKycDeliveryMin(Number(e.target.value))}
-                        style={{
-                          width: '100%',
-                          padding: '9px 12px',
-                          borderRadius: 8,
-                          border: '1px solid #CBD5E1',
-                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                          fontSize: '0.86rem',
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                        TG GIAO TỐI ĐA (PHÚT)
-                      </label>
-                      <input
-                        type="number"
-                        min={10}
-                        max={120}
-                        readOnly={!isEditingMerchantKyc}
-                        value={kycDeliveryMax}
-                        onChange={(e) => setKycDeliveryMax(Number(e.target.value))}
-                        style={{
-                          width: '100%',
-                          padding: '9px 12px',
-                          borderRadius: 8,
-                          border: '1px solid #CBD5E1',
-                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                          fontSize: '0.86rem',
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                        CÀI ĐẶT TRẠNG THÁI MỞ BÁN
-                      </label>
-                      <button
-                        type="button"
-                        disabled={!isEditingMerchantKyc}
-                        onClick={() => setStoreOpen((prev) => !prev)}
-                        style={{
-                          width: '100%',
-                          padding: '9px 12px',
-                          borderRadius: 8,
-                          border: storeOpen ? '1px solid #86EFAC' : '1px solid #FCA5A5',
-                          background: storeOpen ? '#F0FDF4' : '#FEF2F2',
-                          color: storeOpen ? '#15803D' : '#DC2626',
-                          fontWeight: 700,
-                          fontSize: '0.82rem',
-                          cursor: isEditingMerchantKyc ? 'pointer' : 'default',
-                        }}
-                      >
-                        {storeOpen ? '● Đang mở cửa nhận đơn' : '○ Đang tạm đóng cửa'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Section 4: Hình ảnh Mặt tiền & Bảng hiệu Gian hàng */}
-                <div
-                  style={{
-                    background: '#FFFFFF',
-                    border: '1px solid #E2E8F0',
-                    borderRadius: 12,
-                    padding: 22,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 12,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
-                    <Camera size={18} color="#0284C7" />
-                    <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                      4. Hình ảnh Mặt tiền &amp; Ảnh đại diện Quán
-                    </h4>
-                  </div>
-
-                  {kycStoreFrontImage ? (
-                    <img
-                      src={kycStoreFrontImage}
-                      alt="Mặt tiền quán"
-                      style={{
-                        width: '100%',
-                        height: 190,
-                        objectFit: 'cover',
-                        borderRadius: 10,
-                        border: '1px solid #E2E8F0',
-                      }}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        width: '100%',
-                        height: 190,
-                        borderRadius: 10,
-                        border: '1px dashed #CBD5E1',
-                        background: '#F8FAFC',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#64748B',
-                        fontSize: '0.84rem',
-                        fontWeight: 600,
-                      }}
-                    >
-                      Chưa cập nhật ảnh mặt tiền quán
-                    </div>
-                  )}
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                      ĐƯỜNG DẪN ẢNH MẶT TIỀN / ẢNH BÌA GIAN HÀNG (URL)
-                    </label>
-                    <input
-                      type="url"
-                      readOnly={!isEditingMerchantKyc}
-                      value={kycStoreFrontImage}
-                      onChange={(e) => setKycStoreFrontImage(e.target.value)}
-                      placeholder="https://images.unsplash.com/..."
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        borderRadius: 8,
-                        border: '1px solid #CBD5E1',
-                        background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                        fontSize: '0.82rem',
-                      }}
-                    />
-                  </div>
-
-                  {isEditingMerchantKyc && (
-                    <div>
-                      <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748B', marginBottom: 6 }}>
-                        CHỌN NHANH ẢNH MẪU GIAN HÀNG:
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {[
-                          {
-                            label: 'Quán Cơm & Món Việt',
-                            url: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80',
-                          },
-                          {
-                            label: 'Phở & Bún Truyền Thống',
-                            url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&auto=format&fit=crop&q=80',
-                          },
-                          {
-                            label: 'Tiệm Trà Sữa & Cà Phê',
-                            url: 'https://images.unsplash.com/photo-1559925393-8be0ec4767c8?w=800&auto=format&fit=crop&q=80',
-                          },
-                          {
-                            label: 'Nhà hàng Âu & Pizza',
-                            url: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800&auto=format&fit=crop&q=80',
-                          },
-                        ].map((preset, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => setKycStoreFrontImage(preset.url)}
-                            style={{
-                              padding: '5px 10px',
-                              borderRadius: 6,
-                              border:
-                                kycStoreFrontImage === preset.url
-                                  ? '1.5px solid #D97706'
-                                  : '1px solid #CBD5E1',
-                              background: kycStoreFrontImage === preset.url ? '#FFFBEB' : '#F8FAFC',
-                              color: kycStoreFrontImage === preset.url ? '#B45309' : '#475569',
-                              fontSize: '0.74rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            {preset.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-              )}
-
-              {/* Grid Row 3: Payout Bank Account */}
-              {kycSectionFilter === 'BANK_PAYOUT' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 20, alignItems: 'start' }}>
-                {/* Section 5: Tài khoản Ngân hàng Nhận Đối Soát Doanh Thu */}
-                <div
-                  style={{
-                    background: '#FFFFFF',
-                    border: '1px solid #E2E8F0',
-                    borderRadius: 12,
-                    padding: 22,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 14,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
-                    <DollarSign size={18} color="#4F46E5" />
-                    <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                      5. Tài khoản Ngân hàng Nhận Đối Soát &amp; Doanh Thu
-                    </h4>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                        NGÂN HÀNG THỤ HƯỞNG *
-                      </label>
-                      <select
-                        disabled={!isEditingMerchantKyc}
-                        value={kycBankName}
-                        onChange={(e) => setKycBankName(e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: '9px 12px',
-                          borderRadius: 8,
-                          border: '1px solid #CBD5E1',
-                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                          fontSize: '0.86rem',
-                          fontWeight: 600,
-                        }}
-                      >
-                        <option value="Vietcombank">Vietcombank</option>
-                        <option value="Techcombank">Techcombank</option>
-                        <option value="MB Bank">MB Bank</option>
-                        <option value="ACB">ACB</option>
-                        <option value="BIDV">BIDV</option>
-                        <option value="VietinBank">VietinBank</option>
-                        <option value="VPBank">VPBank</option>
-                        <option value="TPBank">TPBank</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                        SỐ TÀI KHOẢN NHẬN ĐỐI SOÁT *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        readOnly={!isEditingMerchantKyc}
-                        value={kycBankAccountNumber}
-                        onChange={(e) => setKycBankAccountNumber(e.target.value)}
-                        placeholder="0071000889900"
-                        style={{
-                          width: '100%',
-                          padding: '9px 12px',
-                          borderRadius: 8,
-                          border: '1px solid #CBD5E1',
-                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                          fontSize: '0.86rem',
-                          fontWeight: 700,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                      TÊN CHỦ TÀI KHOẢN THỤ HƯỞNG (IN HOA KHÔNG DẤU) *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      readOnly={!isEditingMerchantKyc}
-                      value={kycBankAccountHolder}
-                      onChange={(e) => setKycBankAccountHolder(e.target.value.toUpperCase())}
-                      placeholder="NGUYEN VAN A"
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        borderRadius: 8,
-                        border: '1px solid #CBD5E1',
-                        background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                        fontSize: '0.86rem',
-                        fontWeight: 700,
-                      }}
-                    />
-                  </div>
-
-                  <div
-                    style={{
-                      padding: '12px 14px',
-                      borderRadius: 8,
-                      background: '#F8FAFC',
-                      border: '1px solid #E2E8F0',
+                      borderRadius: 14,
+                      padding: 24,
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
-                      fontSize: '0.82rem',
-                      color: '#475569',
+                      flexWrap: 'wrap',
+                      gap: 20,
                     }}
                   >
-                    <span>Biểu phí chiết khấu sàn theo hợp đồng đối tác:</span>
-                    <strong style={{ color: '#0F172A', fontSize: '0.9rem' }}>
-                      {currentMerchant?.commissionRate ?? platformCommissionRate}% / đơn hoàn tất (Quán nhận {100 - (currentMerchant?.commissionRate ?? platformCommissionRate)}%)
-                    </strong>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0F172A' }}>
+                          Hợp đồng Đối tác Cung cấp Dịch vụ Ẩm thực Trực tuyến Sàn DineGo
+                        </div>
+                        <span style={{ fontSize: '0.72rem', background: '#DCFCE7', color: '#15803D', padding: '2px 8px', borderRadius: 6, fontWeight: 800 }}>
+                          CÒN HIỆU LỰC
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: '#64748B', marginTop: 4 }}>
+                        Mã hợp đồng điện tử: <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>DNG-PARTNER-2026/0891</strong> • Ký ngày: <strong>15/01/2026</strong> • Thời hạn: <strong>24 tháng</strong>
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: 2 }}>
+                        Phương thức xác thực: Chữ ký số Viettel-CA / VNPT-CA điện tử đã đóng dấu giáp lai đỏ DineGo Global.
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowContractPdfModal(true)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '10px 20px',
+                        borderRadius: 8,
+                        background: '#0F172A',
+                        color: '#FFFFFF',
+                        fontSize: '0.84rem',
+                        fontWeight: 700,
+                        border: 'none',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(15, 23, 42, 0.2)',
+                      }}
+                    >
+                      <FileText size={16} color="#6EE7B7" />
+                      <span>Xem Toàn Văn Hợp Đồng Điện Tử (Có Dấu Đỏ)</span>
+                    </button>
                   </div>
                 </div>
-              </div>
               )}
 
-              {/* Bottom Sticky Save Bar */}
+              {/* Bottom Sticky Action Save Bar */}
               <div
                 style={{
                   background: '#FFFFFF',
                   border: '1px solid #E2E8F0',
-                  borderRadius: 12,
+                  borderRadius: 14,
                   padding: '16px 24px',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   flexWrap: 'wrap',
                   gap: 12,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
                 }}
               >
                 <div style={{ fontSize: '0.82rem', color: '#64748B' }}>
-                  Mọi thay đổi về Avatar chủ sở hữu, hồ sơ pháp lý, tên quán, địa chỉ, khung giờ mở cửa và tài khoản ngân hàng sẽ được áp dụng ngay trên toàn hệ thống DineGo.
+                  Mọi cập nhật pháp lý và thông tin điểm bán sẽ được đồng bộ và áp dụng ngay lập tức trên hệ thống Sàn DineGo.
                 </div>
-                <button
-                  type="submit"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '11px 24px',
-                    borderRadius: 8,
-                    background: '#00B14F',
-                    color: '#FFFFFF',
-                    fontSize: '0.9rem',
-                    fontWeight: 800,
-                    border: 'none',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 14px rgba(0, 177, 79, 0.28)',
-                  }}
-                >
-                  <CheckCircle2 size={17} />
-                  <span>Lưu toàn bộ Hồ sơ &amp; Cài đặt Quán</span>
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowContractPdfModal(true)}
+                    style={{
+                      padding: '10px 18px',
+                      borderRadius: 8,
+                      border: '1px solid #CBD5E1',
+                      background: '#FFFFFF',
+                      color: '#334155',
+                      fontSize: '0.85rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Trích lục PDF
+                  </button>
+                  <button
+                    type="submit"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '11px 26px',
+                      borderRadius: 8,
+                      background: '#00B14F',
+                      color: '#FFFFFF',
+                      fontSize: '0.9rem',
+                      fontWeight: 800,
+                      border: 'none',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 14px rgba(0, 177, 79, 0.28)',
+                    }}
+                  >
+                    <CheckCircle2 size={17} />
+                    <span>Lưu toàn bộ Hồ sơ &amp; Cài đặt Quán</span>
+                  </button>
+                </div>
               </div>
             </form>
-            );
-          })()}
+          )}
+
+          {/* LIGHTBOX MODAL: PREVIEW KYC DOCUMENT */}
+          {previewKycDoc && (
+            <div
+              className="modal-overlay"
+              style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(15, 23, 42, 0.8)',
+                zIndex: 100000,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 20,
+              }}
+            >
+              <div
+                style={{
+                  background: '#FFFFFF',
+                  borderRadius: 16,
+                  maxWidth: 720,
+                  width: '100%',
+                  overflow: 'hidden',
+                  boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+                }}
+              >
+                <div
+                  style={{
+                    background: '#0F172A',
+                    color: '#FFFFFF',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <ShieldCheck size={20} color="#6EE7B7" />
+                    <div>
+                      <div style={{ fontSize: '0.94rem', fontWeight: 800 }}>{previewKycDoc.title}</div>
+                      <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>Mã lưu trữ: {previewKycDoc.code}</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewKycDoc(null)}
+                    style={{
+                      background: 'rgba(255,255,255,0.1)',
+                      border: 'none',
+                      color: '#FFFFFF',
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <div style={{ padding: 20, maxHeight: '70vh', overflowY: 'auto' }}>
+                  <img
+                    src={previewKycDoc.image}
+                    alt={previewKycDoc.title}
+                    style={{
+                      width: '100%',
+                      maxHeight: 460,
+                      objectFit: 'contain',
+                      borderRadius: 10,
+                      border: '1px solid #E2E8F0',
+                      background: '#F8FAFC',
+                    }}
+                  />
+
+                  <div
+                    style={{
+                      marginTop: 16,
+                      background: '#F8FAFC',
+                      borderRadius: 10,
+                      padding: '12px 16px',
+                      border: '1px solid #E2E8F0',
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: 8,
+                      fontSize: '0.8rem',
+                    }}
+                  >
+                    <div>
+                      <span style={{ color: '#64748B' }}>Cơ quan cấp / thẩm định: </span>
+                      <strong style={{ color: '#0F172A' }}>{previewKycDoc.authority}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748B' }}>Ngày ghi nhận: </span>
+                      <strong style={{ color: '#0F172A' }}>{previewKycDoc.date}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748B' }}>Trạng thái xác minh: </span>
+                      <strong style={{ color: '#059669' }}>Đã Thẩm Định Hợp Lệ ✓</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748B' }}>Dấu giáp lai điện tử: </span>
+                      <strong style={{ color: '#2563EB' }}>DineGo Legal Verified</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    padding: '14px 20px',
+                    borderTop: '1px solid #E2E8F0',
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: 10,
+                    background: '#FAFAFA',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 8,
+                      border: '1px solid #CBD5E1',
+                      background: '#FFFFFF',
+                      color: '#334155',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    In Bản Scan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewKycDoc(null)}
+                    style={{
+                      padding: '8px 18px',
+                      borderRadius: 8,
+                      background: '#0F172A',
+                      color: '#FFFFFF',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Đóng Xem Thử
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* OFFICIAL CONTRACT PDF MODAL */}
+          {showContractPdfModal && (
+            <div
+              className="modal-overlay"
+              style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(15, 23, 42, 0.85)',
+                zIndex: 100000,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 20,
+              }}
+            >
+              <div
+                style={{
+                  background: '#FFFFFF',
+                  borderRadius: 16,
+                  maxWidth: 820,
+                  width: '100%',
+                  maxHeight: '92vh',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                  boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)',
+                }}
+              >
+                {/* Header */}
+                <div
+                  style={{
+                    background: '#0F172A',
+                    color: '#FFFFFF',
+                    padding: '16px 24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Award size={22} color="#6EE7B7" />
+                    <div>
+                      <div style={{ fontSize: '1rem', fontWeight: 800 }}>
+                        HỢP ĐỒNG HỢP TÁC CUNG CẤP DỊCH VỤ ẨM THỰC TRỰC TUYẾN
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: '#94A3B8' }}>
+                        Số: DNG-PARTNER-2026/0891 • Chứng thư số điện tử DineGo Global
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowContractPdfModal(false)}
+                    style={{
+                      background: 'rgba(255,255,255,0.1)',
+                      border: 'none',
+                      color: '#FFFFFF',
+                      width: 34,
+                      height: 34,
+                      borderRadius: 8,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Contract Body Document Paper */}
+                <div style={{ padding: '30px 40px', overflowY: 'auto', background: '#FAFAFA', fontSize: '0.86rem', color: '#1E293B', lineHeight: 1.6 }}>
+                  {/* National Heading */}
+                  <div style={{ textAlign: 'center', borderBottom: '2px solid #0F172A', paddingBottom: 16, marginBottom: 20 }}>
+                    <div style={{ fontWeight: 800, fontSize: '0.92rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+                    </div>
+                    <div style={{ fontStyle: 'italic', fontSize: '0.84rem' }}>Độc lập - Tự do - Hạnh phúc</div>
+                    <div style={{ marginTop: 14, fontWeight: 900, fontSize: '1.15rem', color: '#0F172A' }}>
+                      HỢP ĐỒNG HỢP TÁC THƯƠNG MẠI ĐIỆN TỬ &amp; CUNG ỨNG SUẤT ĂN
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#64748B' }}>Số: DNG-PARTNER-2026/0891/HD-DINEGO</div>
+                  </div>
+
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontWeight: 800, color: '#0F172A' }}>BÊN A: CÔNG TY CỔ PHẦN CÔNG NGHỆ DINEGO VIỆT NAM (SÀN DINEGO)</div>
+                    <div style={{ fontSize: '0.82rem', color: '#475569' }}>
+                      Đại diện: Ban Giám Đốc Pháp Chế &amp; Vận Hành Sàn • Mã số thuế: 0317898899<br />
+                      Trụ sở: Tòa nhà TechPark, Quận 1, TP. Hồ Chí Minh
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontWeight: 800, color: '#0F172A' }}>BÊN B: ĐỐI TÁC NHÀ HÀNG ({kycStoreName || 'Cơm Tấm Sài Gòn 1985'})</div>
+                    <div style={{ fontSize: '0.82rem', color: '#475569' }}>
+                      Người đại diện: <strong>{kycOwnerName}</strong> • Số CCCD: <strong>{kycOwnerCccd}</strong><br />
+                      Mã số thuế: <strong>{kycTaxCode}</strong> • Giấy phép ĐKKD: <strong>{kycBusinessLicense}</strong><br />
+                      Địa chỉ kinh doanh: {kycAddress}<br />
+                      Tài khoản thụ hưởng: {kycBankAccountNumber} ({kycBankName}) - Chủ tài khoản: {kycBankAccountHolder}
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontWeight: 800, color: '#0F172A' }}>ĐIỀU 1: BIỂU PHÍ &amp; ĐỐI SOÁT DOANH THU</div>
+                    <p style={{ margin: '4px 0', fontSize: '0.82rem' }}>
+                      1.1. Mức phí chiết khấu sàn áp dụng: <strong>{currentMerchant?.commissionRate ?? platformCommissionRate}%</strong> trên mỗi đơn hàng hoàn tất.<br />
+                      1.2. Bên B được nhận <strong>{100 - (currentMerchant?.commissionRate ?? platformCommissionRate)}%</strong> doanh thu và được thanh toán tự động qua Napas 247 mỗi 24 giờ.
+                    </p>
+                  </div>
+
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontWeight: 800, color: '#0F172A' }}>ĐIỀU 2: QUY TRÌNH BÀN GIAO MÓN VÀ BÁN KÍNH VẬN CHUYỂN (GEOFENCE 100M)</div>
+                    <p style={{ margin: '4px 0', fontSize: '0.82rem' }}>
+                      2.1. Để bảo vệ quyền lợi hai bên và chống gian lận, Bên B <strong>chỉ được phép bấm bàn giao món khi Tài xế đã có mặt trong bán kính 100m quanh nhà hàng</strong> và đã xác nhận có mặt trên hệ thống.<br />
+                      2.2. Bên B cam kết chuẩn bị đúng định lượng, đúng thời gian và tuân thủ Giấy chứng nhận An toàn Vệ sinh Thực phẩm số <strong>{kycFoodSafetyCert}</strong>.
+                    </p>
+                  </div>
+
+                  {/* Stamp & Signatures */}
+                  <div style={{ marginTop: 28, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30, paddingTop: 16, borderTop: '1px dashed #CBD5E1' }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontWeight: 800, fontSize: '0.84rem' }}>ĐẠI DIỆN BÊN B (NHÀ HÀNG)</div>
+                      <div style={{ fontSize: '0.76rem', color: '#64748B' }}>Đã ký số điện tử</div>
+                      <div style={{ height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', fontStyle: 'italic', color: '#1E40AF', fontWeight: 800, fontSize: '1.05rem' }}>
+                        {kycOwnerName}
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: '#64748B' }}>Chủ cơ sở: {kycOwnerName}</div>
+                    </div>
+
+                    <div style={{ textAlign: 'center', position: 'relative' }}>
+                      <div style={{ fontWeight: 800, fontSize: '0.84rem' }}>ĐẠI DIỆN BÊN A (SÀN DINEGO)</div>
+                      <div style={{ fontSize: '0.76rem', color: '#64748B' }}>Chứng thực số &amp; Đóng dấu đỏ</div>
+                      <div style={{ height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div
+                          style={{
+                            border: '2px solid #DC2626',
+                            color: '#DC2626',
+                            borderRadius: '50%',
+                            width: 66,
+                            height: 66,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.52rem',
+                            fontWeight: 900,
+                            lineHeight: 1.1,
+                            transform: 'rotate(-8deg)',
+                            boxShadow: '0 0 0 2px rgba(220, 38, 38, 0.2)',
+                          }}
+                        >
+                          <span>CÔNG TY CP</span>
+                          <span style={{ fontSize: '0.62rem' }}>DINEGO</span>
+                          <span>★ CHỨNG THỰC ★</span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: '#64748B' }}>Tổng Giám Đốc Pháp Chế DineGo</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div
+                  style={{
+                    padding: '14px 24px',
+                    borderTop: '1px solid #E2E8F0',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    background: '#FFFFFF',
+                  }}
+                >
+                  <div style={{ fontSize: '0.76rem', color: '#64748B' }}>
+                    Văn bản này có giá trị pháp lý tương đương bản gốc theo Luật Giao dịch Điện tử.
+                  </div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      style={{
+                        padding: '9px 18px',
+                        borderRadius: 8,
+                        border: '1px solid #CBD5E1',
+                        background: '#FFFFFF',
+                        color: '#334155',
+                        fontSize: '0.84rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      <Printer size={15} />
+                      <span>In Hợp Đồng</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowContractPdfModal(false)}
+                      style={{
+                        padding: '9px 20px',
+                        borderRadius: 8,
+                        background: '#0F172A',
+                        color: '#FFFFFF',
+                        fontSize: '0.84rem',
+                        fontWeight: 700,
+                        border: 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Đóng
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -11617,7 +11632,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         defaultChannel="CUSTOMER_MERCHANT"
         assignedDriverName={merchantChatOrder?.assignedDriverName || undefined}
       />
-      {deleteVoucherModalJsx}
     </div>
   );
 };
