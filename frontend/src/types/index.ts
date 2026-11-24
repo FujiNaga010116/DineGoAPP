@@ -94,6 +94,13 @@ export interface Merchant {
   longitude?: number;
   phoneNumber: string;
   ownerName?: string;
+  ownerAvatarUrl?: string;
+  ownerNationalId?: string;
+  ownerIdIssuedDate?: string;
+  ownerIdIssuedPlace?: string;
+  businessType?: string;
+  foodSafetyIssuedBy?: string;
+  foodSafetyExpiryDate?: string;
   storeFrontImage?: string;
   businessLicenseImage?: string;
   businessLicenseNumber?: string;
