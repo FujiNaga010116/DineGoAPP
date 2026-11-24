@@ -65,6 +65,10 @@ export interface BookingRecord {
   contactName?: string;
   contactPhone?: string;
   customNote?: string;
+  dietaryNotes?: string;
+  equipmentNotes?: string;
+  menuProposals?: any[];
+  currentProposal?: any;
   voucherCode?: string;
   voucherDiscount?: number;
   grossTotal?: number;
@@ -73,7 +77,21 @@ export interface BookingRecord {
   totalAmount: number;
   depositAmount: number;
   remainingAmount: number;
-  status: 'PENDING_DEPOSIT' | 'DEPOSIT_PAID' | 'COMPLETED' | 'CANCELLED';
+  status:
+    | 'PENDING_RESTAURANT_CONFIRMATION'
+    | 'PENDING_APPROVAL'
+    | 'PENDING_CUSTOMER_APPROVAL'
+    | 'PENDING_RESTAURANT_REVISION'
+    | 'PENDING_DEPOSIT'
+    | 'DEPOSIT_PAID'
+    | 'CONFIRMED'
+    | 'PREPARING'
+    | 'DELIVERING'
+    | 'IN_SERVICE'
+    | 'COMPLETED'
+    | 'REJECTED'
+    | 'EXPIRED'
+    | 'CANCELLED';
   createdAt: string;
 }
 

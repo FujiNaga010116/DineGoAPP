@@ -7,6 +7,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   Award,
@@ -45,7 +46,8 @@ import {
   type PartyTypeId,
 } from '../data/cateringCatalog';
 import type { Order, User } from '../types';
-import { adminApi } from '../api/client';
+import { adminApi, cateringApi } from '../api/client';
+import { CustomerProposalReviewModal } from '../components/catering/CustomerProposalReviewModal';
 import {
   AddressMapPicker,
   type AddressPickerValue,
@@ -112,6 +114,13 @@ export const CateringPage: React.FC<CateringPageProps> = ({
   const [selectedPackage, setSelectedPackage] = useState<FeastPackage>(FEAST_PACKAGES[0]);
   const [tableCount, setTableCount] = useState<number>(5);
   const [customNote, setCustomNote] = useState<string>('');
+  const [dietaryNotes, setDietaryNotes] = useState<string>('');
+  const [equipmentNotes, setEquipmentNotes] = useState<string>('');
+  const [merchantAvailability, setMerchantAvailability] = useState<any>(null);
+  const [isLoadingAvailability, setIsLoadingAvailability] = useState<boolean>(false);
+  const [forecastOverload, setForecastOverload] = useState<any>(null);
+  const [activeProposalBooking, setActiveProposalBooking] = useState<BookingRecord | null>(null);
+  const [bookingSubmittedNotice, setBookingSubmittedNotice] = useState<BookingRecord | null>(null);
 
   // Checkout Details (Step 4)
   const defaultEventDate = useMemo(
@@ -124,6 +133,35 @@ export const CateringPage: React.FC<CateringPageProps> = ({
   const verifiedDefault = getDefaultVerifiedAddress(currentUser);
   const [eventDate, setEventDate] = useState<string>(defaultEventDate);
   const [eventTime, setEventTime] = useState<string>('18:00');
+
+  // Real-time Capacity & Overbooking Availability Checking
+  useEffect(() => {
+    let cancelled = false;
+    const merchantId = selectedPackage?.merchantId;
+    if (!merchantId || !eventDate) return;
+    setIsLoadingAvailability(true);
+    cateringApi
+      .getMerchantAvailability(merchantId, eventDate, tableCount)
+      .then((res) => {
+        if (!cancelled && res && !res.error) {
+          setMerchantAvailability(res);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setIsLoadingAvailability(false);
+      });
+
+    cateringApi.getForecastOverload(merchantId).then((res) => {
+      if (!cancelled && res && !res.error) {
+        setForecastOverload(res);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPackage?.merchantId, eventDate, tableCount]);
   const [eventAddress, setEventAddress] = useState<string>(
     verifiedDefault?.fullAddress || currentUser?.address || '',
   );
@@ -372,6 +410,15 @@ export const CateringPage: React.FC<CateringPageProps> = ({
       return;
     }
 
+    const currentSlot = merchantAvailability?.slots?.find((s: any) => s.slot === eventTime);
+    if (currentSlot && (!currentSlot.canAcceptRequestedTables || currentSlot.status === 'FULLY_BOOKED' || currentSlot.status === 'BLOCKED')) {
+      goToStep(4);
+      setCheckoutError(
+        `Khung giờ ${eventTime} ngày ${eventDate} đã đầy hoặc tạm khóa không nhận tiệc. Vui lòng chọn khung giờ khác!`,
+      );
+      return;
+    }
+
     const newBooking: BookingRecord = {
       id: `bk-${Date.now()}`,
       bookingCode: `DG-FEAST-${Date.now().toString().slice(-6)}`,
@@ -393,6 +440,8 @@ export const CateringPage: React.FC<CateringPageProps> = ({
       contactName: contactName.trim() || currentUser?.fullName || 'Khách hàng DineGo',
       contactPhone: contactPhone.trim() || currentUser?.phoneNumber || '0901000004',
       customNote: customNote.trim() || undefined,
+      dietaryNotes: dietaryNotes.trim() || undefined,
+      equipmentNotes: equipmentNotes.trim() || undefined,
       voucherCode: appliedVoucher?.code,
       voucherDiscount: pricing.voucherDiscountAmount || undefined,
       grossTotal: pricing.grossTotal,
@@ -401,11 +450,44 @@ export const CateringPage: React.FC<CateringPageProps> = ({
       totalAmount: pricing.netTotal,
       depositAmount: pricing.depositAmount,
       remainingAmount: pricing.remainingAmount,
-      status: 'PENDING_DEPOSIT',
+      status: 'PENDING_RESTAURANT_CONFIRMATION',
       createdAt: new Date().toISOString().split('T')[0],
     };
 
     setBookings([newBooking, ...bookings]);
+
+    // Send to backend Catering Service
+    void cateringApi
+      .createBooking({
+        packageId: selectedPackage.id,
+        merchantId: selectedPackage.merchantId,
+        eventType: selectedPartyType || 'OTHER',
+        eventDate,
+        eventTime,
+        tableCount,
+        guestCount: tableCount * (selectedPackage.guestCountPerTable || 10),
+        eventAddress: eventAddress.trim(),
+        eventLatitude: eventLat,
+        eventLongitude: eventLng,
+        contactName: contactName.trim() || currentUser?.fullName || 'Khách hàng DineGo',
+        contactPhone: contactPhone.trim() || currentUser?.phoneNumber || '0901000004',
+        dietaryNotes: dietaryNotes.trim() || undefined,
+        equipmentNotes: equipmentNotes.trim() || undefined,
+        specialRequests: customNote.trim() || undefined,
+        depositPercentage: depositPercent,
+      })
+      .then((created) => {
+        if (created && created.id) {
+          setBookings((prev) =>
+            prev.map((b) =>
+              b.id === newBooking.id
+                ? { ...b, id: created.id, bookingCode: created.bookingCode || b.bookingCode }
+                : b,
+            ),
+          );
+        }
+      })
+      .catch(() => {});
 
     if (appliedVoucher) {
       const updated = loadAdminVouchers().map((v) =>
@@ -435,6 +517,8 @@ export const CateringPage: React.FC<CateringPageProps> = ({
         eventTime: newBooking.eventTime || '18:00',
         address: newBooking.eventAddress || currentUser?.address || 'TP. Hồ Chí Minh',
         note: newBooking.customNote,
+        dietaryNotes: newBooking.dietaryNotes,
+        equipmentNotes: newBooking.equipmentNotes,
         subtotal: pricing.grossTotal,
         discountAmount: pricing.volumeDiscountAmount + pricing.voucherDiscountAmount,
         depositPercent,
@@ -458,7 +542,53 @@ export const CateringPage: React.FC<CateringPageProps> = ({
       // Ignore storage sync failure
     }
 
-    setActiveMomoModal(newBooking);
+    if (onOrderPlaced) {
+      const gross = pricing.grossTotal;
+      const discount = pricing.volumeDiscountAmount + pricing.voucherDiscountAmount;
+      const cateringOrder: Order = {
+        id: `ord-catering-${newBooking.id}`,
+        orderNumber: newBooking.bookingCode,
+        orderType: 'CATERING',
+        customerId: currentUser?.id || 'guest',
+        customerEmail: currentUser?.email,
+        status: 'PENDING',
+        subtotal: gross,
+        discountAmount: discount,
+        deliveryFee: 0,
+        finalTotal: newBooking.totalAmount,
+        deliveryAddress: newBooking.eventAddress || currentUser?.address || 'TP. Hồ Chí Minh',
+        deliveryLatitude: eventLat,
+        deliveryLongitude: eventLng,
+        recipientName: newBooking.contactName || currentUser?.fullName || 'Khách hàng DineGo',
+        recipientPhone: newBooking.contactPhone || currentUser?.phoneNumber || '0901000004',
+        customerNote: newBooking.customNote || null,
+        createdAt: new Date().toISOString(),
+        merchant: {
+          id: selectedPackage.merchantId || newBooking.merchantId || 'merchant-catering-hoang-gia',
+          name: selectedPackage.merchantName || newBooking.merchantName || 'Bếp Cỗ Hoàng Gia — Quận 1',
+          address: selectedPackage.merchantAddress || selectedPackage.serviceArea || 'TP. Hồ Chí Minh',
+          phoneNumber: '1900 1000',
+          logoUrl: selectedPackage.imageUrl,
+          latitude: selectedPackage.merchantLat,
+          longitude: selectedPackage.merchantLng,
+        },
+        items: [
+          {
+            id: `item-${newBooking.id}`,
+            itemName: `${selectedPackage.name} (${newBooking.tableCount} bàn • ${selectedPackage.guestCountPerTable} người/bàn)`,
+            itemImage: selectedPackage.imageUrl,
+            basePrice: selectedPackage.pricePerTable,
+            quantity: newBooking.tableCount,
+            subtotal: gross,
+            note: newBooking.customNote || null,
+            toppings: [],
+          },
+        ],
+      };
+      onOrderPlaced(cateringOrder);
+    }
+
+    setBookingSubmittedNotice(newBooking);
   };
 
   const handleConfirmMomoDeposit = (bookingId: string) => {
@@ -1795,6 +1925,96 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                       ))}
                     </div>
                   </div>
+
+                  {/* Dietary & Allergies */}
+                  <div
+                    style={{
+                      background: '#FFFFFF',
+                      border: '1px solid var(--border)',
+                      borderRadius: 18,
+                      padding: 22,
+                      boxShadow: 'var(--shadow-xs)',
+                    }}
+                  >
+                    <label
+                      htmlFor="catering-dietary-notes"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        fontSize: '1rem',
+                        fontWeight: 800,
+                        color: 'var(--text-main)',
+                        marginBottom: 6,
+                      }}
+                    >
+                      <Sparkles size={17} color="#D97706" /> Yêu cầu Món Chay, Dị ứng thực phẩm &amp; Khẩu vị
+                    </label>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0 0 10px 0' }}>
+                      Báo trước để bếp trưởng phân loại nguyên liệu và chuẩn bị dụng cụ nấu riêng cho khách ăn kiêng hoặc dị ứng:
+                    </p>
+                    <input
+                      id="catering-dietary-notes"
+                      type="text"
+                      value={dietaryNotes}
+                      onChange={(e) => setDietaryNotes(e.target.value)}
+                      placeholder="Ví dụ: Có 1 mâm chay thanh tịnh, 2 khách dị ứng hải sản / đậu phộng, không dùng mỳ chính..."
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        background: 'var(--bg-main)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-main)',
+                        fontSize: '0.86rem',
+                      }}
+                    />
+                  </div>
+
+                  {/* Equipment & Table/Chairs Rental */}
+                  <div
+                    style={{
+                      background: '#FFFFFF',
+                      border: '1px solid var(--border)',
+                      borderRadius: 18,
+                      padding: 22,
+                      boxShadow: 'var(--shadow-xs)',
+                    }}
+                  >
+                    <label
+                      htmlFor="catering-equipment-notes"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        fontSize: '1rem',
+                        fontWeight: 800,
+                        color: 'var(--text-main)',
+                        marginBottom: 6,
+                      }}
+                    >
+                      <UtensilsCrossed size={17} color="var(--primary)" /> Bàn ghế, Rạp che &amp; Thiết bị tiệc
+                    </label>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0 0 10px 0' }}>
+                      Nhu cầu thuê thêm bàn ghế inox, rạp sự kiện, nhân viên chạy bàn hay âm thanh:
+                    </p>
+                    <input
+                      id="catering-equipment-notes"
+                      type="text"
+                      value={equipmentNotes}
+                      onChange={(e) => setEquipmentNotes(e.target.value)}
+                      placeholder="Ví dụ: Thuê 5 bộ bàn ghế inox có khăn phủ đỏ, rạp che 4 gian, cần 2 nhân viên bưng bê..."
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        background: 'var(--bg-main)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-main)',
+                        fontSize: '0.86rem',
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -2036,6 +2256,56 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                       </div>
                     </div>
 
+                    {/* Cảnh báo công suất 3 ngày & 7 ngày (Section 6) */}
+                    {forecastOverload?.isAllSevenDaysFullyBooked ? (
+                      <div
+                        style={{
+                          background: '#FEF2F2',
+                          border: '1.5px solid #EF4444',
+                          borderRadius: 12,
+                          padding: '12px 16px',
+                          marginBottom: 16,
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 10,
+                        }}
+                      >
+                        <AlertCircle size={18} color="#DC2626" style={{ flexShrink: 0, marginTop: 2 }} />
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: '0.86rem', color: '#DC2626' }}>
+                            NHÀ HÀNG ĐÃ KÍN LỊCH 7 NGÀY TỚI
+                          </div>
+                          <div style={{ fontSize: '0.82rem', color: '#991B1B', marginTop: 2, lineHeight: 1.45 }}>
+                            Toàn bộ các ngày trong tuần tới đã đạt tối đa công suất phục vụ mâm. Quý khách vui lòng chọn ngày sau tuần tới.
+                          </div>
+                        </div>
+                      </div>
+                    ) : forecastOverload?.isThreeDaysOverloaded ? (
+                      <div
+                        style={{
+                          background: '#FFFBEB',
+                          border: '1.5px solid #F59E0B',
+                          borderRadius: 12,
+                          padding: '12px 16px',
+                          marginBottom: 16,
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 10,
+                        }}
+                      >
+                        <AlertTriangle size={18} color="#D97706" style={{ flexShrink: 0, marginTop: 2 }} />
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: '0.86rem', color: '#B45309' }}>
+                            THÔNG BÁO CÔNG SUẤT TỪ NHÀ HÀNG
+                          </div>
+                          <div style={{ fontSize: '0.82rem', color: '#92400E', marginTop: 2, lineHeight: 1.45 }}>
+                            {forecastOverload.warningMessage ||
+                              'Nhà hàng đang tiếp nhận số lượng lớn đơn đặt tiệc trong tuần tới. Vui lòng kiểm tra lịch phục vụ trước khi đặt.'}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                       <div>
                         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.84rem', fontWeight: 700, marginBottom: 6 }}>
@@ -2077,27 +2347,129 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                       </div>
                     </div>
 
-                    {/* Quick Time Slots */}
+                    {/* Quick Time Slots with Capacity Status */}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-                      {EVENT_TIME_SLOTS.map((slot) => (
-                        <button
-                          key={slot}
-                          type="button"
-                          onClick={() => setEventTime(slot)}
+                      {EVENT_TIME_SLOTS.map((slot) => {
+                        const slotInfo = merchantAvailability?.slots?.find((s: any) => s.slot === slot);
+                        const isSelected = eventTime === slot;
+                        const isFull = slotInfo?.status === 'FULLY_BOOKED' || (slotInfo && !slotInfo.canAcceptRequestedTables);
+                        const isBlocked = slotInfo?.status === 'BLOCKED' || slotInfo?.status === 'CLOSED';
+                        const isLimited = slotInfo?.status === 'LIMITED';
+
+                        let badgeColor = '#00B14F';
+                        let badgeText = 'Còn mâm';
+                        if (isBlocked) {
+                          badgeColor = '#DC2626';
+                          badgeText = 'Khóa lịch';
+                        } else if (isFull) {
+                          badgeColor = '#DC2626';
+                          badgeText = 'Đầy mâm';
+                        } else if (isLimited) {
+                          badgeColor = '#D97706';
+                          badgeText = 'Sắp kín';
+                        }
+
+                        return (
+                          <button
+                            key={slot}
+                            type="button"
+                            onClick={() => setEventTime(slot)}
+                            style={{
+                              padding: '5px 10px',
+                              borderRadius: 8,
+                              fontSize: '0.76rem',
+                              fontWeight: 700,
+                              background: isSelected ? 'rgba(0, 177, 79, 0.12)' : isBlocked ? '#F1F5F9' : 'var(--bg-main)',
+                              color: isSelected ? 'var(--primary)' : isBlocked ? '#94A3B8' : 'var(--text-secondary)',
+                              border: `1px solid ${isSelected ? 'var(--primary)' : isBlocked ? '#E2E8F0' : 'var(--border)'}`,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 5,
+                            }}
+                          >
+                            <span>{slot}</span>
+                            {slotInfo && (
+                              <span
+                                style={{
+                                  fontSize: '0.65rem',
+                                  padding: '1px 5px',
+                                  borderRadius: 4,
+                                  background: isSelected ? badgeColor : '#E2E8F0',
+                                  color: isSelected ? '#FFFFFF' : '#475569',
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {badgeText}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Capacity Overbooking Warning & Alternative Recommendations */}
+                    {(() => {
+                      const currentSlotInfo = merchantAvailability?.slots?.find((s: any) => s.slot === eventTime);
+                      const isFull = currentSlotInfo?.status === 'FULLY_BOOKED' || (currentSlotInfo && !currentSlotInfo.canAcceptRequestedTables);
+                      const isBlocked = currentSlotInfo?.status === 'BLOCKED' || currentSlotInfo?.status === 'CLOSED';
+                      if (!isFull && !isBlocked) return null;
+
+                      const alternativeSlots = merchantAvailability?.slots?.filter(
+                        (s: any) => s.slot !== eventTime && s.status === 'AVAILABLE' && s.canAcceptRequestedTables,
+                      ) || [];
+
+                      return (
+                        <div
                           style={{
-                            padding: '4px 10px',
-                            borderRadius: 8,
-                            fontSize: '0.76rem',
-                            fontWeight: 700,
-                            background: eventTime === slot ? 'rgba(0, 177, 79, 0.12)' : 'var(--bg-main)',
-                            color: eventTime === slot ? 'var(--primary)' : 'var(--text-secondary)',
-                            border: `1px solid ${eventTime === slot ? 'var(--primary)' : 'var(--border)'}`,
+                            marginTop: 12,
+                            padding: '12px 14px',
+                            borderRadius: 12,
+                            background: '#FEF2F2',
+                            border: '1px solid #FCA5A5',
+                            color: '#991B1B',
                           }}
                         >
-                          {slot}
-                        </button>
-                      ))}
-                    </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, fontSize: '0.84rem' }}>
+                            <AlertCircle size={16} color="#DC2626" />
+                            {isBlocked
+                              ? `Nhà hàng tạm khóa khung giờ ${eventTime} ngày ${eventDate} (không nhận tiệc)`
+                              : `Khung giờ ${eventTime} ngày ${eventDate} đã kín công suất phục vụ (${tableCount} mâm vượt khả năng nhận còn lại ${currentSlotInfo?.remainingTables ?? 0} mâm)`}
+                          </div>
+                          {alternativeSlots.length > 0 ? (
+                            <div style={{ marginTop: 8 }}>
+                              <div style={{ fontSize: '0.78rem', color: '#7F1D1D', marginBottom: 6 }}>
+                                💡 Gợi ý các khung giờ còn đủ công suất mâm cùng ngày:
+                              </div>
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                {alternativeSlots.slice(0, 4).map((alt: any) => (
+                                  <button
+                                    key={alt.slot}
+                                    type="button"
+                                    onClick={() => setEventTime(alt.slot)}
+                                    style={{
+                                      padding: '4px 10px',
+                                      borderRadius: 6,
+                                      background: '#00B14F',
+                                      color: '#FFFFFF',
+                                      border: 'none',
+                                      fontSize: '0.75rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    Đổi sang {alt.slot} (Còn {alt.remainingTables} mâm)
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: '0.76rem', marginTop: 4, color: '#7F1D1D' }}>
+                              Nhà hàng đã kín mâm trong toàn bộ ngày này. Quý khách vui lòng chọn ngày khác hoặc giảm số lượng mâm.
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {!isValidAdvanceTime && (
                       <div
@@ -2526,6 +2898,21 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                   Chính sách bảo vệ tiền cọc: Hoàn 100% cọc nếu hủy trước 7 ngày, hoàn 50% nếu hủy trước 3–6 ngày.
                 </div>
 
+                <div
+                  style={{
+                    background: '#F0FDF4',
+                    border: '1px solid #BBF7D0',
+                    color: '#15803D',
+                    borderRadius: 10,
+                    padding: '10px 14px',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    marginBottom: 18,
+                  }}
+                >
+                  ✓ Quy trình chuẩn: Nhà hàng kiểm tra công suất bếp &amp; nguyên liệu trong vòng 24 giờ. Cổng thanh toán cọc MoMo chỉ mở sau khi hai bên đồng thuận khả năng phục vụ.
+                </div>
+
                 <button
                   type="button"
                   onClick={handleCreateBooking}
@@ -2539,7 +2926,7 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                     background: '#00B14F',
                   }}
                 >
-                  Xác nhận Đặt Tiệc & Đặt Cọc MoMo
+                  Gửi Yêu Cầu Đặt Tiệc Cho Nhà Hàng
                 </button>
               </div>
             </div>
@@ -2553,7 +2940,7 @@ export const CateringPage: React.FC<CateringPageProps> = ({
       {(viewMode === 'bookings' || (viewMode === 'wizard' && currentStep === 1 && bookings.length > 0)) && (
         <div style={{ marginTop: viewMode === 'bookings' ? 8 : 42 }}>
           <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: 16 }}>
-            Hợp Đồng & Tiến Trình Đặt Tiệc Của Bạn ({bookings.length})
+            Hợp Đồng &amp; Tiến Trình Đặt Tiệc Của Bạn ({bookings.length})
           </h3>
 
           {bookings.length === 0 ? (
@@ -2605,24 +2992,35 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                         background:
                           b.status === 'COMPLETED'
                             ? '#D1FAE5'
-                            : b.status === 'DEPOSIT_PAID'
-                              ? '#E0F2FE'
-                              : b.status === 'CANCELLED'
-                                ? '#FEE2E2'
-                                : '#FEF3C7',
+                            : b.status === 'PENDING_CUSTOMER_APPROVAL'
+                              ? '#EEF2FF'
+                              : b.status === 'CONFIRMED' || b.status === 'DEPOSIT_PAID'
+                                ? '#E0F2FE'
+                                : b.status === 'CANCELLED' || b.status === 'REJECTED'
+                                  ? '#FEE2E2'
+                                  : '#FEF3C7',
                         color:
                           b.status === 'COMPLETED'
                             ? '#059669'
-                            : b.status === 'DEPOSIT_PAID'
-                              ? '#0284C7'
-                              : b.status === 'CANCELLED'
-                                ? '#DC2626'
-                                : '#D97706',
+                            : b.status === 'PENDING_CUSTOMER_APPROVAL'
+                              ? '#4F46E5'
+                              : b.status === 'CONFIRMED' || b.status === 'DEPOSIT_PAID'
+                                ? '#0284C7'
+                                : b.status === 'CANCELLED' || b.status === 'REJECTED'
+                                  ? '#DC2626'
+                                  : '#D97706',
                       }}
                     >
-                      {b.status === 'PENDING_DEPOSIT' && 'Chờ đặt cọc MoMo'}
-                      {b.status === 'DEPOSIT_PAID' && 'Đã đặt cọc hợp đồng'}
+                      {(b.status === 'PENDING_RESTAURANT_CONFIRMATION' || b.status === 'PENDING_APPROVAL') && 'Chờ nhà hàng kiểm tra công suất (24h)'}
+                      {b.status === 'PENDING_CUSTOMER_APPROVAL' && 'Nhà hàng gửi đề xuất thực đơn mới!'}
+                      {b.status === 'PENDING_RESTAURANT_REVISION' && 'Chờ nhà hàng điều chỉnh lại'}
+                      {b.status === 'PENDING_DEPOSIT' && 'Đã duyệt • Chờ đặt cọc MoMo'}
+                      {(b.status === 'CONFIRMED' || b.status === 'DEPOSIT_PAID') && 'Đã chốt tiệc • Đang chuẩn bị'}
+                      {b.status === 'PREPARING' && 'Bếp đang nấu mâm cỗ'}
+                      {b.status === 'DELIVERING' && 'Đang vận chuyển mâm cỗ'}
+                      {b.status === 'IN_SERVICE' && 'Đang phục vụ tiệc tại gia'}
                       {b.status === 'COMPLETED' && 'Tiệc hoàn tất (Đã quyết toán)'}
+                      {b.status === 'REJECTED' && 'Nhà hàng từ chối nhận tiệc'}
                       {b.status === 'CANCELLED' && 'Đã hủy tiệc'}
                     </span>
                   </div>
@@ -2668,6 +3066,16 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                   </div>
 
                   <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                    {b.status === 'PENDING_CUSTOMER_APPROVAL' && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveProposalBooking(b)}
+                        className="btn btn-primary"
+                        style={{ flex: 1, padding: '8px 12px', fontSize: '0.85rem', fontWeight: 800, background: '#4F46E5', color: '#FFFFFF' }}
+                      >
+                        Xem &amp; Duyệt Đề Xuất Thực Đơn
+                      </button>
+                    )}
                     {b.status === 'PENDING_DEPOSIT' && (
                       <button
                         type="button"
@@ -2678,7 +3086,7 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                         Thanh toán cọc MoMo
                       </button>
                     )}
-                    {b.status === 'DEPOSIT_PAID' && (
+                    {(b.status === 'DEPOSIT_PAID' || b.status === 'CONFIRMED') && (
                       <span
                         style={{
                           flex: 1,
@@ -2694,7 +3102,7 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                         Chờ cửa hàng phục vụ &amp; xuất Bill
                       </span>
                     )}
-                    {b.status !== 'CANCELLED' && b.status !== 'COMPLETED' && (
+                    {b.status !== 'CANCELLED' && b.status !== 'COMPLETED' && b.status !== 'REJECTED' && (
                       <button
                         type="button"
                         onClick={() => handleCancelBooking(b)}
@@ -2709,7 +3117,7 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                           cursor: 'pointer',
                         }}
                       >
-                        Hủy & Hoàn cọc
+                        Hủy &amp; Hoàn cọc
                       </button>
                     )}
                   </div>
@@ -2961,6 +3369,169 @@ export const CateringPage: React.FC<CateringPageProps> = ({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Booking Submitted Notice Modal (24h Verification SLA) */}
+      {bookingSubmittedNotice && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              background: '#FFFFFF',
+              borderRadius: 20,
+              maxWidth: 540,
+              width: '100%',
+              padding: 28,
+              textAlign: 'center',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            }}
+          >
+            <div
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: '50%',
+                background: '#DCFCE7',
+                color: '#15803D',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px',
+              }}
+            >
+              <CheckCircle2 size={36} />
+            </div>
+
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: '0 0 8px 0' }}>
+              Yêu cầu đặt tiệc đã gửi thành công!
+            </h3>
+            <p style={{ fontSize: '0.86rem', color: '#64748B', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+              Mã hợp đồng: <strong>{bookingSubmittedNotice.bookingCode}</strong> • Nhà hàng:{' '}
+              <strong>{bookingSubmittedNotice.merchantName}</strong>
+            </p>
+
+            <div
+              style={{
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                borderRadius: 14,
+                padding: 16,
+                textAlign: 'left',
+                fontSize: '0.82rem',
+                color: '#334155',
+                display: 'grid',
+                gap: 8,
+                marginBottom: 20,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#D97706', fontWeight: 700 }}>
+                <Clock size={16} /> Thời hạn nhà hàng phản hồi: Trong vòng 24 giờ
+              </div>
+              <div>
+                • <strong>Kiểm tra công suất:</strong> Bếp trưởng và quản lý nhà hàng sẽ rà soát nguyên liệu tươi, công suất nấu, bàn ghế, thiết bị &amp; nhân sự phục vụ.
+              </div>
+              <div>
+                • <strong>Chưa cần đặt cọc ngay:</strong> Để bảo vệ quyền lợi khách hàng, cổng cọc MoMo chỉ mở sau khi nhà hàng xác nhận nhận tiệc hoặc hai bên đồng thuận thực đơn điều chỉnh.
+              </div>
+              <div>
+                • <strong>Thông báo thời gian thực:</strong> Bạn sẽ nhận được thông báo ngay khi nhà hàng duyệt hoặc gửi đề xuất thay đổi thực đơn.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setBookingSubmittedNotice(null);
+                  setViewMode('bookings');
+                }}
+                className="btn btn-primary"
+                style={{ flex: 1, padding: '12px', borderRadius: 10, fontSize: '0.88rem', fontWeight: 700 }}
+              >
+                Xem hợp đồng tiệc của tôi
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setBookingSubmittedNotice(null);
+                  goToStep(1);
+                }}
+                style={{
+                  padding: '12px 18px',
+                  borderRadius: 10,
+                  border: '1px solid #CBD5E1',
+                  background: '#FFFFFF',
+                  color: '#475569',
+                  fontSize: '0.88rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Về trang chủ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Customer Menu Revision Proposal Diff Modal */}
+      {activeProposalBooking && (
+        <CustomerProposalReviewModal
+          isOpen={Boolean(activeProposalBooking)}
+          onClose={() => setActiveProposalBooking(null)}
+          bookingId={activeProposalBooking.id}
+          bookingCode={activeProposalBooking.bookingCode}
+          merchantName={activeProposalBooking.merchantName || 'Nhà hàng DineGo'}
+          proposal={
+            activeProposalBooking.currentProposal ||
+            activeProposalBooking.menuProposals?.[activeProposalBooking.menuProposals.length - 1] || {
+              id: 'prop-sample-01',
+              bookingId: activeProposalBooking.id,
+              version: 1,
+              status: 'PENDING_CUSTOMER',
+              reason:
+                'Do mùa hải sản, nhà hàng đề xuất thay món Cá tầm nướng bằng Cá hồi sốt chanh leo thượng hạng để đảm bảo tươi ngon nhất.',
+              priceDelta: 0,
+              items: [
+                {
+                  dishName: 'Cá hồi áp chảo sốt chanh leo',
+                  replacedDishName: 'Cá tầm nướng muối ớt Tây Bắc',
+                  action: 'REPLACE',
+                  allergenAlert: 'Có cá hồi biển',
+                  notes: 'Cá tươi nhập khẩu trong ngày',
+                },
+              ],
+              proposedPackagePrice: activeProposalBooking.pricePerTable,
+              proposedTotalPrice: activeProposalBooking.totalAmount,
+              expiresAt: new Date(Date.now() + 12 * 3600 * 1000).toISOString(),
+              createdAt: new Date().toISOString(),
+            }
+          }
+          onProposalUpdated={(updated) => {
+            setBookings((prev) =>
+              prev.map((item) =>
+                item.id === activeProposalBooking.id
+                  ? {
+                      ...item,
+                      status: updated.status === 'PENDING_DEPOSIT' ? 'PENDING_DEPOSIT' : item.status,
+                      currentProposal: updated.currentProposal || item.currentProposal,
+                    }
+                  : item,
+              ),
+            );
+          }}
+        />
       )}
     </div>
   );

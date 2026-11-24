@@ -3,7 +3,7 @@
 // Completely separated layouts from the Customer Storefront (No shared Header/Footer)
 // ==============================================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Store,
   ShieldCheck,
@@ -52,7 +52,7 @@ import {
 import type { Role, User, Order, OrderStatus, MenuItem, Merchant, DriverProfile, DeliveryDisputeReport } from '../types';
 import { OrderChatModal } from '../components/common/OrderChatModal';
 import type { NavTab } from '../components/common/Header';
-import { adminApi } from '../api/client';
+import { adminApi, cateringApi } from '../api/client';
 import {
   EVENT_THEME_OPTIONS,
   fetchRemoteAdminVouchers,
@@ -66,6 +66,7 @@ import {
   CateringFinalBillModal,
   type CateringBillData,
 } from '../components/common/CateringFinalBillModal';
+import { MerchantCateringManager } from '../components/merchant/MerchantCateringManager';
 import { NotificationBell } from '../components/common/NotificationBell';
 
 interface DashboardPageProps {
@@ -520,9 +521,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     isSeedDemoMerchant || Boolean(currentMerchant?.isCateringOnly);
 
   // Merchant Catering Bookings & Calendar State (Loaded directly from SQL Server database — No hardcoded demo contracts)
-  const [feastBookings, setFeastBookings] = useState<any[]>([]);
+  const [feastBookings, setFeastBookings] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('dinego_feast_bookings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
   const [showAllPlatformFeasts, setShowAllPlatformFeasts] = useState<boolean>(false);
   const [activeFeastBillModal, setActiveFeastBillModal] = useState<CateringBillData | null>(null);
+  const [autoOpenCateringBookingId, setAutoOpenCateringBookingId] = useState<string | null>(null);
+  const [autoOpenCateringAction, setAutoOpenCateringAction] = useState<'REJECT' | 'VERIFY' | null>(null);
 
   useEffect(() => {
     try {
@@ -1830,8 +1842,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       const ledger = await adminApi.getDatabaseLedger();
       if (!active || !ledger) return;
       if (Array.isArray(ledger.feastBookings)) {
-        setFeastBookings(ledger.feastBookings);
-        localStorage.setItem('dinego_feast_bookings', JSON.stringify(ledger.feastBookings));
+        setFeastBookings((prev) => {
+          const map = new Map<string, any>();
+          prev.forEach((b) => map.set(b.id, b));
+          ledger.feastBookings.forEach((b: any) => map.set(b.id, b));
+          const merged = Array.from(map.values());
+          localStorage.setItem('dinego_feast_bookings', JSON.stringify(merged));
+          return merged;
+        });
       }
       if (Array.isArray(ledger.complaints)) {
         setComplaints(ledger.complaints);
@@ -7129,11 +7147,59 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   // ============================================================================
   // SHELL 2: STANDALONE MERCHANT SELLER CENTER (KÊNH NGƯỜI BÁN)
   // ============================================================================
-  const activeOrdersCount = orders.filter((o) =>
-    ['PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'].includes(o.status),
+  // Merchant Orders Scoping: Default to current merchant's orders, with option to view all platform orders
+  const [showAllPlatformOrders, setShowAllPlatformOrders] = useState(false);
+
+  const myStoreOrders: Order[] = useMemo(() => {
+    if (isAdminRole || !currentMerchant?.id) return orders;
+    return orders.filter((o: Order) => o.merchant?.id === currentMerchant.id);
+  }, [orders, isAdminRole, currentMerchant]);
+
+  const effectiveKitchenOrders: Order[] = showAllPlatformOrders ? orders : myStoreOrders;
+
+  const activeCateringKitchenCount = feastBookings.filter(
+    (b) =>
+      (!b.merchantId || b.merchantId === currentMerchant?.id) &&
+      b.dispatchedToKitchen &&
+      ['CONFIRMED', 'DEPOSIT_PAID', 'PREPARING', 'COOKING'].includes(b.status),
   ).length;
 
-  const filteredKitchenOrders = orders.filter((o) => {
+  const activeOrdersCount =
+    effectiveKitchenOrders.filter(
+      (o: Order) =>
+        ['PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'].includes(o.status) &&
+        o.orderType !== 'CATERING',
+    ).length + activeCateringKitchenCount;
+
+  const handleCancelOrderAndFeast = (order: Order) => {
+    // 1. Update order
+    onUpdateOrderStatus?.(order.id, 'CANCELLED');
+
+    // 2. If it is a catering order, cancel the feast booking in state & localStorage & broadcast
+    const bId = order.id.startsWith('ord-catering-') ? order.id.replace('ord-catering-', '') : order.id;
+    setFeastBookings((prev) => {
+      const next = prev.map((b) => {
+        if (b.id === bId || b.bookingCode === order.orderNumber || b.id === order.id) {
+          return { ...b, status: 'CANCELLED', cancelledAt: new Date().toISOString() };
+        }
+        return b;
+      });
+      try {
+        localStorage.setItem('dinego_feast_bookings', JSON.stringify(next));
+        if (typeof BroadcastChannel !== 'undefined') {
+          const ch = new BroadcastChannel('dinego_feasts_sync');
+          ch.postMessage(JSON.stringify(next));
+          ch.close();
+        }
+      } catch {}
+      return next;
+    });
+
+    void adminApi.updateDatabaseFeastBookingStatus(bId, { status: 'CANCELLED' });
+    void cateringApi.reviewBooking(bId, { status: 'CANCELLED', merchantNotes: 'Quán hủy từ giao diện điều phối đơn hàng' });
+  };
+
+  const filteredKitchenOrders: Order[] = effectiveKitchenOrders.filter((o: Order) => {
     const matchStatus =
       kitchenStatusFilter === 'ALL'
         ? true
@@ -7240,7 +7306,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               id: 'merchant-catering' as NavTab,
               label: 'Hợp đồng Tiệc & Lịch',
               icon: <Calendar size={17} />,
-              badge: feastBookings.filter((b) => b.status === 'PENDING_APPROVAL').length,
+              badge: feastBookings.filter(
+                (b) =>
+                  ['PENDING_RESTAURANT_CONFIRMATION', 'PENDING_APPROVAL', 'REQUESTED', 'PENDING_CUSTOMER_APPROVAL'].includes(b.status) &&
+                  (isAdminRole || !b.merchantId || b.merchantId === currentMerchant?.id)
+              ).length,
             },
             {
               id: 'merchant-analytics' as NavTab,
@@ -7541,6 +7611,67 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           {/* MERCHANT TAB 1: LIVE KITCHEN & ORDERS */}
           {currentMerchantTab === 'merchant-orders' && (
             <div>
+              {/* THÔNG BÁO CHO BẾP KHI CÓ LỆNH TIỆC ĐÃ NHẬN CỌC */}
+              {activeCateringKitchenCount > 0 && (
+                <div
+                  style={{
+                    background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
+                    border: '1.5px solid #10B981',
+                    borderRadius: 12,
+                    padding: '12px 18px',
+                    marginBottom: 16,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 12,
+                    boxShadow: '0 2px 8px rgba(16, 185, 129, 0.15)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 8,
+                        background: '#059669',
+                        color: '#FFFFFF',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <ChefHat size={20} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 800, color: '#065F46', fontSize: '0.88rem' }}>
+                        🔔 Bếp có {activeCateringKitchenCount} Lệnh chế biến tiệc lưu động đã nhận cọc từ Hợp đồng!
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: '#047857', marginTop: 1 }}>
+                        Nhà hàng đã xác nhận đủ năng lực &amp; cọc đã nộp. Bếp được phép bắt đầu sơ chế và nấu món ngay.
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate?.('merchant-catering')}
+                    style={{
+                      padding: '7px 16px',
+                      borderRadius: 8,
+                      background: '#059669',
+                      color: '#FFFFFF',
+                      fontSize: '0.78rem',
+                      fontWeight: 800,
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Mở Lệnh tiệc tại Bếp ➔
+                  </button>
+                </div>
+              )}
+
               {/* Filter & Search Bar */}
               <div
                 style={{
@@ -7556,11 +7687,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   gap: 12,
                 }}
               >
-                <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                   {[
                     { key: 'ACTIVE' as const, label: `Đang xử lý (${activeOrdersCount})` },
-                    { key: 'COMPLETED' as const, label: `Đã hoàn tất (${orders.filter((o) => o.status === 'COMPLETED').length})` },
-                    { key: 'ALL' as const, label: `Tất cả đơn (${orders.length})` },
+                    { key: 'COMPLETED' as const, label: `Đã hoàn tất (${effectiveKitchenOrders.filter((o: Order) => o.status === 'COMPLETED').length})` },
+                    { key: 'ALL' as const, label: `Tất cả đơn (${effectiveKitchenOrders.length})` },
                   ].map((tab) => (
                     <button
                       key={tab.key}
@@ -7579,23 +7710,108 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   ))}
                 </div>
 
-                <div style={{ position: 'relative', minWidth: 260 }}>
-                  <Search size={15} color="#94A3B8" style={{ position: 'absolute', left: 12, top: 10 }} />
-                  <input
-                    type="text"
-                    placeholder="Tìm theo mã đơn hoặc SĐT khách..."
-                    value={orderSearch}
-                    onChange={(e) => setOrderSearch(e.target.value)}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  {allMerchants.length > 0 && onSelectMerchantForManage && (
+                    <select
+                      value={currentMerchant?.id || ''}
+                      onChange={(e) => {
+                        const m = allMerchants.find((x) => x.id === e.target.value);
+                        if (m) onSelectMerchantForManage(m);
+                      }}
+                      style={{
+                        padding: '7px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        color: '#0F172A',
+                        background: '#FFFFFF',
+                      }}
+                      title="Chọn nhà hàng để chuyển đổi gian hàng vận hành"
+                    >
+                      {allMerchants.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          🏪 {m.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setShowAllPlatformOrders(!showAllPlatformOrders)}
                     style={{
-                      width: '100%',
-                      padding: '7px 12px 7px 34px',
+                      padding: '7px 12px',
                       borderRadius: 6,
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.84rem',
+                      border: showAllPlatformOrders ? '1px solid #0284C7' : '1px solid #CBD5E1',
+                      background: showAllPlatformOrders ? '#E0F2FE' : '#F8FAFC',
+                      color: showAllPlatformOrders ? '#0369A1' : '#475569',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
                     }}
-                  />
+                  >
+                    {showAllPlatformOrders ? '🌐 Xem: Toàn sàn' : `🏪 Đơn của quán (${myStoreOrders.length})`}
+                  </button>
+
+                  <div style={{ position: 'relative', minWidth: 220 }}>
+                    <Search size={15} color="#94A3B8" style={{ position: 'absolute', left: 12, top: 10 }} />
+                    <input
+                      type="text"
+                      placeholder="Tìm theo mã đơn hoặc SĐT..."
+                      value={orderSearch}
+                      onChange={(e) => setOrderSearch(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '7px 12px 7px 34px',
+                        borderRadius: 6,
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.84rem',
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
+
+              {!showAllPlatformOrders && myStoreOrders.length === 0 && orders.length > 0 && (
+                <div
+                  style={{
+                    background: '#EFF6FF',
+                    border: '1px solid #BFDBFE',
+                    borderRadius: 8,
+                    padding: '12px 18px',
+                    marginBottom: 20,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 12,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div style={{ fontSize: '0.85rem', color: '#1E40AF' }}>
+                    💡 Quán <strong>{currentMerchant?.name || 'hiện tại'}</strong> chưa có đơn hàng nào trực tiếp. Hiện đang có <strong>{orders.length} đơn hàng</strong> của các gian hàng khác trên hệ thống.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAllPlatformOrders(true)}
+                    style={{
+                      padding: '6px 14px',
+                      background: '#2563EB',
+                      color: '#FFFFFF',
+                      borderRadius: 6,
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Xem tất cả {orders.length} đơn trên sàn
+                  </button>
+                </div>
+              )}
 
               {filteredKitchenOrders.length === 0 ? (
                 <div
@@ -7632,6 +7848,29 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   {filteredKitchenOrders.map((order) => {
                     const foodNetPayout = Math.round(order.subtotal * 0.85);
                     const commissionFee = Math.round(order.subtotal * 0.15);
+                    const isCatering = order.orderType === 'CATERING';
+                    const cateringBookingId = order.id.startsWith('ord-catering-')
+                      ? order.id.replace('ord-catering-', '')
+                      : order.id;
+                    const matchedFeast = isCatering
+                      ? feastBookings.find(
+                          (b) =>
+                            b.id === cateringBookingId ||
+                            b.bookingCode === order.orderNumber ||
+                            b.id === order.id,
+                        )
+                      : null;
+                    const isCateringDispatched = Boolean(
+                      matchedFeast?.dispatchedToKitchen ||
+                        order.cateringDetails?.dispatchedToKitchen ||
+                        matchedFeast?.depositPaid ||
+                        order.cateringDetails?.depositPaid ||
+                        order.status === 'CONFIRMED' ||
+                        order.status === 'PREPARING' ||
+                        (order.status as string) === 'COOKING' ||
+                        matchedFeast?.status === 'COOKING' ||
+                        matchedFeast?.status === 'READY_FOR_DELIVERY',
+                    );
 
                     return (
                       <div
@@ -7660,39 +7899,94 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                             <span style={{ fontWeight: 800, fontSize: '1rem', color: '#0F172A' }}>
                               Mã đơn: #{order.orderNumber}
                             </span>
+                            {isCatering && (
+                              <span
+                                style={{
+                                  fontSize: '0.74rem',
+                                  padding: '3px 8px',
+                                  borderRadius: 4,
+                                  fontWeight: 700,
+                                  background: '#FEF3C7',
+                                  color: '#B45309',
+                                  border: '1px solid #FCD34D',
+                                }}
+                              >
+                                🎉 Hợp đồng Tiệc Lưu Động
+                              </span>
+                            )}
                             <span
                               style={{
                                 fontSize: '0.75rem',
                                 padding: '3px 10px',
                                 borderRadius: 4,
                                 fontWeight: 700,
-                                background:
-                                  order.status === 'PREPARING'
+                                background: isCatering
+                                  ? order.status === 'PREPARING' || matchedFeast?.status === 'PREPARING'
                                     ? '#FEF3C7'
-                                    : order.status === 'READY_FOR_PICKUP'
-                                    ? order.merchantConfirmedPickup
-                                      ? '#DCFCE7'
-                                      : '#FEF3C7'
-                                    : order.status === 'CANCELLED'
-                                    ? '#FEE2E2'
-                                    : order.status === 'COMPLETED'
-                                    ? '#F1F5F9'
-                                    : '#DBEAFE',
-                                color:
-                                  order.status === 'PREPARING'
+                                    : (order.status as string) === 'COOKING' || matchedFeast?.status === 'COOKING'
+                                    ? '#FFEDD5'
+                                    : order.status === 'READY_FOR_PICKUP' || (order.status as string) === 'READY_FOR_DELIVERY' || matchedFeast?.status === 'READY_FOR_DELIVERY'
+                                    ? '#DCFCE7'
+                                    : isCateringDispatched
+                                    ? '#DCFCE7'
+                                    : matchedFeast?.status === 'APPROVED_WAITING_DEPOSIT' || order.cateringDetails?.merchantApproved
+                                    ? '#FEF3C7'
+                                    : matchedFeast?.status === 'PENDING_KITCHEN_CHECK'
+                                    ? '#FEF3C7'
+                                    : '#F1F5F9'
+                                  : order.status === 'PREPARING'
+                                  ? '#FEF3C7'
+                                  : order.status === 'READY_FOR_PICKUP'
+                                  ? order.merchantConfirmedPickup
+                                    ? '#DCFCE7'
+                                    : '#FEF3C7'
+                                  : order.status === 'CANCELLED'
+                                  ? '#FEE2E2'
+                                  : order.status === 'COMPLETED'
+                                  ? '#F1F5F9'
+                                  : '#DBEAFE',
+                                color: isCatering
+                                  ? order.status === 'PREPARING' || matchedFeast?.status === 'PREPARING'
                                     ? '#B45309'
-                                    : order.status === 'READY_FOR_PICKUP'
-                                    ? order.merchantConfirmedPickup
-                                      ? '#15803D'
-                                      : '#B45309'
-                                    : order.status === 'CANCELLED'
-                                    ? '#DC2626'
-                                    : order.status === 'COMPLETED'
-                                    ? '#475569'
-                                    : '#1D4ED8',
+                                    : (order.status as string) === 'COOKING' || matchedFeast?.status === 'COOKING'
+                                    ? '#C2410C'
+                                    : order.status === 'READY_FOR_PICKUP' || (order.status as string) === 'READY_FOR_DELIVERY' || matchedFeast?.status === 'READY_FOR_DELIVERY'
+                                    ? '#15803D'
+                                    : isCateringDispatched
+                                    ? '#15803D'
+                                    : matchedFeast?.status === 'APPROVED_WAITING_DEPOSIT' || order.cateringDetails?.merchantApproved
+                                    ? '#B45309'
+                                    : matchedFeast?.status === 'PENDING_KITCHEN_CHECK'
+                                    ? '#B45309'
+                                    : '#475569'
+                                  : order.status === 'PREPARING'
+                                  ? '#B45309'
+                                  : order.status === 'READY_FOR_PICKUP'
+                                  ? order.merchantConfirmedPickup
+                                    ? '#15803D'
+                                    : '#B45309'
+                                  : order.status === 'CANCELLED'
+                                  ? '#DC2626'
+                                  : order.status === 'COMPLETED'
+                                  ? '#475569'
+                                  : '#1D4ED8',
                               }}
                             >
-                              {order.status === 'PENDING' || order.status === 'CONFIRMED'
+                              {isCatering
+                                ? order.status === 'PREPARING' || matchedFeast?.status === 'PREPARING'
+                                  ? '👨‍🍳 Bếp đang sơ chế'
+                                  : (order.status as string) === 'COOKING' || matchedFeast?.status === 'COOKING'
+                                  ? '🔥 Bếp đang nấu nướng'
+                                  : order.status === 'READY_FOR_PICKUP' || (order.status as string) === 'READY_FOR_DELIVERY' || matchedFeast?.status === 'READY_FOR_DELIVERY'
+                                  ? '✓ Món tiệc đã nấu xong'
+                                  : isCateringDispatched
+                                  ? '✓ Đã giao Bếp • Sẵn sàng nấu'
+                                  : matchedFeast?.status === 'APPROVED_WAITING_DEPOSIT' || order.cateringDetails?.merchantApproved
+                                  ? '⏳ Chờ khách cọc (24h)'
+                                  : matchedFeast?.status === 'PENDING_KITCHEN_CHECK'
+                                  ? '⏳ Chờ Bếp thẩm định (4h)'
+                                  : 'Chờ Hợp đồng tiếp nhận'
+                                : order.status === 'PENDING' || order.status === 'CONFIRMED'
                                 ? 'Chờ bếp xác nhận'
                                 : order.status === 'PREPARING'
                                 ? 'Bếp đang chế biến'
@@ -7964,50 +8258,117 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
                         {/* Action Bar */}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                          {order.status === 'PENDING' && (
+                          {order.orderType === 'CATERING' ? (
                             <>
-                              <button
-                                onClick={() => onUpdateOrderStatus?.(order.id, 'CANCELLED')}
-                                style={{
-                                  padding: '8px 16px',
-                                  borderRadius: 6,
-                                  border: '1px solid #FCA5A5',
-                                  background: '#FFFFFF',
-                                  color: '#DC2626',
-                                  fontSize: '0.84rem',
-                                  fontWeight: 600,
-                                }}
-                              >
-                                Từ chối đơn
-                              </button>
-                              <button
-                                onClick={() => onUpdateOrderStatus?.(order.id, 'CONFIRMED')}
-                                style={{
-                                  padding: '8px 16px',
-                                  borderRadius: 6,
-                                  border: '1px solid #0284C7',
-                                  background: '#E0F2FE',
-                                  color: '#0369A1',
-                                  fontSize: '0.84rem',
-                                  fontWeight: 700,
-                                }}
-                              >
-                                Xác nhận nhận đơn
-                              </button>
-                              <button
-                                onClick={() => onUpdateOrderStatus?.(order.id, 'PREPARING')}
-                                style={{
-                                  padding: '8px 18px',
-                                  borderRadius: 6,
-                                  background: '#00B14F',
-                                  color: '#FFFFFF',
-                                  fontSize: '0.84rem',
-                                  fontWeight: 700,
-                                }}
-                              >
-                                Nhận &amp; Chuyển vào bếp
-                              </button>
+                              {isCateringDispatched ? null : (
+                                <>
+                                  {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const bId = order.id.startsWith('ord-catering-')
+                                          ? order.id.replace('ord-catering-', '')
+                                          : order.id;
+                                        setAutoOpenCateringBookingId(bId);
+                                        setAutoOpenCateringAction('REJECT');
+                                        onNavigate?.('merchant-catering');
+                                      }}
+                                      style={{
+                                        padding: '8px 16px',
+                                        borderRadius: 6,
+                                        border: '1px solid #FCA5A5',
+                                        background: '#FFFFFF',
+                                        color: '#DC2626',
+                                        fontSize: '0.84rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                      }}
+                                      title="Chuyển sang Hợp đồng Tiệc để ghi lý do và hủy đơn"
+                                    >
+                                      <XCircle size={15} />
+                                      Chuyển về Hợp đồng Tiệc để Hủy &amp; Ghi lý do
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const bId = order.id.startsWith('ord-catering-')
+                                        ? order.id.replace('ord-catering-', '')
+                                        : order.id;
+                                      setAutoOpenCateringBookingId(bId);
+                                      setAutoOpenCateringAction('VERIFY');
+                                      onNavigate?.('merchant-catering');
+                                    }}
+                                    style={{
+                                      padding: '8px 18px',
+                                      borderRadius: 6,
+                                      background: '#0F172A',
+                                      color: '#FFFFFF',
+                                      fontSize: '0.84rem',
+                                      fontWeight: 700,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 6,
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <Calendar size={15} color="#F59E0B" />
+                                    Nhận đơn &amp; Thẩm định tại Hợp đồng Tiệc
+                                  </button>
+                                </>
+                              )}
                             </>
+                          ) : (
+                            order.status === 'PENDING' && (
+                              <>
+                                <button
+                                  onClick={() => onUpdateOrderStatus?.(order.id, 'CANCELLED')}
+                                  style={{
+                                    padding: '8px 16px',
+                                    borderRadius: 6,
+                                    border: '1px solid #FCA5A5',
+                                    background: '#FFFFFF',
+                                    color: '#DC2626',
+                                    fontSize: '0.84rem',
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  Từ chối đơn
+                                </button>
+                                <button
+                                  onClick={() => onUpdateOrderStatus?.(order.id, 'CONFIRMED')}
+                                  style={{
+                                    padding: '8px 16px',
+                                    borderRadius: 6,
+                                    border: '1px solid #0284C7',
+                                    background: '#E0F2FE',
+                                    color: '#0369A1',
+                                    fontSize: '0.84rem',
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  Xác nhận nhận đơn
+                                </button>
+                                <button
+                                  onClick={() => onUpdateOrderStatus?.(order.id, 'PREPARING')}
+                                  style={{
+                                    padding: '8px 18px',
+                                    borderRadius: 6,
+                                    background: '#00B14F',
+                                    color: '#FFFFFF',
+                                    fontSize: '0.84rem',
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  Nhận &amp; Chuyển vào bếp
+                                </button>
+                              </>
+                            )
                           )}
 
                           {order.status === 'CONFIRMED' && (
@@ -8858,328 +9219,27 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           )}
 
           {/* MERCHANT TAB 3: CATERING & FEAST BOOKINGS */}
-          {currentMerchantTab === 'merchant-catering' && (() => {
-            const visibleFeastBookings =
-              isAdminRole || showAllPlatformFeasts
-                ? feastBookings
-                : feastBookings.filter(
-                    (fb) => !fb.merchantId || fb.merchantId === currentMerchant?.id,
-                  );
-            return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
-                <div style={{ padding: '18px 22px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                  <div>
-                    <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                      Danh sách Hợp đồng Đặt tiệc lưu động ({visibleFeastBookings.length})
-                    </h3>
-                    <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '2px 0 0 0' }}>
-                      Kiểm tra biên lai đặt cọc MoMo, nhận hợp đồng và xác nhận hoàn thành bữa tiệc để xuất Bill tổng
-                    </p>
-                  </div>
-                  {!isAdminRole && (
-                    <button
-                      type="button"
-                      onClick={() => setShowAllPlatformFeasts((prev) => !prev)}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: 8,
-                        border: '1px solid #CBD5E1',
-                        background: showAllPlatformFeasts ? '#EFF6FF' : '#F8FAFC',
-                        color: showAllPlatformFeasts ? '#1D4ED8' : '#475569',
-                        fontSize: '0.78rem',
-                        fontWeight: 700,
-                      }}
-                    >
-                      {showAllPlatformFeasts ? 'Chỉ xem đơn của quán này' : 'Xem tất cả đơn tiệc trên sàn'}
-                    </button>
-                  )}
-                </div>
-
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem', fontVariantNumeric: 'tabular-nums' }}>
-                    <thead>
-                      <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569' }}>
-                        <th style={{ padding: '12px 18px' }}>Mã hợp đồng</th>
-                        <th style={{ padding: '12px 18px' }}>Gói thực đơn & Số bàn</th>
-                        <th style={{ padding: '12px 18px' }}>Khách đặt & Địa điểm</th>
-                        <th style={{ padding: '12px 18px' }}>Thời gian</th>
-                        <th style={{ padding: '12px 18px' }}>Giá trị & Tiền cọc (30%)</th>
-                        <th style={{ padding: '12px 18px', textAlign: 'right' }}>Xác nhận</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visibleFeastBookings.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} style={{ padding: '32px 18px', textAlign: 'center', color: '#64748B' }}>
-                            Chưa có hợp đồng đặt tiệc nào cho gian hàng này.
-                          </td>
-                        </tr>
-                      ) : (
-                      visibleFeastBookings.map((fb) => (
-                        <tr key={fb.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                          <td style={{ padding: '14px 18px', fontWeight: 700, color: '#0F172A' }}>#{fb.bookingCode}</td>
-                          <td style={{ padding: '14px 18px' }}>
-                            <div style={{ fontWeight: 700, color: '#0F172A' }}>{fb.packageName}</div>
-                            <div style={{ fontSize: '0.76rem', color: '#64748B' }}>Quy mô: {fb.tableCount} bàn</div>
-                            {fb.note && (
-                              <div style={{ fontSize: '0.74rem', color: '#047857', marginTop: 3 }}>
-                                Ghi chú: {fb.note}
-                              </div>
-                            )}
-                          </td>
-                          <td style={{ padding: '14px 18px' }}>
-                            <div style={{ fontWeight: 600, color: '#334155' }}>{fb.customerName} ({fb.customerPhone})</div>
-                            <div style={{ fontSize: '0.76rem', color: '#64748B' }}>{fb.address}</div>
-                          </td>
-                          <td style={{ padding: '14px 18px', color: '#334155' }}>
-                            {fb.eventTime} • {fb.eventDate}
-                          </td>
-                          <td style={{ padding: '14px 18px' }}>
-                            <div style={{ fontWeight: 700, color: '#0F172A' }}>Tổng: {fb.totalAmount.toLocaleString('vi-VN')}đ</div>
-                            <div
-                              style={{
-                                fontSize: '0.76rem',
-                                color: fb.depositPaid ? '#059669' : '#D97706',
-                                fontWeight: 700,
-                                marginTop: 2,
-                              }}
-                            >
-                              {fb.depositPaid
-                                ? `✓ Đã nhận cọc (${fb.depositPercent || 30}%): ${fb.depositAmount.toLocaleString('vi-VN')}đ`
-                                : `⏳ Chờ xác nhận cọc (${fb.depositPercent || 30}%): ${fb.depositAmount.toLocaleString('vi-VN')}đ`}
-                            </div>
-                          </td>
-                          <td style={{ padding: '14px 18px', textAlign: 'right' }}>
-                            {fb.status === 'PENDING_APPROVAL' && !fb.depositPaid ? (
-                              <div style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const confirmedAt = new Date().toISOString();
-                                    setFeastBookings((prev) =>
-                                      prev.map((item) =>
-                                        item.id === fb.id
-                                          ? { ...item, depositPaid: true, depositConfirmedAt: confirmedAt }
-                                          : item,
-                                      ),
-                                    );
-                                    onSyncCateringOrderFromMerchant?.(
-                                      fb.id,
-                                      fb.bookingCode,
-                                      'CONFIRM_DEPOSIT',
-                                      { confirmedAt },
-                                    );
-                                  }}
-                                  style={{
-                                    padding: '6px 12px',
-                                    borderRadius: 6,
-                                    background: '#D97706',
-                                    color: '#FFFFFF',
-                                    fontSize: '0.78rem',
-                                    fontWeight: 700,
-                                  }}
-                                >
-                                  Xác nhận đã nhận tiền cọc
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setFeastBookings((prev) =>
-                                      prev.map((item) => (item.id === fb.id ? { ...item, status: 'REJECTED' } : item)),
-                                    );
-                                    onSyncCateringOrderFromMerchant?.(fb.id, fb.bookingCode, 'REJECTED');
-                                  }}
-                                  style={{
-                                    padding: '6px 12px',
-                                    borderRadius: 6,
-                                    border: '1px solid #FCA5A5',
-                                    background: '#FFFFFF',
-                                    color: '#DC2626',
-                                    fontSize: '0.78rem',
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  Từ chối
-                                </button>
-                              </div>
-                              ) : fb.status === 'PENDING_APPROVAL' ? (
-                              <div style={{ display: 'inline-flex', gap: 6 }}>
-                                <button
-                                  onClick={() => {
-                                    void adminApi.updateDatabaseFeastBookingStatus(fb.id, { status: 'APPROVED' });
-                                    setFeastBookings((prev) =>
-                                      prev.map((item) => (item.id === fb.id ? { ...item, status: 'APPROVED' } : item)),
-                                    );
-                                    onSyncCateringOrderFromMerchant?.(fb.id, fb.bookingCode, 'APPROVED');
-                                  }}
-                                  style={{
-                                    padding: '6px 12px',
-                                    borderRadius: 6,
-                                    background: '#00B14F',
-                                    color: '#FFFFFF',
-                                    fontSize: '0.78rem',
-                                    fontWeight: 700,
-                                  }}
-                                >
-                                  Nhận hợp đồng
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    void adminApi.updateDatabaseFeastBookingStatus(fb.id, { status: 'REJECTED' });
-                                    setFeastBookings((prev) =>
-                                      prev.map((item) => (item.id === fb.id ? { ...item, status: 'REJECTED' } : item)),
-                                    );
-                                    onSyncCateringOrderFromMerchant?.(fb.id, fb.bookingCode, 'REJECTED');
-                                  }}
-                                  style={{
-                                    padding: '6px 12px',
-                                    borderRadius: 6,
-                                    border: '1px solid #FCA5A5',
-                                    background: '#FFFFFF',
-                                    color: '#DC2626',
-                                    fontSize: '0.78rem',
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  Từ chối
-                                </button>
-                              </div>
-                            ) : fb.status === 'APPROVED' ? (
-                              <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                                <span
-                                  style={{
-                                    padding: '3px 10px',
-                                    borderRadius: 6,
-                                    fontSize: '0.72rem',
-                                    fontWeight: 700,
-                                    background: '#DCFCE7',
-                                    color: '#15803D',
-                                  }}
-                                >
-                                  Đã xác nhận lịch
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleCompleteFeastBooking(fb)}
-                                  style={{
-                                    padding: '7px 12px',
-                                    borderRadius: 6,
-                                    background: '#00B14F',
-                                    color: '#FFFFFF',
-                                    fontSize: '0.78rem',
-                                    fontWeight: 800,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 6,
-                                  }}
-                                >
-                                  <Printer size={13} />
-                                  <span>Xác nhận hoàn thành tiệc &amp; Xuất Bill</span>
-                                </button>
-                              </div>
-                            ) : fb.status === 'COMPLETED' ? (
-                              <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                                <span
-                                  style={{
-                                    padding: '3px 10px',
-                                    borderRadius: 6,
-                                    fontSize: '0.72rem',
-                                    fontWeight: 800,
-                                    background: '#D1FAE5',
-                                    color: '#065F46',
-                                  }}
-                                >
-                                  ✓ Đã hoàn thành tiệc
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setActiveFeastBillModal(
-                                      buildFeastBillData(
-                                        fb,
-                                        fb.finalBillCode || `BILL-${String(fb.bookingCode).slice(-6)}`,
-                                        fb.completedAt || new Date().toISOString(),
-                                      ),
-                                    )
-                                  }
-                                  style={{
-                                    padding: '6px 12px',
-                                    borderRadius: 6,
-                                    background: '#EFF6FF',
-                                    color: '#1D4ED8',
-                                    border: '1px solid #BFDBFE',
-                                    fontSize: '0.76rem',
-                                    fontWeight: 700,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 5,
-                                  }}
-                                >
-                                  <Printer size={13} />
-                                  <span>Xem / In Bill tổng</span>
-                                </button>
-                              </div>
-                            ) : (
-                              <span
-                                style={{
-                                  padding: '3px 10px',
-                                  borderRadius: 6,
-                                  fontSize: '0.74rem',
-                                  fontWeight: 700,
-                                  background: '#FEE2E2',
-                                  color: '#DC2626',
-                                }}
-                              >
-                                Đã từ chối
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Calendar Date Lock */}
-              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 22 }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A', margin: '0 0 4px 0' }}>
-                  Lịch công suất bếp sự kiện tháng 11/2026
-                </h3>
-                <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '0 0 16px 0' }}>
-                  Nhấn vào ngày bất kỳ để khóa hoặc mở nhận đơn đặt tiệc mới
-                </p>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
-                  {['2026-11-14', '2026-11-15', '2026-11-16', '2026-11-20', '2026-11-21', '2026-11-22', '2026-11-28', '2026-11-29'].map((d) => {
-                    const isBlocked = blockedDates.includes(d);
-                    return (
-                      <button
-                        key={d}
-                        onClick={() => toggleBlockedDate(d)}
-                        style={{
-                          padding: '12px 10px',
-                          borderRadius: 8,
-                          border: `1px solid ${isBlocked ? '#FCA5A5' : '#86EFAC'}`,
-                          background: isBlocked ? '#FEF2F2' : '#F0FDF4',
-                          color: isBlocked ? '#DC2626' : '#15803D',
-                          textAlign: 'left',
-                        }}
-                      >
-                        <div style={{ fontWeight: 800, fontSize: '0.86rem' }}>Ngày {d}</div>
-                        <div style={{ fontSize: '0.74rem', marginTop: 4, fontWeight: 600 }}>
-                          {isBlocked ? 'Đã kín lịch phục vụ' : 'Đang mở nhận tiệc'}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-            );
-          })()}
+          {currentMerchantTab === 'merchant-catering' && (
+            <MerchantCateringManager
+              currentMerchant={currentMerchant ?? null}
+              feastBookings={feastBookings}
+              onUpdateFeastBookings={setFeastBookings}
+              onSyncCateringOrderFromMerchant={
+                onSyncCateringOrderFromMerchant
+                  ? (id, code, action, extra) =>
+                      onSyncCateringOrderFromMerchant(id, code, action as any, extra)
+                  : undefined
+              }
+              onOpenBillModal={(billData) => setActiveFeastBillModal(billData)}
+              isAdminRole={isAdminRole}
+              autoOpenBookingId={autoOpenCateringBookingId}
+              autoOpenAction={autoOpenCateringAction}
+              onClearAutoOpenAction={() => {
+                setAutoOpenCateringBookingId(null);
+                setAutoOpenCateringAction(null);
+              }}
+            />
+          )}
 
           {/* MERCHANT TAB 4: REVENUE ANALYTICS & REVIEWS */}
           {currentMerchantTab === 'merchant-analytics' && (

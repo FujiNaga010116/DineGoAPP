@@ -32,12 +32,14 @@ model User {
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   // Relationships
-  roles           UserRole[]
-  merchants       Merchant[]
-  sessions        UserSession[]
-  cart            Cart?
-  promotionUsages PromotionUsage[]
-  orders          Order[]
+  roles            UserRole[]
+  merchants        Merchant[]
+  sessions         UserSession[]
+  cart             Cart?
+  promotionUsages  PromotionUsage[]
+  orders           Order[]
+  cateringBookings CateringBooking[]
+  cateringBookings CateringBooking[]
 
   @@map("users")
 }
@@ -104,13 +106,21 @@ model Merchant {
 
   // Relationships
   // SQL Server requires NoAction on self-referencing or multi-path cascade chains
-  owner      User       @relation(fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  categories Category[]
-  menuItems  MenuItem[]
-  toppings   Topping[]
-  carts      Cart[]
-  promotions Promotion[]
-  orders     Order[]
+  owner                User                    @relation(fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  categories           Category[]
+  menuItems            MenuItem[]
+  toppings             Topping[]
+  carts                Cart[]
+  promotions           Promotion[]
+  orders               Order[]
+  cateringPackages     CateringPackage[]
+  cateringCapacity     CateringCapacityConfig?
+  cateringBlockedSlots CateringBlockedSlot[]
+  cateringBookings     CateringBooking[]
+  cateringPackages     CateringPackage[]
+  cateringCapacity     CateringCapacityConfig?
+  cateringBlockedSlots CateringBlockedSlot[]
+  cateringBookings     CateringBooking[]
 
   @@index([ownerId])
   @@index([status, isActive])
@@ -176,7 +186,7 @@ model Topping {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relationships
-  merchant         Merchant          @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  merchant          Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
   menuItemToppings  MenuItemTopping[]
   cartItemToppings  CartItemTopping[]
   orderItemToppings OrderItemTopping[]
@@ -267,26 +277,26 @@ model CartItemTopping {
 // ------------------------------------------------------------------------------
 
 model Promotion {
-  id                String    @id @default(uuid())
-  code              String    @unique @db.NVarChar(50)
-  name              String    @db.NVarChar(200)
-  description       String?   @db.NVarChar(1000)
+  id                String   @id @default(uuid())
+  code              String   @unique @db.NVarChar(50)
+  name              String   @db.NVarChar(200)
+  description       String?  @db.NVarChar(1000)
   // DiscountType: PERCENTAGE | FIXED_AMOUNT
-  discountType      String    @map("discount_type") @db.NVarChar(50)
-  discountValue     Decimal   @map("discount_value") @db.Decimal(12, 2)
-  minOrderValue     Decimal   @default(0.00) @map("min_order_value") @db.Decimal(12, 2)
-  maxDiscountAmount Decimal?  @map("max_discount_amount") @db.Decimal(12, 2)
-  startDate         DateTime  @map("start_date")
-  endDate           DateTime  @map("end_date")
-  maxUsage          Int?      @map("max_usage")
-  currentUsage      Int       @default(0) @map("current_usage")
-  maxUsagePerUser   Int?      @default(1) @map("max_usage_per_user")
+  discountType      String   @map("discount_type") @db.NVarChar(50)
+  discountValue     Decimal  @map("discount_value") @db.Decimal(12, 2)
+  minOrderValue     Decimal  @default(0.00) @map("min_order_value") @db.Decimal(12, 2)
+  maxDiscountAmount Decimal? @map("max_discount_amount") @db.Decimal(12, 2)
+  startDate         DateTime @map("start_date")
+  endDate           DateTime @map("end_date")
+  maxUsage          Int?     @map("max_usage")
+  currentUsage      Int      @default(0) @map("current_usage")
+  maxUsagePerUser   Int?     @default(1) @map("max_usage_per_user")
   // Scope: GLOBAL | MERCHANT
-  scope             String    @default("GLOBAL") @db.NVarChar(50)
-  merchantId        String?   @map("merchant_id")
-  isActive          Boolean   @default(true) @map("is_active")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  scope             String   @default("GLOBAL") @db.NVarChar(50)
+  merchantId        String?  @map("merchant_id")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   // Relationships
   // NoAction to prevent multiple cascade paths in SQL Server
@@ -325,30 +335,30 @@ model PromotionUsage {
 // ------------------------------------------------------------------------------
 
 model Order {
-  id              String    @id @default(uuid())
-  orderNumber     String    @unique @map("order_number") @db.NVarChar(50)
-  userId          String    @map("user_id")
-  merchantId      String    @map("merchant_id")
-  promotionId     String?   @map("promotion_id")
+  id                String         @id @default(uuid())
+  orderNumber       String         @unique @map("order_number") @db.NVarChar(50)
+  userId            String         @map("user_id")
+  merchantId        String         @map("merchant_id")
+  promotionId       String?        @map("promotion_id")
   // OrderStatus: PENDING | CONFIRMED | PREPARING | READY_FOR_PICKUP | COMPLETED | CANCELLED
-  status          String    @default("PENDING") @db.NVarChar(50)
-  subtotal        Decimal   @db.Decimal(12, 2)
-  discountAmount  Decimal   @default(0.00) @map("discount_amount") @db.Decimal(12, 2)
-  deliveryFee     Decimal   @default(0.00) @map("delivery_fee") @db.Decimal(12, 2)
-  finalTotal      Decimal   @map("final_total") @db.Decimal(12, 2)
+  status            String         @default("PENDING") @db.NVarChar(50)
+  subtotal          Decimal        @db.Decimal(12, 2)
+  discountAmount    Decimal        @default(0.00) @map("discount_amount") @db.Decimal(12, 2)
+  deliveryFee       Decimal        @default(0.00) @map("delivery_fee") @db.Decimal(12, 2)
+  finalTotal        Decimal        @map("final_total") @db.Decimal(12, 2)
   deliveryAddress   String         @map("delivery_address") @db.NVarChar(500)
   deliveryLatitude  Float?         @map("delivery_latitude")
   deliveryLongitude Float?         @map("delivery_longitude")
   recipientName     String         @map("recipient_name") @db.NVarChar(200)
   recipientPhone    String         @map("recipient_phone") @db.NVarChar(20)
   orderTracking     OrderTracking?
-  customerNote    String?   @map("customer_note") @db.NVarChar(500)
-  cancelReason    String?   @map("cancel_reason") @db.NVarChar(500)
-  cancelledBy     String?   @map("cancelled_by") @db.NVarChar(50)
-  cancelledAt     DateTime? @map("cancelled_at")
-  idempotencyKey  String?   @unique @map("idempotency_key") @db.NVarChar(100)
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  customerNote      String?        @map("customer_note") @db.NVarChar(500)
+  cancelReason      String?        @map("cancel_reason") @db.NVarChar(500)
+  cancelledBy       String?        @map("cancelled_by") @db.NVarChar(50)
+  cancelledAt       DateTime?      @map("cancelled_at")
+  idempotencyKey    String?        @unique @map("idempotency_key") @db.NVarChar(100)
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
 
   // Relationships
   // Use NoAction to prevent multiple cascade paths in SQL Server
@@ -379,9 +389,9 @@ model OrderItem {
   createdAt  DateTime @default(now()) @map("created_at")
 
   // Relationships
-  order      Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  menuItem   MenuItem?          @relation(fields: [menuItemId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  toppings   OrderItemTopping[]
+  order    Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem?          @relation(fields: [menuItemId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  toppings OrderItemTopping[]
 
   @@index([orderId])
   @@index([menuItemId])
@@ -397,8 +407,8 @@ model OrderItemTopping {
   createdAt    DateTime @default(now()) @map("created_at")
 
   // Relationships
-  orderItem    OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  topping      Topping?  @relation(fields: [toppingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  topping   Topping?  @relation(fields: [toppingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([orderItemId])
   @@index([toppingId])
@@ -426,7 +436,7 @@ model Payment {
 
   // Relationships
   // Use NoAction to prevent multiple cascade paths in SQL Server
-  order          Order     @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  order Order @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([orderId])
   @@index([transactionRef])
@@ -466,6 +476,377 @@ model OrderTracking {
   @@index([driverId])
   @@index([deliveryStatus])
   @@map("order_trackings")
+}
+
+// ------------------------------------------------------------------------------
+// MODULE 8: CATERING & FEAST CAPACITY ENGINE (SQL Server Compatible)
+// ------------------------------------------------------------------------------
+
+model CateringPackage {
+  id               String   @id @default(uuid())
+  merchantId       String   @map("merchant_id")
+  name             String   @db.NVarChar(200)
+  slug             String   @db.NVarChar(250)
+  eventType        String   @map("event_type") @db.NVarChar(50) // WEDDING | MEMORIAL | BIRTHDAY | HOUSEWARMING | CORPORATE | LONGEVITY
+  description      String?  @db.NVarChar(Max)
+  servingsPerTable Int      @default(10) @map("servings_per_table")
+  pricePerTable    Decimal  @map("price_per_table") @db.Decimal(12, 2)
+  minTables        Int      @default(3) @map("min_tables")
+  maxTables        Int      @default(50) @map("max_tables")
+  imageUrl         String?  @map("image_url") @db.NVarChar(1000)
+  isAvailable      Boolean  @default(true) @map("is_available")
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+model CateringPackage {
+  id               String                @id @default(uuid())
+  merchantId       String                @map("merchant_id")
+  name             String                @db.NVarChar(200)
+  slug             String                @db.NVarChar(250)
+  eventType        String                @map("event_type") @db.NVarChar(50) // WEDDING | MEMORIAL | BIRTHDAY | HOUSEWARMING | CORPORATE | LONGEVITY
+  description      String?               @db.NVarChar(Max)
+  servingsPerTable Int                   @default(10) @map("servings_per_table")
+  pricePerTable    Decimal               @map("price_per_table") @db.Decimal(12, 2)
+  minTables        Int                   @default(3) @map("min_tables")
+  maxTables        Int                   @default(50) @map("max_tables")
+  imageUrl         String?               @map("image_url") @db.NVarChar(1000)
+  isAvailable      Boolean               @default(true) @map("is_available")
+  isActive         Boolean               @default(true) @map("is_active")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+
+  // Relationships
+  merchant Merchant              @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  dishes   CateringPackageDish[]
+  bookings CateringBooking[]
+
+  @@index([merchantId, eventType, isActive])
+  @@map("catering_packages")
+}
+
+model CateringPackageDish {
+  id          String  @id @default(uuid())
+  packageId   String  @map("package_id")
+  name        String  @db.NVarChar(200)
+  course      String  @db.NVarChar(50) // APPETIZER | MAIN | SOUP | DESSERT
+  description String? @db.NVarChar(500)
+  isOptional  Boolean @default(false) @map("is_optional")
+  extraPrice  Decimal @default(0.00) @map("extra_price") @db.Decimal(12, 2)
+  isSoldOut   Boolean @default(false) @map("is_sold_out")
+  allergens   String? @db.NVarChar(200)
+
+  // Relationships
+  package CateringPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@index([packageId])
+  @@map("catering_package_dishes")
+}
+
+model CateringCapacityConfig {
+  id                 String  @id @default(uuid())
+  merchantId         String  @unique @map("merchant_id")
+  maxOrdersPerDay    Int     @default(5) @map("max_orders_per_day")
+  maxTablesPerDay    Int     @default(50) @map("max_tables_per_day")
+  maxTablesPerSlot   Int     @default(25) @map("max_tables_per_slot")
+  minNoticeHours     Int     @default(72) @map("min_notice_hours")
+  prepBufferHours    Decimal @default(3.0) @map("prep_buffer_hours") @db.Decimal(4, 1)
+  transitBufferHours Decimal @default(1.0) @map("transit_buffer_hours") @db.Decimal(4, 1)
+  serviceBufferHours Decimal @default(3.0) @map("service_buffer_hours") @db.Decimal(4, 1)
+  cleanupBufferHours Decimal @default(1.5) @map("cleanup_buffer_hours") @db.Decimal(4, 1)
+  isActive           Boolean @default(true) @map("is_active")
+
+  // Relationships
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@map("catering_capacity_configs")
+}
+
+model CateringBlockedSlot {
+  id         String   @id @default(uuid())
+  merchantId String   @map("merchant_id")
+  blockDate  String   @map("block_date") @db.NVarChar(10) // YYYY-MM-DD
+  timeSlot   String?  @map("time_slot") @db.NVarChar(20) // NULL nếu cả ngày hoặc "10:00-14:00"
+  reason     String?  @db.NVarChar(500)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relationships
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, blockDate, timeSlot])
+  @@index([merchantId, blockDate])
+  @@map("catering_blocked_slots")
+}
+
+model CateringBooking {
+  id                 String @id @default(uuid())
+  bookingCode        String @unique @map("booking_code") @db.NVarChar(50)
+  userId             String @map("user_id")
+  merchantId         String @map("merchant_id")
+  packageId          String @map("package_id")
+  packageName        String @map("package_name") @db.NVarChar(200)
+  eventType          String @map("event_type") @db.NVarChar(50)
+  eventDate          String @map("event_date") @db.NVarChar(10)
+  eventTime          String @map("event_time") @db.NVarChar(10)
+  eventAddress       String @map("event_address") @db.NVarChar(500)
+  eventLatitude      Float? @map("event_latitude")
+  eventLongitude     Float? @map("event_longitude")
+  tableCount         Int    @map("table_count")
+  guestCountPerTable Int    @default(10) @map("guest_count_per_table")
+
+  pricePerTable  Decimal @map("price_per_table") @db.Decimal(12, 2)
+  tablesSubtotal Decimal @map("tables_subtotal") @db.Decimal(12, 2)
+  deliveryFee    Decimal @default(0.00) @map("delivery_fee") @db.Decimal(12, 2)
+  serviceFee     Decimal @default(0.00) @map("service_fee") @db.Decimal(12, 2)
+  equipmentFee   Decimal @default(0.00) @map("equipment_fee") @db.Decimal(12, 2)
+  discountAmount Decimal @default(0.00) @map("discount_amount") @db.Decimal(12, 2)
+  totalAmount    Decimal @map("total_amount") @db.Decimal(12, 2)
+
+  depositPercent        Int       @default(30) @map("deposit_percent")
+  depositAmount         Decimal   @map("deposit_amount") @db.Decimal(12, 2)
+  remainingAmount       Decimal   @map("remaining_amount") @db.Decimal(12, 2)
+  isDepositPaid         Boolean   @default(false) @map("is_deposit_paid")
+  depositPaidAt         DateTime? @map("deposit_paid_at")
+  depositTransactionRef String?   @map("deposit_transaction_ref") @db.NVarChar(100)
+
+  // Trạng thái đơn: PENDING_RESTAURANT_CONFIRMATION | PENDING_CUSTOMER_APPROVAL | PENDING_RESTAURANT_REVISION | PENDING_DEPOSIT | CONFIRMED | PREPARING | DELIVERING | IN_SERVICE | COMPLETED | REJECTED | EXPIRED | CANCELLED
+  status String @default("PENDING_RESTAURANT_CONFIRMATION") @db.NVarChar(50)
+
+  isHoldingCapacity Boolean   @default(true) @map("is_holding_capacity")
+  holdExpiresAt     DateTime? @map("hold_expires_at")
+
+  restaurantDeadline DateTime? @map("restaurant_deadline")
+  customerDeadline   DateTime? @map("customer_deadline")
+  depositDeadline    DateTime? @map("deposit_deadline")
+
+  contactName    String  @map("contact_name") @db.NVarChar(150)
+  contactPhone   String  @map("contact_phone") @db.NVarChar(20)
+  dietaryNotes   String? @map("dietary_notes") @db.NVarChar(1000)
+  equipmentNotes String? @map("equipment_notes") @db.NVarChar(1000)
+  merchantNotes  String? @map("merchant_notes") @db.NVarChar(1000)
+  cancelReason   String? @map("cancel_reason") @db.NVarChar(500)
+  cancelledBy    String? @map("cancelled_by") @db.NVarChar(50)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relationships (NoAction to prevent multiple cascade paths in SQL Server)
+  user          User                   @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  merchant      Merchant               @relation(fields: [merchantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  package       CateringPackage        @relation(fields: [packageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  menuProposals CateringMenuProposal[]
+  auditLogs     CateringAuditLog[]
+
+  @@index([merchantId, eventDate, status])
+  @@index([userId, status])
+  @@index([bookingCode])
+  @@index([isHoldingCapacity, holdExpiresAt])
+  @@map("catering_bookings")
+}
+
+model CateringMenuProposal {
+  id                 String   @id @default(uuid())
+  bookingId          String   @map("booking_id")
+  versionNumber      Int      @default(1) @map("version_number")
+  status             String   @default("PROPOSED") @db.NVarChar(50) // PROPOSED | ACCEPTED | REJECTED | SUPERSEDED | EXPIRED
+  reason             String   @db.NVarChar(1000)
+  dishesJson         String   @map("dishes_json") @db.NVarChar(Max)
+  diffSummaryJson    String?  @map("diff_summary_json") @db.NVarChar(Max)
+  priceDeltaPerTable Decimal  @default(0.00) @map("price_delta_per_table") @db.Decimal(12, 2)
+  newTotalAmount     Decimal  @map("new_total_amount") @db.Decimal(12, 2)
+  expiresAt          DateTime @map("expires_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  booking CateringBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId, status])
+  @@map("catering_menu_proposals")
+}
+
+model CateringAuditLog {
+  id            String   @id @default(uuid())
+  bookingId     String   @map("booking_id")
+  actorId       String   @map("actor_id")
+  actorRole     String   @map("actor_role") @db.NVarChar(50) // CUSTOMER | MERCHANT | ADMIN | SYSTEM
+  action        String   @db.NVarChar(100)
+  previousState String?  @map("previous_state") @db.NVarChar(Max)
+  newState      String?  @map("new_state") @db.NVarChar(Max)
+  note          String?  @db.NVarChar(1000)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  // Relationships
+  booking CateringBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId, createdAt])
+  @@map("catering_audit_logs")
+}
+
+  // Relationships
+  merchant         Merchant              @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  dishes           CateringPackageDish[]
+  bookings         CateringBooking[]
+
+  @@index([merchantId, eventType, isActive])
+  @@map("catering_packages")
+}
+
+model CateringPackageDish {
+  id          String          @id @default(uuid())
+  packageId   String          @map("package_id")
+  name        String          @db.NVarChar(200)
+  course      String          @db.NVarChar(50) // APPETIZER | MAIN | SOUP | DESSERT
+  description String?         @db.NVarChar(500)
+  isOptional  Boolean         @default(false) @map("is_optional")
+  extraPrice  Decimal         @default(0.00) @map("extra_price") @db.Decimal(12, 2)
+  isSoldOut   Boolean         @default(false) @map("is_sold_out")
+  allergens   String?         @db.NVarChar(200)
+
+  // Relationships
+  package     CateringPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@index([packageId])
+  @@map("catering_package_dishes")
+}
+
+model CateringCapacityConfig {
+  id                 String   @id @default(uuid())
+  merchantId         String   @unique @map("merchant_id")
+  maxOrdersPerDay    Int      @default(5) @map("max_orders_per_day")
+  maxTablesPerDay    Int      @default(50) @map("max_tables_per_day")
+  maxTablesPerSlot   Int      @default(25) @map("max_tables_per_slot")
+  minNoticeHours     Int      @default(72) @map("min_notice_hours")
+  prepBufferHours    Decimal  @default(3.0) @map("prep_buffer_hours") @db.Decimal(4, 1)
+  transitBufferHours Decimal  @default(1.0) @map("transit_buffer_hours") @db.Decimal(4, 1)
+  serviceBufferHours Decimal  @default(3.0) @map("service_buffer_hours") @db.Decimal(4, 1)
+  cleanupBufferHours Decimal  @default(1.5) @map("cleanup_buffer_hours") @db.Decimal(4, 1)
+  isActive           Boolean  @default(true) @map("is_active")
+
+  // Relationships
+  merchant           Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@map("catering_capacity_configs")
+}
+
+model CateringBlockedSlot {
+  id         String   @id @default(uuid())
+  merchantId String   @map("merchant_id")
+  blockDate  String   @map("block_date") @db.NVarChar(10) // YYYY-MM-DD
+  timeSlot   String?  @map("time_slot") @db.NVarChar(20)  // NULL nếu cả ngày hoặc "10:00-14:00"
+  reason     String?  @db.NVarChar(500)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relationships
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, blockDate, timeSlot])
+  @@index([merchantId, blockDate])
+  @@map("catering_blocked_slots")
+}
+
+model CateringBooking {
+  id                    String                 @id @default(uuid())
+  bookingCode           String                 @unique @map("booking_code") @db.NVarChar(50)
+  userId                String                 @map("user_id")
+  merchantId            String                 @map("merchant_id")
+  packageId             String                 @map("package_id")
+  packageName           String                 @map("package_name") @db.NVarChar(200)
+  eventType             String                 @map("event_type") @db.NVarChar(50)
+  eventDate             String                 @map("event_date") @db.NVarChar(10)
+  eventTime             String                 @map("event_time") @db.NVarChar(10)
+  eventAddress          String                 @map("event_address") @db.NVarChar(500)
+  eventLatitude         Float?                 @map("event_latitude")
+  eventLongitude        Float?                 @map("event_longitude")
+  tableCount            Int                    @map("table_count")
+  guestCountPerTable    Int                    @default(10) @map("guest_count_per_table")
+
+  pricePerTable         Decimal                @map("price_per_table") @db.Decimal(12, 2)
+  tablesSubtotal        Decimal                @map("tables_subtotal") @db.Decimal(12, 2)
+  deliveryFee           Decimal                @default(0.00) @map("delivery_fee") @db.Decimal(12, 2)
+  serviceFee            Decimal                @default(0.00) @map("service_fee") @db.Decimal(12, 2)
+  equipmentFee          Decimal                @default(0.00) @map("equipment_fee") @db.Decimal(12, 2)
+  discountAmount        Decimal                @default(0.00) @map("discount_amount") @db.Decimal(12, 2)
+  totalAmount           Decimal                @map("total_amount") @db.Decimal(12, 2)
+
+  depositPercent        Int                    @default(30) @map("deposit_percent")
+  depositAmount         Decimal                @map("deposit_amount") @db.Decimal(12, 2)
+  remainingAmount       Decimal                @map("remaining_amount") @db.Decimal(12, 2)
+  isDepositPaid         Boolean                @default(false) @map("is_deposit_paid")
+  depositPaidAt         DateTime?              @map("deposit_paid_at")
+  depositTransactionRef String?                @map("deposit_transaction_ref") @db.NVarChar(100)
+
+  // Trạng thái đơn: PENDING_RESTAURANT_CONFIRMATION | PENDING_CUSTOMER_APPROVAL | PENDING_RESTAURANT_REVISION | PENDING_DEPOSIT | CONFIRMED | PREPARING | DELIVERING | IN_SERVICE | COMPLETED | REJECTED | EXPIRED | CANCELLED
+  status                String                 @default("PENDING_RESTAURANT_CONFIRMATION") @db.NVarChar(50)
+
+  isHoldingCapacity     Boolean                @default(true) @map("is_holding_capacity")
+  holdExpiresAt         DateTime?              @map("hold_expires_at")
+
+  restaurantDeadline    DateTime?              @map("restaurant_deadline")
+  customerDeadline      DateTime?              @map("customer_deadline")
+  depositDeadline       DateTime?              @map("deposit_deadline")
+
+  contactName           String                 @map("contact_name") @db.NVarChar(150)
+  contactPhone          String                 @map("contact_phone") @db.NVarChar(20)
+  dietaryNotes          String?                @map("dietary_notes") @db.NVarChar(1000)
+  equipmentNotes        String?                @map("equipment_notes") @db.NVarChar(1000)
+  merchantNotes         String?                @map("merchant_notes") @db.NVarChar(1000)
+  cancelReason          String?                @map("cancel_reason") @db.NVarChar(500)
+  cancelledBy           String?                @map("cancelled_by") @db.NVarChar(50)
+
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
+
+  // Relationships (NoAction to prevent multiple cascade paths in SQL Server)
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  merchant              Merchant               @relation(fields: [merchantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  package               CateringPackage        @relation(fields: [packageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  menuProposals         CateringMenuProposal[]
+  auditLogs             CateringAuditLog[]
+
+  @@index([merchantId, eventDate, status])
+  @@index([userId, status])
+  @@index([bookingCode])
+  @@index([isHoldingCapacity, holdExpiresAt])
+  @@map("catering_bookings")
+}
+
+model CateringMenuProposal {
+  id                 String          @id @default(uuid())
+  bookingId          String          @map("booking_id")
+  versionNumber      Int             @default(1) @map("version_number")
+  status             String          @default("PROPOSED") @db.NVarChar(50) // PROPOSED | ACCEPTED | REJECTED | SUPERSEDED | EXPIRED
+  reason             String          @db.NVarChar(1000)
+  dishesJson         String          @map("dishes_json") @db.NVarChar(Max)
+  diffSummaryJson    String?         @map("diff_summary_json") @db.NVarChar(Max)
+  priceDeltaPerTable Decimal         @default(0.00) @map("price_delta_per_table") @db.Decimal(12, 2)
+  newTotalAmount     Decimal         @map("new_total_amount") @db.Decimal(12, 2)
+  expiresAt          DateTime        @map("expires_at")
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+
+  // Relationships
+  booking            CateringBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId, status])
+  @@map("catering_menu_proposals")
+}
+
+model CateringAuditLog {
+  id            String          @id @default(uuid())
+  bookingId     String          @map("booking_id")
+  actorId       String          @map("actor_id")
+  actorRole     String          @map("actor_role") @db.NVarChar(50) // CUSTOMER | MERCHANT | ADMIN | SYSTEM
+  action        String          @db.NVarChar(100)
+  previousState String?         @map("previous_state") @db.NVarChar(Max)
+  newState      String?         @map("new_state") @db.NVarChar(Max)
+  note          String?         @db.NVarChar(1000)
+  createdAt     DateTime        @default(now()) @map("created_at")
+
+  // Relationships
+  booking       CateringBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId, createdAt])
+  @@map("catering_audit_logs")
 }
 
 
