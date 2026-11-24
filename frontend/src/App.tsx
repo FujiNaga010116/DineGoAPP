@@ -26,6 +26,7 @@ import { ReviewModal } from './components/common/ReviewModal';
 import { MerchantRegistrationModal } from './components/common/MerchantRegistrationModal';
 import { MerchantSetupScreen } from './components/common/MerchantSetupScreen';
 import { AddressSetupModal } from './components/common/AddressSetupModal';
+import { FloatingAiChatWidget } from './components/common/FloatingAiChatWidget';
 import { CartProvider } from './context/CartContext';
 import { API_BASE_URL, MOCK_MERCHANTS, MOCK_MENU_ITEMS, MOCK_DRIVERS, MOCK_USERS, isDriverProfileVerified, adminApi } from './api/client';
 import type {
@@ -2133,6 +2134,31 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
             </button>
           </div>
         </div>
+      )}
+
+      {/* Grab-style Floating Culinary AI Chatbox — Customer / Guest only (never shown to Admin, Merchant, Driver) */}
+      {!isAdminPortalTab &&
+        !isMerchantPortalTab &&
+        !isDriverPortalMode &&
+        (!currentUser ||
+          (!currentUser.roles.includes('ADMIN') &&
+            !currentUser.roles.includes('MERCHANT') &&
+            !currentUser.roles.includes('DRIVER'))) && (
+        <FloatingAiChatWidget
+          currentUser={currentUser}
+          merchants={merchants}
+          menuItems={Object.values(allMenuItems).flat()}
+          onOpenAuthModal={() => handleOpenAuthModal('login', 'CUSTOMER')}
+          onSelectMerchant={(merchant) => {
+            setActiveBrowseMerchant(merchant);
+            setCurrentTab('restaurant');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onNavigate={(tab) => {
+            setCurrentTab(tab);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        />
       )}
     </div>
   );

@@ -293,5 +293,17 @@ export class DashboardController {
   deleteKnowledgeChunk(@Param('id') id: string) {
     return this.dashboardService.deleteKnowledgeChunk(id);
   }
+
+  @Get('admin/database/ai-prompt')
+  @ApiOperation({ summary: 'Lấy System Prompt huấn luyện AI từ SQL Server' })
+  getAiSystemPrompt() {
+    return this.dashboardService.getAiSystemPrompt();
+  }
+
+  @Post('admin/database/ai-prompt')
+  @ApiOperation({ summary: 'Lưu System Prompt huấn luyện AI vào SQL Server' })
+  saveAiSystemPrompt(@Body() body: { prompt: string }) {
+    return this.dashboardService.saveAiSystemPrompt(body.prompt);
+  }
 }
 

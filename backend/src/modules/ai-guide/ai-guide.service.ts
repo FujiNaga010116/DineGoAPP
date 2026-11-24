@@ -430,4 +430,456 @@ export class AiGuideService {
     this.logger.log(`[RAG Knowledge Base] Đã xóa mục tri thức: ${removed.dishName}`);
     return { deleted: true, id };
   }
+
+  async widgetChat(body: {
+    message: string;
+    userId?: string;
+    userEmail?: string;
+    sessionId?: string;
+    history?: Array<{ role: 'user' | 'assistant'; text: string; recommendedIds?: string[] }>;
+  }) {
+    const rawMsg = String(body?.message || '').trim();
+    if (!rawMsg) {
+      throw new BadRequestException('Tin nhắn không được để trống');
+    }
+    const lower = rawMsg.toLowerCase();
+
+    // 1. Guardrail check (BR-30)
+    const blockedKeywords = ['hack', 'sql injection', 'drop table', 'password', 'chính trị', 'cá độ'];
+    if (blockedKeywords.some((k) => lower.includes(k))) {
+      return {
+        sessionId: body.sessionId || `wchat-${Date.now()}`,
+        reply:
+          'Xin lỗi, trợ lý DineGo chỉ hỗ trợ tư vấn ẩm thực, tìm quán ăn, đặt mâm cỗ sự kiện, mã giảm giá và hỗ trợ đơn hàng/khiếu nại trên sàn.',
+        recommendations: [],
+        quickActions: [{ label: 'Xem món ngon', tab: 'home' }],
+        llmProvider: 'SQL_RAG',
+      };
+    }
+
+    // 2. Query SQL Server RAG Knowledge Base + Admin-trained System Prompt
+    let kbRows: Array<{ id: string; content: string; source: string }> = [];
+    let customSystemPrompt = '';
+    try {
+      const allKb = await this.prisma.$queryRawUnsafe<Array<{ id: string; content: string; source: string }>>(
+        `SELECT TOP 10 id, content, source FROM knowledge_base_vectors ORDER BY created_at DESC`,
+      );
+      for (const row of allKb) {
+        if (row.source === '__SYSTEM_PROMPT__') {
+          customSystemPrompt = row.content;
+        } else {
+          kbRows.push(row);
+        }
+      }
+    } catch {}
+
+    const matchedKb = kbRows.filter((kb) => {
+      const words = lower.split(/\s+/).filter((w) => w.length >= 2);
+      const hay = `${kb.source} ${kb.content}`.toLowerCase();
+      return words.some((w) => hay.includes(w));
+    });
+
+    // 3. Parse budget if user mentions e.g. "60k", "65000", "dưới 70.000"
+    let maxBudget: number | null = null;
+    const kMatch = lower.match(/(\d{2,3})\s*k/);
+    const vndMatch = lower.match(/(\d{2,3})[.,]?000/);
+    if (kMatch) {
+      maxBudget = Number(kMatch[1]) * 1000;
+    } else if (vndMatch) {
+      maxBudget = Number(vndMatch[1]) * 1000;
+    }
+
+    // 4. Query real MenuItems + Merchants from SQL Server
+    const dbDishes = await this.prisma.menuItem.findMany({
+      where: {
+        isAvailable: true,
+        isActive: true,
+        ...(maxBudget ? { basePrice: { lte: maxBudget } } : {}),
+      },
+      include: {
+        merchant: {
+          select: { id: true, name: true, slug: true, address: true, rating: true, isActive: true },
+        },
+      },
+      take: 40,
+    });
+
+    const catalogDishes = dbDishes
+      .filter((d) => d.merchant?.isActive !== false)
+      .map((d) => ({
+        id: d.id,
+        name: d.name,
+        price: Number(d.basePrice),
+        description: d.description || 'Món ăn được thực khách đánh giá cao trên DineGo',
+        merchantId: d.merchant.id,
+        merchantSlug: d.merchant.slug,
+        merchantName: d.merchant.name,
+        rating: Number(d.merchant?.rating || 4.8),
+      }));
+
+    // Track dish IDs already recommended in previous turns
+    const historyList = Array.isArray(body.history) ? body.history.slice(-8) : [];
+    const previouslyRecommendedIds = new Set<string>();
+    for (const h of historyList) {
+      if (Array.isArray(h.recommendedIds)) {
+        for (const id of h.recommendedIds) previouslyRecommendedIds.add(id);
+      }
+    }
+
+    const stopWords = new Set([
+      'có', 'cho', 'tôi', 'mình', 'bạn', 'xem', 'đang', 'với', 'nào', 'gì',
+      'được', 'không', 'của', 'và', 'nhé', 'nha', 'này', 'kia', 'đi', 'rồi',
+      'luôn', 'làm', 'cần', 'muốn', 'giúp', 'mã', 'đơn', 'hàng', 'giảm', 'giá',
+    ]);
+    const scoredDishes = catalogDishes
+      .map((d) => {
+        const hay = `${d.name} ${d.description} ${d.merchantName}`.toLowerCase();
+        const words = lower
+          .split(/\s+/)
+          .map((w) => w.replace(/[^\p{L}\p{N}]/gu, ''))
+          .filter((w) => w.length >= 2 && !stopWords.has(w));
+        const hits = words.reduce((acc, w) => acc + (hay.includes(w) ? 1 : 0), 0);
+        return { dish: d, hits };
+      })
+      .sort((a, b) => b.hits - a.hits || a.dish.price - b.dish.price);
+
+    const wantsAnother =
+      lower.includes('món khác') ||
+      lower.includes('đổi món') ||
+      lower.includes('khác đi') ||
+      lower.includes('cũ vậy');
+    const wantsOneOnly =
+      lower.includes('1 món') || lower.includes('một món') || lower.includes('duy nhất');
+    const fallbackLimit = wantsOneOnly ? 1 : 3;
+
+    const candidatePool = wantsAnother
+      ? scoredDishes.filter((s) => !previouslyRecommendedIds.has(s.dish.id))
+      : scoredDishes;
+    const effectivePool = candidatePool.length > 0 ? candidatePool : scoredDishes;
+    const fallbackDishes = (effectivePool.some((s) => s.hits > 0)
+      ? effectivePool.filter((s) => s.hits > 0).slice(0, fallbackLimit)
+      : effectivePool.slice(0, fallbackLimit)
+    ).map((s) => s.dish);
+
+    // 4.5. Query user's recent orders & active promos from SQL Server
+    let userOrders: Array<{ orderNumber: string; status: string; finalTotal: number; merchantName: string }> = [];
+    const resolvedUserId = await this.resolveDbUserId(body.userId, body.userEmail);
+    if (resolvedUserId) {
+      try {
+        const dbOrders = await this.prisma.order.findMany({
+          where: { userId: resolvedUserId },
+          include: { merchant: { select: { name: true } } },
+          orderBy: { createdAt: 'desc' },
+          take: 3,
+        });
+        userOrders = dbOrders.map((o) => ({
+          orderNumber: o.orderNumber,
+          status: o.status,
+          finalTotal: Number(o.finalTotal),
+          merchantName: o.merchant?.name || 'Nhà hàng DineGo',
+        }));
+      } catch {}
+    }
+
+    const activePromos = await this.prisma.promotion.findMany({
+      where: { isActive: true },
+      take: 5,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // 5. Intent shortcuts for quick navigation actions + Real Gemini AI Orchestration
+    let reply = '';
+    const quickActions: Array<{ label: string; tab: string }> = [];
+    let selectedRecommendations: typeof catalogDishes = [];
+    let llmProvider: 'GEMINI' | 'OPENAI' | 'SQL_RAG' = 'SQL_RAG';
+
+    if (lower.includes('khiếu nại') || lower.includes('hoàn tiền') || lower.includes('bồi thường')) {
+      quickActions.push({ label: 'Mở Đơn hàng của tôi', tab: 'orders' });
+      quickActions.push({ label: 'Xem Ví hoàn tiền', tab: 'customer-profile' });
+    } else if (lower.includes('voucher') || lower.includes('giảm giá') || lower.includes('khuyến mãi')) {
+      quickActions.push({ label: 'Đi Săn Voucher ngay', tab: 'vouchers' });
+    } else if (lower.includes('mâm cỗ') || lower.includes('đặt tiệc') || lower.includes('cỗ')) {
+      quickActions.push({ label: 'Mở Đặt Mâm Cỗ', tab: 'catering' });
+    } else if (lower.includes('đơn của tôi') || lower.includes('đơn hàng') || lower.includes('kiểm tra đơn')) {
+      quickActions.push({ label: 'Mở Đơn hàng', tab: 'orders' });
+      quickActions.push({ label: 'Theo dõi giao hàng', tab: 'tracking' });
+    }
+
+    const geminiKey = process.env.GEMINI_API_KEY?.trim();
+    if (geminiKey) {
+      const baseSystemPrompt =
+        customSystemPrompt ||
+        'Bạn là Trợ lý AI thông minh & CSKH của sàn đặt đồ ăn DineGo. Phong cách: thân thiện, ngắn gọn, chính xác, xưng hô "mình - bạn".\n' +
+          'Quy tắc bắt buộc:\n' +
+          '1. Chỉ gợi ý món ăn có thật trong danh sách <menu_catalog>, tuyệt đối không bịa món.\n' +
+          '2. Nếu khách yêu cầu số lượng cụ thể (VD: "1 món thôi", "2 món"), trả về đúng số lượng đó trong recommendedIds.\n' +
+          '3. Nếu khách nói "món khác", "đổi món", tuyệt đối KHÔNG chọn lại các ID trong previouslyRecommendedIds.\n' +
+          '4. Nếu khách chỉ chào hỏi (VD: "xin chào") hoặc hỏi đơn hàng/voucher/khiếu nại không cần chọn món thì để recommendedIds = [].\n' +
+          '5. Tuyệt đối KHÔNG bịa rằng bạn đã gửi email, SMS hay thông tin tài khoản ngân hàng cho khách; nếu khách cần hỗ trợ đơn hàng hoặc khiếu nại ngoài phạm vi tư vấn, hãy hướng dẫn khách vào mục "Đơn hàng" hoặc gửi khiếu nại trên hệ thống.';
+
+      const contextPayload = {
+        knowledgeBase: kbRows.map((k) => `[${k.source}] ${k.content}`),
+        menuCatalog: catalogDishes.slice(0, 25).map((d) => ({
+          id: d.id,
+          name: d.name,
+          price: d.price,
+          merchant: d.merchantName,
+        })),
+        activeVouchers: activePromos.map((p) => ({
+          code: p.code,
+          name: p.name,
+          minOrder: Number(p.minOrderValue),
+        })),
+        userRecentOrders: userOrders,
+        previouslyRecommendedIds: Array.from(previouslyRecommendedIds),
+        conversationHistory: historyList.map((h) => ({
+          role: h.role,
+          text: h.text,
+          recommendedIds: h.recommendedIds || [],
+        })),
+      };
+
+      const fullPrompt = `${baseSystemPrompt}
+
+<context_data>
+${JSON.stringify(contextPayload)}
+</context_data>
+
+Tin nhắn mới nhất của khách hàng: "${rawMsg}"
+
+Hãy trả về DUY NHẤT một JSON object hợp lệ đúng định dạng sau:
+{
+  "reply": "Câu trả lời tự nhiên bằng tiếng Việt (có thể xuống dòng nhẹ)",
+  "recommendedIds": ["id_mon_1"]
+}`;
+
+      const geminiModels = ['gemini-3.8-flash', 'gemini-3.5-flash'];
+      for (const modelName of geminiModels) {
+        if (reply) break;
+        try {
+          const gRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(geminiKey)}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              signal: AbortSignal.timeout(6000),
+              body: JSON.stringify({
+                contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
+                generationConfig: { responseMimeType: 'application/json' },
+              }),
+            },
+          );
+          if (gRes.ok) {
+            const gData = (await gRes.json()) as any;
+            const gRaw = gData?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (gRaw) {
+              try {
+                const parsed = JSON.parse(String(gRaw).trim());
+                if (parsed?.reply) {
+                  reply = String(parsed.reply).trim();
+                  llmProvider = 'GEMINI';
+                  const ids: string[] = Array.isArray(parsed.recommendedIds) ? parsed.recommendedIds : [];
+                  selectedRecommendations = ids
+                    .map((id) => catalogDishes.find((d) => d.id === id))
+                    .filter((d): d is (typeof catalogDishes)[number] => Boolean(d));
+                }
+              } catch {
+                reply = String(gRaw).trim();
+                llmProvider = 'GEMINI';
+              }
+            }
+          } else {
+            const errTxt = await gRes.text();
+            this.logger.warn(`Gemini (${modelName}) returned ${gRes.status}: ${errTxt.slice(0, 140)}`);
+          }
+        } catch (err) {
+          this.logger.warn(`Gemini (${modelName}) error: ${(err as Error).message}`);
+        }
+      }
+    }
+
+    // Fast, accurate fallback when Gemini is unavailable/rate-limited
+    if (!reply) {
+      const asksVoucher =
+        lower.includes('voucher') || lower.includes('giảm giá') || lower.includes('khuyến mãi') || lower.includes('mã giảm');
+      const asksOrder =
+        lower.includes('đơn hàng') || lower.includes('đơn của tôi') || lower.includes('kiểm tra đơn') || lower.includes('giao hàng');
+      const asksComplaint =
+        lower.includes('khiếu nại') || lower.includes('hoàn tiền') || lower.includes('bồi thường');
+      const asksCatering =
+        lower.includes('mâm cỗ') || lower.includes('đặt tiệc') || lower.includes('tiệc');
+
+      if (asksVoucher) {
+        if (activePromos.length > 0) {
+          reply =
+            'Hiện tại DineGo đang có các mã giảm giá sau:\n' +
+            activePromos
+              .map(
+                (p) =>
+                  `• **${p.code}** — ${p.name} (đơn tối thiểu ${Number(p.minOrderValue).toLocaleString('vi-VN')}đ)`,
+              )
+              .join('\n');
+        } else {
+          reply = 'Hiện tại chưa có mã giảm giá nào đang hoạt động. Bạn có thể kiểm tra lại ở mục Săn Voucher nhé!';
+        }
+      } else if (asksOrder) {
+        if (userOrders.length > 0) {
+          reply =
+            'Các đơn hàng gần nhất của bạn:\n' +
+            userOrders
+              .map((o) => `• **#${o.orderNumber}** (${o.merchantName}) — ${o.finalTotal.toLocaleString('vi-VN')}đ — ${o.status}`)
+              .join('\n');
+        } else {
+          reply = 'Tài khoản của bạn hiện chưa có đơn hàng nào gần đây. Bạn có thể mở mục Đơn hàng để kiểm tra chi tiết.';
+        }
+      } else if (asksComplaint) {
+        reply =
+          'Nếu đơn hàng gặp sự cố, bạn hãy mở mục **Đơn hàng của tôi**, chọn đơn cần hỗ trợ và gửi **Khiếu nại** để được xử lý và hoàn tiền vào Ví hoàn tiền nhé!';
+      } else if (asksCatering) {
+        const cateringKb = kbRows.find((k) => k.content.toLowerCase().includes('cỗ') || k.content.toLowerCase().includes('mâm'));
+        reply = cateringKb
+          ? cateringKb.content
+          : 'Bạn có thể mở mục **Đặt Mâm Cỗ** để chọn gói tiệc và đặt cọc trực tiếp theo số lượng mâm mong muốn nhé!';
+      } else {
+        const wantsFood =
+          Boolean(maxBudget) ||
+          wantsAnother ||
+          wantsOneOnly ||
+          scoredDishes.some((s) => s.hits > 0) ||
+          ['ăn gì', 'món', 'quán', 'cơm', 'phở', 'bún', 'trà sữa', 'gợi ý'].some((k) => lower.includes(k));
+        if (wantsFood && fallbackDishes.length > 0) {
+          selectedRecommendations = fallbackDishes;
+          reply = `Dưới đây là ${fallbackDishes.length} gợi ý món phù hợp trên DineGo:`;
+        } else {
+          reply =
+            'Xin chào! Mình là Trợ lý AI của DineGo. Bạn muốn mình tìm món gì, kiểm tra đơn hàng hay xem mã giảm giá?';
+        }
+      }
+    }
+
+    // 6. Persist to SQL Server chat_sessions & chat_messages if userId resolves to a DB user
+    let sessionId = body.sessionId || `wchat-${Date.now()}`;
+    if (resolvedUserId) {
+      try {
+        await this.prisma.$executeRawUnsafe(
+          `IF NOT EXISTS (SELECT 1 FROM chat_sessions WHERE id = @P1)
+             INSERT INTO chat_sessions (id, user_id, title, created_at, updated_at)
+             VALUES (@P1, @P2, @P3, GETDATE(), GETDATE())
+           ELSE
+             UPDATE chat_sessions SET updated_at = GETDATE() WHERE id = @P1`,
+          sessionId,
+          resolvedUserId,
+          rawMsg.slice(0, 120),
+        );
+        const uMsgId = `cm-u-${Date.now()}`;
+        const aMsgId = `cm-a-${Date.now() + 1}`;
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO chat_messages (id, session_id, role, content, tokens, is_interrupted, created_at)
+           VALUES (@P1, @P2, 'user', @P3, @P4, 0, GETDATE()), (@P5, @P2, 'assistant', @P6, @P7, 0, GETDATE())`,
+          uMsgId,
+          sessionId,
+          rawMsg,
+          rawMsg.length,
+          aMsgId,
+          reply,
+          reply.length,
+        );
+      } catch (e) {
+        this.logger.warn(`Could not log widget chat to SQL Server: ${(e as Error).message}`);
+      }
+    }
+
+    return {
+      sessionId,
+      reply,
+      recommendations: selectedRecommendations,
+      quickActions,
+      llmProvider,
+    };
+  }
+
+  private async resolveDbUserId(userId?: string, email?: string): Promise<string | null> {
+    if (!userId && !email) return null;
+    try {
+      if (userId) {
+        const exact = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true },
+        });
+        if (exact) return exact.id;
+      }
+      if (email) {
+        const byEmail = await this.prisma.user.findUnique({
+          where: { email: email.trim().toLowerCase() },
+          select: { id: true },
+        });
+        if (byEmail) return byEmail.id;
+      }
+      // Only map the legacy quick-login mock ID u-user1-001 to customer@dinego.vn; never leak other accounts
+      if (userId === 'u-user1-001') {
+        const legacyCustomer = await this.prisma.user.findFirst({
+          where: { email: 'customer@dinego.vn' },
+          select: { id: true },
+        });
+        return legacyCustomer?.id ?? null;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  async getWidgetSessions(userId: string, email?: string) {
+    const resolvedUserId = await this.resolveDbUserId(userId, email);
+    if (!resolvedUserId) return [];
+    let rows: Array<any> = [];
+    try {
+      rows = await this.prisma.$queryRawUnsafe(
+        `SELECT TOP 20
+           cs.id,
+           cs.title,
+           cs.updated_at,
+           (SELECT TOP 1 content FROM chat_messages cm WHERE cm.session_id = cs.id ORDER BY cm.created_at DESC) AS last_message
+         FROM chat_sessions cs
+         WHERE cs.user_id = @P1 AND cs.id NOT LIKE 'sup-%' AND LEFT(cs.title, 9) <> '[SUPPORT]'
+         ORDER BY cs.updated_at DESC`,
+        resolvedUserId,
+      );
+    } catch (e) {
+      this.logger.warn(`getWidgetSessions error: ${(e as Error).message}`);
+    }
+    return rows.map((r) => ({
+      id: r.id,
+      title: r.title || 'Cuộc trò chuyện DineGo',
+      lastMessage: r.last_message || '',
+      updatedAt: r.updated_at
+        ? new Date(r.updated_at).toLocaleString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            day: '2-digit',
+            month: '2-digit',
+          })
+        : '',
+    }));
+  }
+
+  async getWidgetSessionMessages(sessionId: string) {
+    let rows: Array<any> = [];
+    try {
+      rows = await this.prisma.$queryRawUnsafe(
+        `SELECT id, role, content, created_at FROM chat_messages WHERE session_id = @P1 ORDER BY created_at ASC`,
+        sessionId,
+      );
+    } catch (e) {
+      this.logger.warn(`getWidgetSessionMessages error: ${(e as Error).message}`);
+    }
+    return rows.map((r) => ({
+      id: r.id,
+      sender: r.role === 'user' ? 'user' : 'ai',
+      text: r.content,
+      timestamp: r.created_at
+        ? new Date(r.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+        : '',
+    }));
+  }
 }

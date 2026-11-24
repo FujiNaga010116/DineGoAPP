@@ -1666,6 +1666,7 @@ export class DashboardService {
         SELECT k.id, k.content, k.source, k.created_at, u.full_name AS author_name
         FROM knowledge_base_vectors k
         LEFT JOIN users u ON u.id = k.created_by
+        WHERE k.source <> '__SYSTEM_PROMPT__'
         ORDER BY k.created_at DESC
       `);
     } catch (e) {
@@ -1749,6 +1750,49 @@ export class DashboardService {
       this.logger.warn(`Không thể xóa knowledge_base_vectors: ${(e as Error).message}`);
     }
     return { deleted: true, id };
+  }
+
+  async getAiSystemPrompt() {
+    const defaultPrompt =
+      'Bạn là Trợ lý AI thông minh & CSKH của sàn đặt đồ ăn DineGo. Phong cách: thân thiện, ngắn gọn, chính xác, xưng hô "mình - bạn".\n' +
+      'Quy tắc bắt buộc:\n' +
+      '1. Chỉ gợi ý món ăn có thật trong danh sách <menu_catalog> được cung cấp, tuyệt đối không bịa món hoặc sai giá.\n' +
+      '2. Nếu khách yêu cầu số lượng cụ thể (VD: "chọn 1 món thôi", "gợi ý 2 món"), trả về đúng số lượng đó trong recommendedIds.\n' +
+      '3. Nếu khách nói "món khác", "đổi món", "không thích món này", tuyệt đối KHÔNG chọn lại các ID món đã gợi ý ở các lượt trước trong lịch sử hội thoại.\n' +
+      '4. Nếu khách chỉ chào hỏi hoặc hỏi về voucher, đơn hàng, khiếu nại, mâm cỗ thì trả lời tự nhiên và để recommendedIds = [].';
+    try {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ content: string }>>(
+        `SELECT content FROM knowledge_base_vectors WHERE id = 'ai-system-prompt-v1'`,
+      );
+      if (rows[0]?.content) {
+        return { prompt: rows[0].content };
+      }
+    } catch {}
+    return { prompt: defaultPrompt };
+  }
+
+  async saveAiSystemPrompt(prompt: string) {
+    const cleanPrompt = String(prompt || '').trim();
+    if (!cleanPrompt) {
+      throw new BadRequestException('System Prompt không được để trống');
+    }
+    try {
+      const adminUser = await this.prisma.user.findFirst({ select: { id: true } });
+      if (adminUser) {
+        await this.prisma.$executeRawUnsafe(
+          `IF EXISTS (SELECT 1 FROM knowledge_base_vectors WHERE id = 'ai-system-prompt-v1')
+             UPDATE knowledge_base_vectors SET content = @P1 WHERE id = 'ai-system-prompt-v1'
+           ELSE
+             INSERT INTO knowledge_base_vectors (id, content, embedding_json, source, created_by, created_at)
+             VALUES ('ai-system-prompt-v1', @P1, '[]', '__SYSTEM_PROMPT__', @P2, GETDATE())`,
+          cleanPrompt,
+          adminUser.id,
+        );
+      }
+    } catch (e) {
+      this.logger.warn(`Không thể lưu AI System Prompt: ${(e as Error).message}`);
+    }
+    return { saved: true, prompt: cleanPrompt };
   }
 }
 
