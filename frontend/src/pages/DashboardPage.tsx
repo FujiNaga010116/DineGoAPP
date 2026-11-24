@@ -8753,18 +8753,57 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               )}
 
               {/* Create / Edit Shop Voucher Form Card */}
-              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
-                  <div>
-                    <h3 style={{ fontSize: '1.04rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                      {editingShopVoucherId
-                        ? 'Chỉnh sửa Mã Ưu Đãi Của Quán'
-                        : `Phát hành Mã Ưu Đãi Mới Cho Quán "${currentMerchant?.name || 'Của Bạn'}"`}
-                    </h3>
-                    <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '3px 0 0 0' }}>
-                      Mã ưu đãi do quán tạo chỉ áp dụng cho đơn hàng đặt tại <strong>{currentMerchant?.name}</strong> và tự động hiển thị trên trang thực đơn của quán.
-                    </p>
+              <div
+                style={{
+                  background: '#FFFFFF',
+                  border: editingShopVoucherId ? '1.5px solid #F59E0B' : '1px solid #E2E8F0',
+                  borderRadius: 14,
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                  overflow: 'hidden',
+                }}
+              >
+                {/* Card Header */}
+                <div
+                  style={{
+                    padding: '18px 24px',
+                    background: editingShopVoucherId ? '#FFFBEB' : '#FFFFFF',
+                    borderBottom: '1px solid #F1F5F9',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 10,
+                        background: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)',
+                        color: '#B45309',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        boxShadow: '0 2px 6px rgba(217, 119, 6, 0.15)',
+                      }}
+                    >
+                      <Ticket size={20} />
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '1.04rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                        {editingShopVoucherId
+                          ? 'Chỉnh sửa Mã Ưu Đãi Của Quán'
+                          : `Phát hành Mã Ưu Đãi Mới Cho Quán "${currentMerchant?.name || 'Của Bạn'}"`}
+                      </h3>
+                      <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '3px 0 0 0' }}>
+                        Mã ưu đãi áp dụng trực tiếp cho đơn hàng tại quán và tự động hiển thị trên thực đơn.
+                      </p>
+                    </div>
                   </div>
+
                   <button
                     type="button"
                     onClick={() => {
@@ -8772,299 +8811,455 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       setShopVoucherCode(`QUAN${randomSuffix}K`);
                     }}
                     style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
                       padding: '7px 14px',
                       borderRadius: 8,
-                      border: '1px solid #F59E0B',
+                      border: '1px solid #FCD34D',
                       background: '#FFFBEB',
                       color: '#B45309',
-                      fontSize: '0.78rem',
+                      fontSize: '0.79rem',
                       fontWeight: 700,
                       cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#FEF3C7';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = '#FFFBEB';
                     }}
                   >
-                    ✨ Gợi ý mã nhanh
+                    <span>✨ Gợi ý mã nhanh</span>
                   </button>
                 </div>
 
-                <form
-                  onSubmit={handleSaveShopVoucher}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(185px, 1fr))',
-                    gap: 14,
-                    padding: 18,
-                    background: editingShopVoucherId ? '#FFFBEB' : '#F8FAFC',
-                    borderRadius: 10,
-                    border: editingShopVoucherId ? '1.5px solid #F59E0B' : '1px solid #E2E8F0',
-                    alignItems: 'end',
-                  }}
-                >
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                      Mã Voucher của Quán *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="VD: COMTAM25K"
-                      value={shopVoucherCode}
-                      onChange={(e) => setShopVoucherCode(e.target.value.toUpperCase())}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        borderRadius: 6,
-                        border: '1px solid #CBD5E1',
-                        fontSize: '0.86rem',
-                        fontWeight: 800,
-                        color: '#B45309',
-                        background: '#FFFFFF',
-                      }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                      Tên chương trình ưu đãi
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="VD: Ưu đãi khách quen của quán"
-                      value={shopVoucherEventTag}
-                      onChange={(e) => setShopVoucherEventTag(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        borderRadius: 6,
-                        border: '1px solid #CBD5E1',
-                        fontSize: '0.84rem',
-                        background: '#FFFFFF',
-                      }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                      Chủ đề khuyến mãi
-                    </label>
-                    <select
-                      value={shopVoucherEventTheme}
-                      onChange={(e) => setShopVoucherEventTheme(e.target.value as VoucherEventTheme)}
-                      style={{
-                        width: '100%',
-                        padding: '9px 10px',
-                        borderRadius: 6,
-                        border: '1px solid #CBD5E1',
-                        fontSize: '0.84rem',
-                        background: '#FFFFFF',
-                      }}
-                    >
-                      {EVENT_THEME_OPTIONS.map((ev) => (
-                        <option key={ev.value} value={ev.value}>
-                          {ev.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                      Hình thức giảm giá
-                    </label>
-                    <select
-                      value={shopVoucherType}
-                      onChange={(e) => {
-                        const t = e.target.value as 'FIXED_AMOUNT' | 'PERCENTAGE';
-                        setShopVoucherType(t);
-                        setShopVoucherDiscount(t === 'PERCENTAGE' ? 15 : 20000);
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '9px 10px',
-                        borderRadius: 6,
-                        border: '1px solid #CBD5E1',
-                        fontSize: '0.84rem',
-                        background: '#FFFFFF',
-                      }}
-                    >
-                      <option value="FIXED_AMOUNT">Giảm tiền mặt cố định (VNĐ)</option>
-                      <option value="PERCENTAGE">Giảm theo phần trăm (%)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                      {shopVoucherType === 'PERCENTAGE' ? 'Mức giảm (%)' : 'Số tiền giảm (VNĐ)'}
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      step={shopVoucherType === 'PERCENTAGE' ? 5 : 5000}
-                      value={shopVoucherDiscount}
-                      onChange={(e) => setShopVoucherDiscount(Number(e.target.value))}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        borderRadius: 6,
-                        border: '1px solid #CBD5E1',
-                        fontSize: '0.84rem',
-                        background: '#FFFFFF',
-                      }}
-                    />
-                  </div>
-
-                  {shopVoucherType === 'PERCENTAGE' && (
+                {/* Form Fields */}
+                <form onSubmit={handleSaveShopVoucher} style={{ padding: 24 }}>
+                  {/* Row 1: Thông tin cơ bản */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                      gap: 16,
+                      marginBottom: 16,
+                    }}
+                  >
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                        Giảm tối đa (VNĐ)
+                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                        Mã Voucher của Quán <span style={{ color: '#DC2626' }}>*</span>
                       </label>
                       <input
-                        type="number"
-                        step="5000"
-                        value={shopVoucherMaxDiscount}
-                        onChange={(e) => setShopVoucherMaxDiscount(Number(e.target.value))}
+                        type="text"
+                        required
+                        placeholder="VD: COMTAM25K"
+                        value={shopVoucherCode}
+                        onChange={(e) => setShopVoucherCode(e.target.value.toUpperCase())}
                         style={{
                           width: '100%',
-                          padding: '9px 12px',
-                          borderRadius: 6,
+                          height: 40,
+                          padding: '0 12px',
+                          borderRadius: 8,
                           border: '1px solid #CBD5E1',
-                          fontSize: '0.84rem',
+                          fontSize: '0.88rem',
+                          fontWeight: 800,
+                          color: '#B45309',
                           background: '#FFFFFF',
+                          letterSpacing: 0.5,
+                          boxSizing: 'border-box',
                         }}
                       />
                     </div>
-                  )}
 
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                      Đơn tối thiểu tại quán (VNĐ)
-                    </label>
-                    <input
-                      type="number"
-                      step="10000"
-                      value={shopVoucherMinOrder}
-                      onChange={(e) => setShopVoucherMinOrder(Number(e.target.value))}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        borderRadius: 6,
-                        border: '1px solid #CBD5E1',
-                        fontSize: '0.84rem',
-                        background: '#FFFFFF',
-                      }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                      Số lượng mã phát hành
-                    </label>
-                    <input
-                      type="number"
-                      step="20"
-                      value={shopVoucherMaxUsage}
-                      onChange={(e) => setShopVoucherMaxUsage(Number(e.target.value))}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        borderRadius: 6,
-                        border: '1px solid #CBD5E1',
-                        fontSize: '0.84rem',
-                        background: '#FFFFFF',
-                      }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                      Hạn sử dụng
-                    </label>
-                    <input
-                      type="date"
-                      value={shopVoucherEndDate}
-                      onChange={(e) => setShopVoucherEndDate(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '8px 10px',
-                        borderRadius: 6,
-                        border: '1px solid #CBD5E1',
-                        fontSize: '0.84rem',
-                        background: '#FFFFFF',
-                      }}
-                    />
-                  </div>
-
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', fontWeight: 700, color: '#334155', cursor: 'pointer', paddingBottom: 8 }}>
-                    <input
-                      type="checkbox"
-                      checked={shopVoucherFlashHunt}
-                      onChange={(e) => setShopVoucherFlashHunt(e.target.checked)}
-                    />
-                    Đưa lên trang Săn Voucher
-                  </label>
-
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                      type="submit"
-                      style={{
-                        flex: 1,
-                        padding: '10px 16px',
-                        borderRadius: 8,
-                        background: '#D97706',
-                        color: '#FFFFFF',
-                        fontWeight: 800,
-                        fontSize: '0.85rem',
-                        border: 'none',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {editingShopVoucherId ? 'Lưu thay đổi' : '+ Tạo Voucher Quán'}
-                    </button>
-                    {editingShopVoucherId && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingShopVoucherId(null);
-                          setShopVoucherCode('');
-                        }}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                        Tên chương trình ưu đãi
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="VD: Ưu đãi độc quyền của quán"
+                        value={shopVoucherEventTag}
+                        onChange={(e) => setShopVoucherEventTag(e.target.value)}
                         style={{
-                          padding: '10px 12px',
+                          width: '100%',
+                          height: 40,
+                          padding: '0 12px',
                           borderRadius: 8,
-                          background: '#FFFFFF',
-                          color: '#475569',
-                          fontWeight: 700,
-                          fontSize: '0.8rem',
                           border: '1px solid #CBD5E1',
+                          fontSize: '0.84rem',
+                          color: '#0F172A',
+                          background: '#FFFFFF',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                        Chủ đề khuyến mãi
+                      </label>
+                      <select
+                        value={shopVoucherEventTheme}
+                        onChange={(e) => setShopVoucherEventTheme(e.target.value as VoucherEventTheme)}
+                        style={{
+                          width: '100%',
+                          height: 40,
+                          padding: '0 10px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          fontSize: '0.84rem',
+                          color: '#0F172A',
+                          background: '#FFFFFF',
                           cursor: 'pointer',
+                          boxSizing: 'border-box',
                         }}
                       >
-                        Hủy
-                      </button>
+                        {EVENT_THEME_OPTIONS.map((ev) => (
+                          <option key={ev.value} value={ev.value}>
+                            {ev.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                        Hình thức giảm giá
+                      </label>
+                      <select
+                        value={shopVoucherType}
+                        onChange={(e) => {
+                          const t = e.target.value as 'FIXED_AMOUNT' | 'PERCENTAGE';
+                          setShopVoucherType(t);
+                          setShopVoucherDiscount(t === 'PERCENTAGE' ? 15 : 20000);
+                        }}
+                        style={{
+                          width: '100%',
+                          height: 40,
+                          padding: '0 10px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          fontSize: '0.84rem',
+                          color: '#0F172A',
+                          background: '#FFFFFF',
+                          cursor: 'pointer',
+                          boxSizing: 'border-box',
+                        }}
+                      >
+                        <option value="FIXED_AMOUNT">Giảm tiền mặt cố định (VNĐ)</option>
+                        <option value="PERCENTAGE">Giảm theo phần trăm (%)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Row 2: Thiết lập mức giảm & Điều kiện áp dụng */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns:
+                        shopVoucherType === 'PERCENTAGE'
+                          ? 'repeat(auto-fit, minmax(180px, 1fr))'
+                          : 'repeat(auto-fit, minmax(210px, 1fr))',
+                      gap: 16,
+                      padding: 16,
+                      background: '#F8FAFC',
+                      borderRadius: 10,
+                      border: '1px solid #E2E8F0',
+                    }}
+                  >
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                        {shopVoucherType === 'PERCENTAGE' ? 'Mức giảm (%)' : 'Số tiền giảm (VNĐ)'}
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        step={shopVoucherType === 'PERCENTAGE' ? 5 : 5000}
+                        value={shopVoucherDiscount}
+                        onChange={(e) => setShopVoucherDiscount(Number(e.target.value))}
+                        style={{
+                          width: '100%',
+                          height: 40,
+                          padding: '0 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          fontSize: '0.85rem',
+                          fontWeight: 700,
+                          color: '#059669',
+                          background: '#FFFFFF',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+
+                    {shopVoucherType === 'PERCENTAGE' && (
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                          Giảm tối đa (VNĐ)
+                        </label>
+                        <input
+                          type="number"
+                          step="5000"
+                          value={shopVoucherMaxDiscount}
+                          onChange={(e) => setShopVoucherMaxDiscount(Number(e.target.value))}
+                          style={{
+                            width: '100%',
+                            height: 40,
+                            padding: '0 12px',
+                            borderRadius: 8,
+                            border: '1px solid #CBD5E1',
+                            fontSize: '0.85rem',
+                            fontWeight: 700,
+                            color: '#0F172A',
+                            background: '#FFFFFF',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      </div>
                     )}
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                        Đơn tối thiểu tại quán (VNĐ)
+                      </label>
+                      <input
+                        type="number"
+                        step="10000"
+                        value={shopVoucherMinOrder}
+                        onChange={(e) => setShopVoucherMinOrder(Number(e.target.value))}
+                        style={{
+                          width: '100%',
+                          height: 40,
+                          padding: '0 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          fontSize: '0.85rem',
+                          fontWeight: 700,
+                          color: '#0F172A',
+                          background: '#FFFFFF',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                        Số lượng mã phát hành
+                      </label>
+                      <input
+                        type="number"
+                        step="20"
+                        value={shopVoucherMaxUsage}
+                        onChange={(e) => setShopVoucherMaxUsage(Number(e.target.value))}
+                        style={{
+                          width: '100%',
+                          height: 40,
+                          padding: '0 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          fontSize: '0.85rem',
+                          fontWeight: 700,
+                          color: '#0F172A',
+                          background: '#FFFFFF',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                        Hạn sử dụng
+                      </label>
+                      <input
+                        type="date"
+                        value={shopVoucherEndDate}
+                        onChange={(e) => setShopVoucherEndDate(e.target.value)}
+                        style={{
+                          width: '100%',
+                          height: 40,
+                          padding: '0 10px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          fontSize: '0.84rem',
+                          color: '#0F172A',
+                          background: '#FFFFFF',
+                          cursor: 'pointer',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Bottom Actions Bar */}
+                  <div
+                    style={{
+                      marginTop: 20,
+                      paddingTop: 18,
+                      borderTop: '1px solid #F1F5F9',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: 14,
+                    }}
+                  >
+                    {/* Flash Hunt Checkbox Toggle */}
+                    <label
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        padding: '8px 14px',
+                        borderRadius: 8,
+                        background: shopVoucherFlashHunt ? '#ECFDF5' : '#F8FAFC',
+                        border: `1px solid ${shopVoucherFlashHunt ? '#A7F3D0' : '#E2E8F0'}`,
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={shopVoucherFlashHunt}
+                        onChange={(e) => setShopVoucherFlashHunt(e.target.checked)}
+                        style={{ accentColor: '#00B14F', width: 16, height: 16, cursor: 'pointer' }}
+                      />
+                      <div>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: shopVoucherFlashHunt ? '#047857' : '#334155' }}>
+                          Đưa lên trang Săn Voucher toàn sàn
+                        </span>
+                        <span style={{ fontSize: '0.72rem', color: '#64748B', display: 'block' }}>
+                          Tăng tương tác và quảng bá mã ưu đãi tới khách hàng mới trên toàn hệ thống DineGo
+                        </span>
+                      </div>
+                    </label>
+
+                    {/* Submit & Cancel Buttons */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
+                      {editingShopVoucherId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingShopVoucherId(null);
+                            setShopVoucherCode('');
+                          }}
+                          style={{
+                            padding: '9px 16px',
+                            borderRadius: 8,
+                            background: '#FFFFFF',
+                            color: '#475569',
+                            fontWeight: 700,
+                            fontSize: '0.84rem',
+                            border: '1px solid #CBD5E1',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          Hủy bỏ
+                        </button>
+                      )}
+                      <button
+                        type="submit"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '10px 22px',
+                          borderRadius: 8,
+                          background: 'linear-gradient(135deg, #D97706 0%, #B45309 100%)',
+                          color: '#FFFFFF',
+                          fontWeight: 800,
+                          fontSize: '0.85rem',
+                          border: 'none',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 6px rgba(217, 119, 6, 0.25)',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.filter = 'brightness(1.08)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.filter = 'none';
+                        }}
+                      >
+                        <Ticket size={16} />
+                        <span>{editingShopVoucherId ? 'Lưu thay đổi voucher' : '+ Tạo Voucher Quán'}</span>
+                      </button>
+                    </div>
                   </div>
                 </form>
               </div>
 
               {/* Merchant Vouchers Table */}
-              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
-                <div style={{ padding: '18px 22px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                  <div>
-                    <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                      Danh sách Mã Ưu Đãi Của Quán ({merchantShopVouchers.length})
-                    </h3>
-                    <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '2px 0 0 0' }}>
-                      Quản lý trạng thái hoạt động, số lượt sử dụng và chỉnh sửa mức ưu đãi của quán theo thời gian thực
-                    </p>
+              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
+                <div style={{ padding: '18px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 8,
+                        background: '#F0FDF4',
+                        color: '#15803D',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '1px solid #BBF7D0',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Ticket size={18} />
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <h3 style={{ fontSize: '1.02rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                          Danh sách Mã Ưu Đãi Của Quán
+                        </h3>
+                        <span
+                          style={{
+                            background: '#F1F5F9',
+                            color: '#475569',
+                            border: '1px solid #E2E8F0',
+                            padding: '1px 8px',
+                            borderRadius: 999,
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                          }}
+                        >
+                          {merchantShopVouchers.length} mã
+                        </span>
+                      </div>
+                      <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '2px 0 0 0' }}>
+                        Quản lý trạng thái hoạt động, số lượt sử dụng và chỉnh sửa mức ưu đãi của quán theo thời gian thực
+                      </p>
+                    </div>
                   </div>
                 </div>
 
                 {merchantShopVouchers.length === 0 ? (
-                  <div style={{ padding: '44px 24px', textAlign: 'center', color: '#64748B' }}>
-                    <Ticket size={36} color="#D97706" style={{ marginBottom: 10, opacity: 0.75 }} />
-                    <div style={{ fontWeight: 800, fontSize: '0.96rem', color: '#0F172A', marginBottom: 4 }}>
+                  <div style={{ padding: '56px 24px', textAlign: 'center', background: '#FAFAFA' }}>
+                    <div
+                      style={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)',
+                        color: '#B45309',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: 16,
+                        boxShadow: '0 4px 14px rgba(217, 119, 6, 0.18)',
+                      }}
+                    >
+                      <Ticket size={30} />
+                    </div>
+                    <div style={{ fontWeight: 800, fontSize: '1.02rem', color: '#0F172A', marginBottom: 6 }}>
                       Quán chưa có mã ưu đãi riêng nào
                     </div>
-                    <div style={{ fontSize: '0.84rem' }}>
-                      Hãy tạo mã ưu đãi đầu tiên ở biểu mẫu phía trên để thu hút khách hàng đặt món tại quán!
+                    <div style={{ fontSize: '0.84rem', color: '#64748B', maxWidth: 440, margin: '0 auto', lineHeight: 1.5 }}>
+                      Hãy tạo mã ưu đãi đầu tiên ở biểu mẫu phía trên để thu hút khách hàng đặt món và tăng doanh thu tại quán!
                     </div>
                   </div>
                 ) : (
