@@ -547,6 +547,29 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
   );
   const [drvNewPassword, setDrvNewPassword] = useState('');
 
+  // Active driver avatar helper: seamlessly reflects newly uploaded portrait in real-time
+  const activeDriverAvatar =
+    drvPortraitUrl?.trim() ||
+    currentDriver.portraitUrl ||
+    currentDriver.avatarUrl ||
+    currentUser?.avatarUrl ||
+    '';
+
+  const handleUpdatePortraitUrl = (newUrl: string) => {
+    setDrvPortraitUrl(newUrl);
+    if (newUrl.trim()) {
+      const instantDriver: DriverProfile = {
+        ...currentDriver,
+        portraitUrl: newUrl.trim(),
+        avatarUrl: newUrl.trim(),
+      };
+      const instantUser: User | undefined = currentUser
+        ? { ...currentUser, avatarUrl: newUrl.trim() }
+        : undefined;
+      onUpdateDriverProfile?.(instantDriver, instantUser);
+    }
+  };
+
   useEffect(() => {
     setDrvFullName(currentDriver.fullName);
     setDrvPhone(currentDriver.phoneNumber);
@@ -1735,11 +1758,11 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
           {/* Driver Personal & Vehicle Info Box */}
           <div style={{ padding: '16px 20px', borderBottom: '1px solid #1E293B', background: '#1E293B' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              {currentDriver.avatarUrl ? (
+              {activeDriverAvatar ? (
                 <img
-                  src={currentDriver.avatarUrl}
+                  src={activeDriverAvatar}
                   alt={currentDriver.fullName}
-                  style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', border: '2px solid #38BDF8' }}
+                  style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', border: '2px solid #38BDF8', flexShrink: 0 }}
                 />
               ) : (
                 <div
@@ -2188,22 +2211,44 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                   e.currentTarget.style.background = '#F8FAFC';
                 }}
               >
-                <img
-                  src={
-                    currentDriver.portraitUrl ||
-                    currentDriver.avatarUrl ||
-                    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
-                  }
-                  alt={currentDriver.fullName}
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: '50%',
-                    objectFit: 'cover',
-                    border: '2px solid #0284C7',
-                    flexShrink: 0,
-                  }}
-                />
+                {activeDriverAvatar ? (
+                  <img
+                    src={activeDriverAvatar}
+                    alt={currentDriver.fullName}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      border: '2px solid #0284C7',
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '50%',
+                      background: '#0284C7',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 800,
+                      fontSize: '0.78rem',
+                      border: '2px solid #0284C7',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {(currentDriver.fullName || 'TX')
+                      .trim()
+                      .split(/\s+/)
+                      .slice(-2)
+                      .map((w) => w[0]?.toUpperCase() || '')
+                      .join('') || 'TX'}
+                  </div>
+                )}
                 <div style={{ textAlign: 'left', lineHeight: 1.15 }}>
                   <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#0F172A', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {currentDriver.fullName}
@@ -5130,7 +5175,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                               required
                               placeholder="Dán link ảnh chân dung (URL) hoặc chọn ảnh mẫu bên dưới..."
                               value={drvPortraitUrl}
-                              onChange={(e) => setDrvPortraitUrl(e.target.value)}
+                              onChange={(e) => handleUpdatePortraitUrl(e.target.value)}
                               style={{
                                 flex: 1,
                                 minWidth: 200,
@@ -5168,7 +5213,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                                     const reader = new FileReader();
                                     reader.onload = (ev) => {
                                       if (ev.target?.result) {
-                                        setDrvPortraitUrl(String(ev.target.result));
+                                        handleUpdatePortraitUrl(String(ev.target.result));
                                       }
                                     };
                                     reader.readAsDataURL(file);
@@ -5178,6 +5223,41 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                             </label>
                           </div>
                         </div>
+
+                        {/* Real-time Small Avatar Sync Notice & Preview */}
+                        {activeDriverAvatar && (
+                          <div
+                            style={{
+                              marginBottom: 14,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 10,
+                              padding: '7px 14px',
+                              background: '#F0FDF4',
+                              border: '1px solid #BBF7D0',
+                              borderRadius: 10,
+                            }}
+                          >
+                            <span style={{ fontSize: '0.74rem', color: '#166534', fontWeight: 700 }}>
+                              Avatar nhỏ trên hệ thống:
+                            </span>
+                            <img
+                              src={activeDriverAvatar}
+                              alt="Avatar thu nhỏ"
+                              style={{
+                                width: 28,
+                                height: 28,
+                                borderRadius: '50%',
+                                objectFit: 'cover',
+                                border: '2px solid #10B981',
+                                flexShrink: 0,
+                              }}
+                            />
+                            <span style={{ fontSize: '0.72rem', color: '#047857', fontWeight: 600 }}>
+                              ✓ Đã tự động cập nhật lên Avatar ở Header góc phải và Sidebar
+                            </span>
+                          </div>
+                        )}
 
                         <div>
                           <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#64748B', marginBottom: 8 }}>
@@ -5205,7 +5285,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                               <button
                                 key={idx}
                                 type="button"
-                                onClick={() => setDrvPortraitUrl(preset.url)}
+                                onClick={() => handleUpdatePortraitUrl(preset.url)}
                                 style={{
                                   padding: '7px 14px',
                                   borderRadius: 8,
