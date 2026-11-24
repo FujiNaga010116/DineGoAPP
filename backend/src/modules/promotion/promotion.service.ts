@@ -512,11 +512,13 @@ export class PromotionService {
   }> {
     if (Array.isArray(vouchers)) {
       this.liveVouchers = vouchers;
+      const syncedCodes: string[] = [];
 
-      // Asynchronously upsert vouchers into SQL Server database
+      // Synchronize vouchers into SQL Server database
       for (const v of vouchers) {
         const code = String(v.code || '').trim().toUpperCase();
         if (!code) continue;
+        syncedCodes.push(code);
         try {
           const name = String(v.title || v.name || code).trim();
           const discountType = String(v.discountType || 'FIXED_AMOUNT').toUpperCase();
@@ -527,8 +529,23 @@ export class PromotionService {
           const usageCount = Number(v.usageCount) || 0;
           const endDate = v.endDate ? new Date(String(v.endDate)) : new Date('2026-12-31');
           const isActive = v.isActive !== false;
-          const merchantId = v.merchantId && v.merchantId !== 'ALL' ? String(v.merchantId) : null;
-          const scope = merchantId ? 'MERCHANT' : 'GLOBAL';
+
+          let resolvedMerchantId: string | null = null;
+          if (v.merchantId && v.merchantId !== 'ALL') {
+            const rawMId = String(v.merchantId);
+            const matchedMerchant = await this.prisma.merchant.findFirst({
+              where: {
+                OR: [
+                  { id: rawMId },
+                  { slug: rawMId },
+                  ...(v.merchantName ? [{ name: String(v.merchantName) }] : []),
+                ],
+              },
+              select: { id: true },
+            });
+            resolvedMerchantId = matchedMerchant?.id || null;
+          }
+          const scope = resolvedMerchantId ? 'MERCHANT' : 'GLOBAL';
 
           await this.prisma.promotion.upsert({
             where: { code },
@@ -543,6 +560,7 @@ export class PromotionService {
               endDate,
               isActive,
               scope,
+              merchantId: resolvedMerchantId,
             },
             create: {
               code,
@@ -556,7 +574,7 @@ export class PromotionService {
               maxUsage,
               currentUsage: usageCount,
               scope,
-              merchantId,
+              merchantId: resolvedMerchantId,
               isActive,
             },
           });
@@ -564,24 +582,42 @@ export class PromotionService {
           this.logger.warn(`Failed to persist live voucher ${code} to DB: ${(dbErr as Error).message}`);
         }
       }
+
+      // Deactivate any DB promotions that were deleted from the live list
+      try {
+        if (syncedCodes.length > 0) {
+          await this.prisma.promotion.updateMany({
+            where: { code: { notIn: syncedCodes }, isActive: true },
+            data: { isActive: false },
+          });
+        } else {
+          await this.prisma.promotion.updateMany({
+            where: { isActive: true },
+            data: { isActive: false },
+          });
+        }
+      } catch (dbErr) {
+        this.logger.warn(`Failed to deactivate removed vouchers: ${(dbErr as Error).message}`);
+      }
     }
     return { vouchers: this.liveVouchers || [] };
   }
 
-  claimLiveVoucher(payload: {
+  async claimLiveVoucher(payload: {
     userId: string;
     code: string;
-  }): {
+  }): Promise<{
     claimed: boolean;
     vouchers: Record<string, unknown>[] | null;
     claimedCodes: string[];
-  } {
+  }> {
     const userId = String(payload?.userId || '').trim();
     const code = String(payload?.code || '').trim().toUpperCase();
     if (!userId || !code) {
       throw new BadRequestException('Thiếu userId hoặc mã voucher');
     }
-    const userSet = this.liveClaims.get(userId) || new Set<string>();
+    const existing = await this.getLiveUserClaims(userId);
+    const userSet = new Set<string>(existing.claimedCodes);
     const alreadyClaimed = userSet.has(code);
     if (!alreadyClaimed) {
       userSet.add(code);
@@ -593,6 +629,27 @@ export class PromotionService {
             : v,
         );
       }
+      // Persist claim to SQL Server notifications table if user exists in DB
+      try {
+        const dbUser = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true },
+        });
+        if (dbUser) {
+          const notifId = `vc-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+          await this.prisma.$executeRawUnsafe(
+            `IF NOT EXISTS (SELECT 1 FROM notifications WHERE user_id = @P1 AND type = 'VOUCHER_CLAIM' AND title = @P2)
+             INSERT INTO notifications (id, user_id, type, title, body, is_read, created_at)
+             VALUES (@P3, @P1, 'VOUCHER_CLAIM', @P2, @P4, 1, GETDATE())`,
+            dbUser.id,
+            code,
+            notifId,
+            `Đã lưu mã ưu đãi ${code} vào Ví Voucher`,
+          );
+        }
+      } catch (dbErr) {
+        this.logger.warn(`Failed to persist voucher claim ${code}: ${(dbErr as Error).message}`);
+      }
     }
     return {
       claimed: !alreadyClaimed,
@@ -601,8 +658,23 @@ export class PromotionService {
     };
   }
 
-  getLiveUserClaims(userId: string): { claimedCodes: string[] } {
-    const set = this.liveClaims.get(String(userId || '').trim());
-    return { claimedCodes: set ? Array.from(set) : [] };
+  async getLiveUserClaims(userId: string): Promise<{ claimedCodes: string[] }> {
+    const cleanId = String(userId || '').trim();
+    if (!cleanId) return { claimedCodes: [] };
+    let set = this.liveClaims.get(cleanId);
+    if (!set) {
+      set = new Set<string>();
+      try {
+        const rows = await this.prisma.$queryRawUnsafe<Array<{ title: string }>>(
+          `SELECT title FROM notifications WHERE user_id = @P1 AND type = 'VOUCHER_CLAIM'`,
+          cleanId,
+        );
+        for (const r of rows) {
+          if (r.title) set.add(String(r.title).trim().toUpperCase());
+        }
+      } catch {}
+      this.liveClaims.set(cleanId, set);
+    }
+    return { claimedCodes: Array.from(set) };
   }
 }

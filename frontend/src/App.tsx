@@ -474,6 +474,12 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
       };
     }
 
+    void adminApi.getDatabaseLedger().then((ledger) => {
+      if (Array.isArray(ledger?.deliveryDisputes) && ledger.deliveryDisputes.length > 0) {
+        setDeliveryDisputes(ledger.deliveryDisputes);
+      }
+    });
+
     return () => {
       window.removeEventListener('storage', onStorage);
       ordCh?.close();
@@ -746,6 +752,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
       userId,
       nextActive,
       nextActive ? 'Mở khóa tài khoản bởi Admin' : 'Tạm khóa tài khoản bởi Admin',
+      targetUser.email,
     );
     setUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, isActive: nextActive } : u)),
@@ -1108,6 +1115,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
   };
 
   const handleSubmitDeliveryDispute = (report: DeliveryDisputeReport) => {
+    void adminApi.createDatabaseDispute(report);
     setDeliveryDisputes((prev) => [report, ...prev]);
     setOrders((prev) =>
       prev.map((o) =>
@@ -1129,6 +1137,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     decision: 'COMPENSATED_DRIVER' | 'REJECTED',
     adminNote?: string,
   ) => {
+    void adminApi.resolveDatabaseDispute(reportId, decision, adminNote);
     const target = deliveryDisputes.find((d) => d.id === reportId);
     setDeliveryDisputes((prev) =>
       prev.map((d) =>

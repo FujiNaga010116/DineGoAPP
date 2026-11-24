@@ -6,6 +6,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -334,13 +335,16 @@ export class DashboardService {
     dto: UpdateUserStatusDto,
     adminUser?: AuthenticatedUser,
   ) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    let user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user && dto.email) {
+      user = await this.prisma.user.findUnique({ where: { email: dto.email.trim().toLowerCase() } });
+    }
     if (!user) {
       throw new NotFoundException('Không tìm thấy tài khoản người dùng');
     }
 
     const updated = await this.prisma.user.update({
-      where: { id: userId },
+      where: { id: user.id },
       data: { isActive: dto.isActive },
     });
 
@@ -348,7 +352,7 @@ export class DashboardService {
       id: `aud-${Date.now()}`,
       action: dto.isActive ? 'USER_UNLOCKED' : 'USER_LOCKED',
       targetType: 'USER',
-      targetId: userId,
+      targetId: user.id,
       targetName: updated.email,
       reason: dto.reason || (dto.isActive ? 'Mở khóa tài khoản' : 'Vi phạm điều khoản nền tảng'),
       performedBy: adminUser?.email || 'admin@dinego.vn',
@@ -359,10 +363,10 @@ export class DashboardService {
     // Nếu khóa tài khoản, thu hồi lập tức tất cả các phiên đăng nhập đang hoạt động
     if (!dto.isActive) {
       await this.prisma.userSession.updateMany({
-        where: { userId, isRevoked: false },
+        where: { userId: user.id, isRevoked: false },
         data: { isRevoked: true },
       });
-      this.logger.warn(`[Security Alert] Tài khoản user ${userId} đã bị khóa, toàn bộ token bị thu hồi.`);
+      this.logger.warn(`[Security Alert] Tài khoản user ${user.id} (${updated.email}) đã bị khóa, toàn bộ token bị thu hồi.`);
     }
 
     return updated;
@@ -1134,11 +1138,80 @@ export class DashboardService {
         : '',
     }));
 
+    // Query delivery disputes & withdrawal requests from SQL Server
+    let disputeRows: Array<any> = [];
+    try {
+      disputeRows = await this.prisma.$queryRawUnsafe(`
+        SELECT * FROM delivery_disputes ORDER BY updated_at DESC
+      `);
+    } catch {}
+    const deliveryDisputes = disputeRows.map((d) => ({
+      id: d.id,
+      orderId: d.order_id,
+      orderNumber: d.order_number,
+      driverId: d.driver_id,
+      driverName: d.driver_name,
+      customerId: d.customer_id || undefined,
+      customerName: d.customer_name,
+      customerPhone: d.customer_phone || '',
+      merchantName: d.merchant_name || '',
+      reason: d.reason,
+      reasonLabel: d.reason_label,
+      note: d.note || undefined,
+      evidenceImage: d.evidence_image || undefined,
+      compensationAmount: Number(d.compensation_amount) || 15000,
+      status: d.status,
+      adminNote: d.admin_note || undefined,
+      createdAt: d.created_at || '',
+    }));
+
+    let withdrawalRows: Array<any> = [];
+    try {
+      withdrawalRows = await this.prisma.$queryRawUnsafe(`
+        SELECT * FROM withdrawal_requests ORDER BY updated_at DESC
+      `);
+    } catch {}
+    const merchantWithdrawals = withdrawalRows
+      .filter((w) => w.actor_type === 'MERCHANT')
+      .map((w) => ({
+        id: w.id,
+        merchantId: w.actor_id,
+        merchantName: w.actor_name,
+        bankName: w.bank_name,
+        bankAccountNumber: w.bank_account_number,
+        bankAccountHolder: w.bank_account_holder,
+        amount: Number(w.amount) || 0,
+        status: w.status,
+        note: w.note || undefined,
+        createdAt: w.created_at || '',
+        processedAt: w.processed_at || undefined,
+      }));
+    const driverWithdrawals = withdrawalRows
+      .filter((w) => w.actor_type === 'DRIVER')
+      .map((w) => ({
+        id: w.id,
+        driverId: w.actor_id,
+        driverName: w.actor_name,
+        driverPhone: w.actor_phone || '',
+        licensePlate: w.license_plate || '',
+        bankName: w.bank_name,
+        bankAccountNumber: w.bank_account_number,
+        bankAccountHolder: w.bank_account_holder,
+        amount: Number(w.amount) || 0,
+        status: w.status,
+        note: w.note || undefined,
+        createdAt: w.created_at || '',
+        processedAt: w.processed_at || undefined,
+      }));
+
     return {
       orders,
       feastBookings,
       complaints,
       reviews,
+      deliveryDisputes,
+      merchantWithdrawals,
+      driverWithdrawals,
     };
   }
 
@@ -1459,6 +1532,214 @@ export class DashboardService {
       this.logger.warn(`Không thể cập nhật complaints trên SQL Server: ${(e as Error).message}`);
     }
     return { id, status: body.status, resolution: resolutionText };
+  }
+
+  async createDatabaseDispute(body: Record<string, any>) {
+    const id = String(body.id || `disp-db-${Date.now()}`);
+    try {
+      await this.prisma.$executeRawUnsafe(
+        `IF NOT EXISTS (SELECT 1 FROM delivery_disputes WHERE id = @P1)
+         INSERT INTO delivery_disputes (
+           id, order_id, order_number, driver_id, driver_name,
+           customer_id, customer_name, customer_phone, merchant_name,
+           reason, reason_label, note, evidence_image,
+           compensation_amount, status, created_at, updated_at
+         ) VALUES (
+           @P1, @P2, @P3, @P4, @P5,
+           @P6, @P7, @P8, @P9,
+           @P10, @P11, @P12, @P13,
+           @P14, @P15, @P16, GETDATE()
+         )`,
+        id,
+        String(body.orderId || ''),
+        String(body.orderNumber || ''),
+        String(body.driverId || ''),
+        String(body.driverName || ''),
+        body.customerId ? String(body.customerId) : null,
+        String(body.customerName || 'Khách hàng'),
+        body.customerPhone ? String(body.customerPhone) : null,
+        body.merchantName ? String(body.merchantName) : null,
+        String(body.reason || 'NO_ANSWER'),
+        String(body.reasonLabel || 'Khách bom hàng / Không liên lạc được'),
+        body.note ? String(body.note) : null,
+        body.evidenceImage ? String(body.evidenceImage) : null,
+        Number(body.compensationAmount || 15000),
+        String(body.status || 'PENDING_REVIEW'),
+        String(body.createdAt || new Date().toLocaleString('vi-VN')),
+      );
+    } catch (e) {
+      this.logger.warn(`Không thể ghi delivery_disputes vào SQL Server: ${(e as Error).message}`);
+    }
+    return { id, status: 'PENDING_REVIEW' };
+  }
+
+  async resolveDatabaseDispute(
+    id: string,
+    body: { status: 'COMPENSATED_DRIVER' | 'REJECTED'; adminNote?: string },
+  ) {
+    try {
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE delivery_disputes SET status = @P1, admin_note = @P2, updated_at = GETDATE() WHERE id = @P3`,
+        body.status,
+        body.adminNote || null,
+        id,
+      );
+    } catch (e) {
+      this.logger.warn(`Không thể cập nhật delivery_disputes: ${(e as Error).message}`);
+    }
+    return { id, status: body.status };
+  }
+
+  async createDatabaseWithdrawal(body: Record<string, any>) {
+    const id = String(body.id || `wd-db-${Date.now()}`);
+    const actorType = body.actorType === 'DRIVER' ? 'DRIVER' : 'MERCHANT';
+    try {
+      await this.prisma.$executeRawUnsafe(
+        `IF NOT EXISTS (SELECT 1 FROM withdrawal_requests WHERE id = @P1)
+         INSERT INTO withdrawal_requests (
+           id, actor_type, actor_id, actor_name, actor_phone, license_plate,
+           bank_name, bank_account_number, bank_account_holder,
+           amount, status, note, created_at, updated_at
+         ) VALUES (
+           @P1, @P2, @P3, @P4, @P5, @P6,
+           @P7, @P8, @P9,
+           @P10, @P11, @P12, @P13, GETDATE()
+         )`,
+        id,
+        actorType,
+        String(body.actorId || ''),
+        String(body.actorName || ''),
+        body.actorPhone ? String(body.actorPhone) : null,
+        body.licensePlate ? String(body.licensePlate) : null,
+        String(body.bankName || ''),
+        String(body.bankAccountNumber || ''),
+        String(body.bankAccountHolder || ''),
+        Number(body.amount || 0),
+        String(body.status || 'PENDING'),
+        body.note ? String(body.note) : null,
+        String(body.createdAt || new Date().toLocaleString('vi-VN')),
+      );
+    } catch (e) {
+      this.logger.warn(`Không thể ghi withdrawal_requests vào SQL Server: ${(e as Error).message}`);
+    }
+    return { id, status: 'PENDING' };
+  }
+
+  async processDatabaseWithdrawal(
+    id: string,
+    body: { status: 'APPROVED' | 'REJECTED'; note?: string },
+  ) {
+    const processedAt = new Date().toLocaleString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    try {
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE withdrawal_requests SET status = @P1, note = @P2, processed_at = @P3, updated_at = GETDATE() WHERE id = @P4`,
+        body.status,
+        body.note || null,
+        processedAt,
+        id,
+      );
+    } catch (e) {
+      this.logger.warn(`Không thể cập nhật withdrawal_requests: ${(e as Error).message}`);
+    }
+    return { id, status: body.status, processedAt };
+  }
+
+  async getKnowledgeChunks() {
+    let rows: Array<any> = [];
+    try {
+      rows = await this.prisma.$queryRawUnsafe(`
+        SELECT k.id, k.content, k.source, k.created_at, u.full_name AS author_name
+        FROM knowledge_base_vectors k
+        LEFT JOIN users u ON u.id = k.created_by
+        ORDER BY k.created_at DESC
+      `);
+    } catch (e) {
+      this.logger.warn(`Không thể đọc knowledge_base_vectors: ${(e as Error).message}`);
+    }
+    return rows.map((r) => ({
+      id: r.id,
+      source: r.source,
+      content: r.content,
+      authorName: r.author_name || 'Quản trị viên DineGo',
+      createdAt: r.created_at
+        ? new Date(r.created_at).toLocaleString('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : '',
+    }));
+  }
+
+  async createKnowledgeChunk(body: { source: string; content: string }) {
+    const id = `kb-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`;
+    const source = String(body.source || '').trim() || 'Cẩm nang ẩm thực DineGo';
+    const content = String(body.content || '').trim();
+    if (!content) {
+      throw new BadRequestException('Nội dung đoạn tri thức không được để trống');
+    }
+
+    let adminId = '';
+    try {
+      const adminUser = await this.prisma.user.findFirst({
+        where: { email: 'admin@dinego.vn' },
+        select: { id: true },
+      });
+      if (adminUser) {
+        adminId = adminUser.id;
+      } else {
+        const anyUser = await this.prisma.user.findFirst({ select: { id: true } });
+        adminId = anyUser?.id || '';
+      }
+      if (adminId) {
+        const mockVec = JSON.stringify([0.025, -0.031, 0.094, 0.042, -0.015]);
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO knowledge_base_vectors (id, content, embedding_json, source, created_by, created_at)
+           VALUES (@P1, @P2, @P3, @P4, @P5, GETDATE())`,
+          id,
+          content,
+          mockVec,
+          source,
+          adminId,
+        );
+      }
+    } catch (e) {
+      this.logger.warn(`Không thể thêm knowledge_base_vectors: ${(e as Error).message}`);
+    }
+
+    return {
+      id,
+      source,
+      content,
+      authorName: 'Quản trị viên DineGo',
+      createdAt: new Date().toLocaleString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    };
+  }
+
+  async deleteKnowledgeChunk(id: string) {
+    try {
+      await this.prisma.$executeRawUnsafe(
+        `DELETE FROM knowledge_base_vectors WHERE id = @P1`,
+        id,
+      );
+    } catch (e) {
+      this.logger.warn(`Không thể xóa knowledge_base_vectors: ${(e as Error).message}`);
+    }
+    return { deleted: true, id };
   }
 }
 

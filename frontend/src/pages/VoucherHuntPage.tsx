@@ -62,6 +62,7 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [claimingCode, setClaimingCode] = useState<string | null>(null);
+  const [detailVoucher, setDetailVoucher] = useState<ManagedVoucher | null>(null);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -129,12 +130,14 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
     };
   }, [currentUser?.id]);
 
-  // Only active vouchers appear in HUNT mode (Admin pauses -> hidden from Hunt immediately)
+  // Only active & non-expired vouchers appear in HUNT mode (Admin pauses -> hidden from Hunt immediately)
   const displayedVouchers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
+    const todayStr = new Date().toISOString().split('T')[0];
     return vouchers.filter((v) => {
       if (viewMode === 'HUNT') {
         if (!v.isActive || v.isFlashHunt === false) return false;
+        if (v.endDate && v.endDate < todayStr) return false;
       } else {
         if (!claimedCodes.includes(v.code.toUpperCase())) return false;
       }
@@ -188,6 +191,15 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
 
   const handleUseNow = (voucher: ManagedVoucher) => {
     navigator.clipboard?.writeText?.(voucher.code);
+    try {
+      localStorage.setItem(
+        'dinego_preselected_voucher',
+        JSON.stringify({
+          code: voucher.code.toUpperCase(),
+          merchantId: voucher.merchantId || 'ALL',
+        }),
+      );
+    } catch {}
     setCopiedCode(voucher.code);
     setTimeout(() => setCopiedCode(null), 2000);
 
@@ -198,6 +210,7 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
         return;
       }
     }
+    showToast(`Đã chọn sẵn mã "${voucher.code}"! Chọn món để hệ thống tự động áp dụng giảm giá.`);
     onNavigate?.('home');
   };
 
@@ -650,9 +663,22 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
 
                     {/* Action CTA */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                      <span style={{ fontSize: '0.7rem', color: '#64748B', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                        <ShieldCheck size={12} color="#00B14F" /> Duyệt bởi Admin
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setDetailVoucher(v)}
+                        style={{
+                          padding: '5px 10px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          background: '#F8FAFC',
+                          color: '#334155',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Chi tiết
+                      </button>
 
                       {isClaimed ? (
                         <button
@@ -701,6 +727,140 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
           })}
         </div>
       )}
+
+      {/* Voucher Detail Modal */}
+      {detailVoucher && (() => {
+        const dv = detailVoucher;
+        const dvTheme = getEventThemeStyle(dv.eventTheme);
+        const dvClaimed = claimedCodes.includes(dv.code.toUpperCase());
+        const dvUsed = Math.max(Number(dv.claimedCount || 0), Number(dv.usageCount || 0));
+        const dvMax = Math.max(1, Number(dv.maxUsage || 100));
+        const dvRem = Math.max(0, dvMax - dvUsed);
+        const dvSoldOut = dvRem <= 0;
+
+        return (
+          <div
+            onClick={() => setDetailVoucher(null)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(15, 23, 42, 0.55)',
+              backdropFilter: 'blur(3px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 2100,
+              padding: 16,
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: '#FFFFFF',
+                borderRadius: 20,
+                width: '100%',
+                maxWidth: 460,
+                overflow: 'hidden',
+                boxShadow: '0 24px 48px rgba(15, 23, 42, 0.25)',
+                border: '1px solid #E2E8F0',
+              }}
+            >
+              <div style={{ background: 'linear-gradient(135deg, #064E3B 0%, #00B14F 100%)', padding: '18px 22px', color: '#FFFFFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, opacity: 0.9, textTransform: 'uppercase' }}>
+                    {dv.eventTag || dvTheme.label}
+                  </span>
+                  <h3 style={{ margin: '2px 0 0 0', fontSize: '1.15rem', fontWeight: 900 }}>
+                    Mã ưu đãi: {dv.code}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDetailVoucher(null)}
+                  style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#FFFFFF', width: 32, height: 32, borderRadius: 999, cursor: 'pointer', fontWeight: 800 }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12, padding: '12px 14px' }}>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#166534' }}>
+                    {dv.discountType === 'PERCENTAGE'
+                      ? `Giảm ${dv.discountValue}%${dv.maxDiscountAmount ? ` (tối đa ${dv.maxDiscountAmount.toLocaleString('vi-VN')}đ)` : ''}`
+                      : `Giảm ${dv.discountValue.toLocaleString('vi-VN')}đ`}
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#15803D', marginTop: 2 }}>{dv.title}</div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: '0.82rem' }}>
+                  <div style={{ background: '#F8FAFC', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0' }}>
+                    <div style={{ color: '#64748B', fontSize: '0.72rem', fontWeight: 700 }}>Đơn tối thiểu</div>
+                    <div style={{ color: '#0F172A', fontWeight: 800, marginTop: 2 }}>{Number(dv.minOrder || 0).toLocaleString('vi-VN')}đ</div>
+                  </div>
+                  <div style={{ background: '#F8FAFC', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0' }}>
+                    <div style={{ color: '#64748B', fontSize: '0.72rem', fontWeight: 700 }}>Hạn sử dụng</div>
+                    <div style={{ color: '#0F172A', fontWeight: 800, marginTop: 2 }}>{dv.endDate}</div>
+                  </div>
+                  <div style={{ background: '#F8FAFC', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0' }}>
+                    <div style={{ color: '#64748B', fontSize: '0.72rem', fontWeight: 700 }}>Phạm vi áp dụng</div>
+                    <div style={{ color: '#0F172A', fontWeight: 800, marginTop: 2 }}>{dv.merchantId && dv.merchantId !== 'ALL' ? dv.merchantName : 'Toàn sàn DineGo'}</div>
+                  </div>
+                  <div style={{ background: '#F8FAFC', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0' }}>
+                    <div style={{ color: '#64748B', fontSize: '0.72rem', fontWeight: 700 }}>Lượt còn lại</div>
+                    <div style={{ color: dvSoldOut ? '#DC2626' : '#059669', fontWeight: 800, marginTop: 2 }}>{dvRem} / {dvMax} lượt</div>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '0.78rem', color: '#475569', background: '#F8FAFC', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', lineHeight: 1.5 }}>
+                  <strong>Điều kiện áp dụng (BR-14):</strong>
+                  <ul style={{ margin: '4px 0 0 18px', padding: 0 }}>
+                    <li>Mỗi đơn hàng chỉ áp dụng tối đa 01 mã khuyến mãi.</li>
+                    <li>Không áp dụng đồng thời với mã giảm giá khác, không quy đổi thành tiền mặt.</li>
+                    <li>Hệ thống tự động kiểm tra điều kiện giá trị đơn tối thiểu &amp; phạm vi quán tại bước Thanh toán.</li>
+                  </ul>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyCode(dv.code)}
+                    style={{ padding: '9px 14px', borderRadius: 10, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#334155', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}
+                  >
+                    Sao chép mã
+                  </button>
+                  {dvClaimed ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDetailVoucher(null);
+                        handleUseNow(dv);
+                      }}
+                      className="btn btn-primary"
+                      style={{ padding: '9px 18px', borderRadius: 10, fontWeight: 800, fontSize: '0.82rem' }}
+                    >
+                      Dùng ngay
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={dvSoldOut || !dv.isActive || claimingCode === dv.code}
+                      onClick={() => {
+                        void handleHuntVoucher(dv);
+                        setDetailVoucher(null);
+                      }}
+                      className="btn btn-primary"
+                      style={{ padding: '9px 18px', borderRadius: 10, fontWeight: 800, fontSize: '0.82rem' }}
+                    >
+                      {dvSoldOut ? 'Hết lượt' : 'Săn Ngay'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

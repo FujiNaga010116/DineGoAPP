@@ -62,6 +62,7 @@ import {
   MOCK_DRIVERS,
   MOCK_MENU_ITEMS,
   MOCK_MERCHANTS,
+  adminApi,
   isDriverProfileVerified,
 } from '../api/client';
 import { DeliveryMap } from '../components/common/DeliveryMap';
@@ -1778,7 +1779,14 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                   gap: 6,
                   fontSize: '0.74rem',
                   fontWeight: 700,
-                  color: !isDriverApproved ? '#FBBF24' : driverOnline ? '#34D399' : '#94A3B8',
+                  color:
+                    currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false
+                      ? '#EF4444'
+                      : !isDriverApproved
+                      ? '#FBBF24'
+                      : driverOnline
+                      ? '#34D399'
+                      : '#94A3B8',
                 }}
               >
                 <span
@@ -1786,10 +1794,19 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                     width: 8,
                     height: 8,
                     borderRadius: '50%',
-                    background: !isDriverApproved ? '#F59E0B' : driverOnline ? '#10B981' : '#64748B',
+                    background:
+                      currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false
+                        ? '#EF4444'
+                        : !isDriverApproved
+                        ? '#F59E0B'
+                        : driverOnline
+                        ? '#10B981'
+                        : '#64748B',
                   }}
                 />
-                {!isDriverApproved
+                {currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false
+                  ? 'Bị Admin đình chỉ'
+                  : !isDriverApproved
                   ? 'Chờ hoàn tất hồ sơ'
                   : driverOnline
                   ? 'Đang trực tuyến'
@@ -1797,9 +1814,11 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
               </span>
               <button
                 type="button"
-                disabled={!isDriverApproved}
+                disabled={!isDriverApproved || currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false}
                 title={
-                  !isDriverApproved
+                  currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false
+                    ? 'Tài khoản tài xế đang bị Admin tạm đình chỉ nhận chuyến'
+                    : !isDriverApproved
                     ? 'Vui lòng hoàn tất đăng ký xe & thông tin cá nhân để bật nhận chuyến'
                     : undefined
                 }
@@ -1809,13 +1828,27 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                   borderRadius: 6,
                   fontSize: '0.72rem',
                   fontWeight: 700,
-                  background: !isDriverApproved ? '#1E293B' : driverOnline ? '#334155' : '#0284C7',
-                  border: !isDriverApproved ? '1px solid #334155' : 'none',
-                  color: !isDriverApproved ? '#64748B' : '#FFFFFF',
-                  cursor: !isDriverApproved ? 'not-allowed' : 'pointer',
+                  background:
+                    !isDriverApproved || currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false
+                      ? '#1E293B'
+                      : driverOnline
+                      ? '#334155'
+                      : '#0284C7',
+                  border:
+                    !isDriverApproved || currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false
+                      ? '1px solid #334155'
+                      : 'none',
+                  color:
+                    !isDriverApproved || currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false
+                      ? '#64748B'
+                      : '#FFFFFF',
+                  cursor:
+                    !isDriverApproved || currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false
+                      ? 'not-allowed'
+                      : 'pointer',
                 }}
               >
-                {driverOnline && isDriverApproved ? 'Nghỉ ca' : 'Bật nhận chuyến'}
+                {driverOnline && isDriverApproved && currentDriver.status !== 'SUSPENDED' ? 'Nghỉ ca' : 'Bật nhận chuyến'}
               </button>
             </div>
             {isDriverApproved && activeShift && driverOnline && (
@@ -3472,7 +3505,12 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                                 </span>
                               ) : (
                                 <button
+                                  disabled={currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false}
                                   onClick={() => {
+                                    if (currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false) {
+                                      alert('Tài khoản tài xế của bạn đang bị Admin tạm đình chỉ nhận chuyến.');
+                                      return;
+                                    }
                                     if (!driverOnline) {
                                       setDriverOnline(true);
                                       onUpdateDriverProfile?.({ ...currentDriver, status: 'ONLINE' });
@@ -3486,16 +3524,27 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                                   style={{
                                     padding: '8px 14px',
                                     borderRadius: 8,
-                                    background: '#0284C7',
-                                    color: '#FFFFFF',
+                                    background:
+                                      currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false
+                                        ? '#CBD5E1'
+                                        : '#0284C7',
+                                    color:
+                                      currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false
+                                        ? '#64748B'
+                                        : '#FFFFFF',
                                     fontSize: '0.78rem',
                                     fontWeight: 800,
                                     whiteSpace: 'nowrap',
-                                    cursor: 'pointer',
+                                    cursor:
+                                      currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false
+                                        ? 'not-allowed'
+                                        : 'pointer',
                                     flexShrink: 0,
                                   }}
                                 >
-                                  Nhận giao ngay
+                                  {currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false
+                                    ? 'Đang bị đình chỉ'
+                                    : 'Nhận giao ngay'}
                                 </button>
                               )}
                             </div>
@@ -4336,6 +4385,13 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                                   minute: '2-digit',
                                 }),
                               };
+                              void adminApi.createDatabaseWithdrawal({
+                                ...newReq,
+                                actorType: 'DRIVER',
+                                actorId: currentDriver.id,
+                                actorName: currentDriver.fullName,
+                                actorPhone: currentDriver.phoneNumber,
+                              });
                               setDriverWithdrawals((prev) => [newReq, ...prev]);
                               setWithdrawAmountInput('');
                               setWithdrawError('');

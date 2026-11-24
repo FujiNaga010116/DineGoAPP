@@ -577,10 +577,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   // Admin Complaints State — Loaded directly from SQL Server database (No hardcoded demo complaints)
   const [complaints, setComplaints] = useState<any[]>([]);
+  const lastComplaintsJsonRef = React.useRef<string>('[]');
 
   useEffect(() => {
     try {
       const serialized = JSON.stringify(complaints);
+      if (serialized === lastComplaintsJsonRef.current) return;
+      lastComplaintsJsonRef.current = serialized;
       localStorage.setItem('dinego_admin_complaints', serialized);
       window.dispatchEvent(new CustomEvent('dinego_complaints_updated'));
       if (typeof BroadcastChannel !== 'undefined') {
@@ -595,9 +598,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     const refreshComplaints = () => {
       try {
         const saved = localStorage.getItem('dinego_admin_complaints');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) setComplaints(parsed);
+        if (!saved || saved === lastComplaintsJsonRef.current) return;
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          lastComplaintsJsonRef.current = saved;
+          setComplaints(parsed);
         }
       } catch {}
     };
@@ -608,7 +613,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     const ch =
       typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('dinego_complaints_sync') : null;
     if (ch) {
-      ch.onmessage = () => refreshComplaints();
+      ch.onmessage = (ev) => {
+        if (typeof ev.data === 'string' && ev.data !== lastComplaintsJsonRef.current) {
+          try {
+            const parsed = JSON.parse(ev.data);
+            if (Array.isArray(parsed)) {
+              lastComplaintsJsonRef.current = ev.data;
+              localStorage.setItem('dinego_admin_complaints', ev.data);
+              setComplaints(parsed);
+            }
+          } catch {}
+        } else {
+          refreshComplaints();
+        }
+      };
     }
     return () => {
       window.removeEventListener('storage', onStorage);
@@ -616,7 +634,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     };
   }, []);
 
-  const [complaintNoteInputs, setComplaintNoteInputs] = useState<Record<string, string>>({});
+  const [complaintNoteInputs, setComplaintNoteInputs] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('dinego_complaint_note_drafts');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {};
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dinego_complaint_note_drafts', JSON.stringify(complaintNoteInputs));
+    } catch {}
+  }, [complaintNoteInputs]);
 
   const handleResolveComplaint = (
     id: string,
@@ -642,17 +672,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         : 'Bằng chứng chưa đủ cơ sở bồi hoàn theo quy định sàn.';
 
     const note = complaintNoteInputs[id]?.trim() || defaultNote;
+    const finalCompensationAmount = action !== 'REJECT' ? target?.compensationAmount : 0;
 
     void adminApi.resolveComplaint(id, {
       decision: action === 'REJECT' ? 'REJECTED' : 'RESOLVED_REFUND',
       resolutionNotes: note,
-      compensationAmount: action !== 'REJECT' ? target?.compensationAmount : 0,
+      compensationAmount: finalCompensationAmount,
       faultParty,
     });
     void adminApi.resolveDatabaseComplaint(id, {
       status: action === 'REJECT' ? 'REJECTED' : 'REFUNDED',
       resolutionNotes: note,
-      compensationAmount: action !== 'REJECT' ? target?.compensationAmount : 0,
+      compensationAmount: finalCompensationAmount,
       faultParty,
     });
 
@@ -668,6 +699,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           : c,
       ),
     );
+    setComplaintNoteInputs((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
 
     if (target) {
       const logTitle =
@@ -893,6 +929,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         ? 'Admin đã giải ngân doanh thu ròng về tài khoản ngân hàng nhà hàng'
         : 'Từ chối yêu cầu rút tiền do chưa khớp biên bản đối soát';
 
+    void adminApi.processDatabaseWithdrawal(id, nextStatus, note);
     setMerchantWithdrawals((prev) =>
       prev.map((w) =>
         w.id === id ? { ...w, status: nextStatus, processedAt: nowStr, note } : w,
@@ -1207,6 +1244,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         ? 'Admin đã đối soát và giải ngân về tài khoản ngân hàng tài xế'
         : 'Từ chối yêu cầu rút tiền do cần đối soát lại cước chuyến';
 
+    void adminApi.processDatabaseWithdrawal(id, nextStatus, note);
     setDriverWithdrawals((prev) =>
       prev.map((w) =>
         w.id === id ? { ...w, status: nextStatus, processedAt: nowStr, note } : w,
@@ -1470,6 +1508,84 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     link.click();
     document.body.removeChild(link);
     triggerAdminToast('Đã xuất tệp báo cáo đối soát công nợ (.CSV) thành công.');
+  };
+
+  const handleExportPdf = () => {
+    const printWin = window.open('', '_blank', 'width=1024,height=760');
+    if (!printWin) {
+      triggerAdminToast('Trình duyệt đang chặn cửa sổ bật lên (Pop-up). Vui lòng cho phép Pop-up để xuất PDF.');
+      return;
+    }
+    const rowsHtml = filteredReconciliations
+      .map(
+        (r, i) => `
+          <tr>
+            <td style="text-align:center;">${i + 1}</td>
+            <td><strong>${r.merchantName}</strong><div style="font-size:11px;color:#64748b;">${r.bankAccount || '—'}</div></td>
+            <td style="text-align:center;">${r.period}</td>
+            <td style="text-align:right;">${r.totalOrders}</td>
+            <td style="text-align:right;">${r.grossRevenue.toLocaleString('vi-VN')}đ</td>
+            <td style="text-align:right;color:#dc2626;">-${r.commission15.toLocaleString('vi-VN')}đ</td>
+            <td style="text-align:right;color:#dc2626;">-${r.refundDeducted.toLocaleString('vi-VN')}đ</td>
+            <td style="text-align:right;font-weight:700;">${r.netPayout85.toLocaleString('vi-VN')}đ</td>
+            <td style="text-align:right;font-weight:700;color:#059669;">${r.remainingPayout.toLocaleString('vi-VN')}đ</td>
+            <td style="text-align:center;">${r.status === 'PAID' ? 'Đã giải ngân' : r.status === 'PENDING' ? 'Chờ chi trả' : 'Hết dư'}</td>
+          </tr>
+        `,
+      )
+      .join('');
+    const totalGross = filteredReconciliations.reduce((s, r) => s + r.grossRevenue, 0);
+    const totalComm = filteredReconciliations.reduce((s, r) => s + r.commission15, 0);
+    const totalRemain = filteredReconciliations.reduce((s, r) => s + r.remainingPayout, 0);
+
+    printWin.document.write(`
+      <!doctype html>
+      <html lang="vi">
+      <head>
+        <meta charset="utf-8" />
+        <title>Báo Cáo Đối Soát Công Nợ DineGo - Kỳ ${reconciliationPeriodFilter}</title>
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 28px; color: #0f172a; }
+          h1 { font-size: 20px; margin: 0 0 4px 0; color: #0f172a; }
+          .sub { font-size: 13px; color: #475569; margin-bottom: 18px; }
+          .kpi-row { display: flex; gap: 16px; margin-bottom: 18px; }
+          .kpi { flex: 1; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; background: #f8fafc; }
+          .kpi-label { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; }
+          .kpi-val { font-size: 16px; font-weight: 800; margin-top: 4px; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th, td { border: 1px solid #cbd5e1; padding: 8px 10px; }
+          th { background: #0f172a; color: #ffffff; text-align: left; font-size: 11px; text-transform: uppercase; }
+          .footer { margin-top: 28px; display: flex; justify-content: space-between; font-size: 12px; color: #475569; }
+          @media print { body { padding: 12px; } }
+        </style>
+      </head>
+      <body>
+        <h1>BÁO CÁO ĐỐI SOÁT CÔNG NỢ &amp; GIẢI NGÂN ĐỐI TÁC DINEGO</h1>
+        <div class="sub">Kỳ đối soát: <strong>${reconciliationPeriodFilter}</strong> • Ngày xuất: ${new Date().toLocaleString('vi-VN')} • Áp dụng hoa hồng chuẩn BR-42 (${platformCommissionRate}% đơn thường / 8% mâm cỗ)</div>
+        <div class="kpi-row">
+          <div class="kpi"><div class="kpi-label">Tổng Doanh Thu Gộp</div><div class="kpi-val">${totalGross.toLocaleString('vi-VN')}đ</div></div>
+          <div class="kpi"><div class="kpi-label">Tổng Phí Hoa Hồng Sàn</div><div class="kpi-val" style="color:#4f46e5;">${totalComm.toLocaleString('vi-VN')}đ</div></div>
+          <div class="kpi"><div class="kpi-label">Tổng Còn Phải Chi Trả</div><div class="kpi-val" style="color:#059669;">${totalRemain.toLocaleString('vi-VN')}đ</div></div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>STT</th><th>Nhà hàng &amp; STK</th><th>Kỳ</th><th>Số đơn</th><th>Doanh thu gộp</th><th>Phí sàn</th><th>Hoàn tiền</th><th>Thực nhận ròng</th><th>Còn phải trả</th><th>Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        <div class="footer">
+          <div>Người lập biểu<br/><em>(Ký &amp; ghi rõ họ tên)</em></div>
+          <div>Kế toán trưởng / Admin Sàn DineGo<br/><em>(Xác nhận đối soát)</em></div>
+        </div>
+      </body>
+      </html>
+    `);
+    printWin.document.close();
+    printWin.focus();
+    setTimeout(() => printWin.print(), 300);
+    triggerAdminToast('Đã mở bản in Báo cáo Đối soát (.PDF) chuẩn UTF-8.');
   };
 
   // Admin Platform & Store Event/Holiday Vouchers State (U052) — Persisted in localStorage & Backend Live Sync
@@ -1755,12 +1871,117 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     }
   };
 
+  const [voucherToDelete, setVoucherToDelete] = useState<{ id: string; code: string } | null>(null);
+
   const handleDeleteVoucher = (vId: string, code: string) => {
-    if (!window.confirm(`Xóa mã khuyến mãi "${code}" khỏi hệ thống?`)) return;
-    setVouchers((prev) => prev.filter((v) => v.id !== vId));
+    setVoucherToDelete({ id: vId, code });
+  };
+
+  const confirmDeleteVoucher = () => {
+    if (!voucherToDelete) return;
+    const { id, code } = voucherToDelete;
+    setVouchers((prev) => prev.filter((v) => v.id !== id));
     appendAuditLog('XÓA VOUCHER SỰ KIỆN', code, 'Đã gỡ bỏ mã khỏi danh sách khuyến mãi');
     triggerAdminToast(`Đã xóa mã khuyến mãi "${code}" khỏi hệ thống.`);
+    setVoucherToDelete(null);
   };
+
+  const deleteVoucherModalJsx = voucherToDelete ? (
+    <div
+      onClick={() => setVoucherToDelete(null)}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15, 23, 42, 0.55)',
+        backdropFilter: 'blur(3px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1300,
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#FFFFFF',
+          borderRadius: 16,
+          width: '100%',
+          maxWidth: 420,
+          padding: 24,
+          boxShadow: '0 24px 48px rgba(15, 23, 42, 0.22)',
+          border: '1px solid #E2E8F0',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+          <div
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 12,
+              background: '#FEE2E2',
+              color: '#DC2626',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <AlertTriangle size={22} />
+          </div>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 800, color: '#0F172A' }}>
+              Xác nhận xóa mã khuyến mãi
+            </h3>
+            <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: '#64748B' }}>
+              Thao tác này sẽ đồng bộ xóa cả trên SQL Server
+            </p>
+          </div>
+        </div>
+        <p style={{ fontSize: '0.86rem', color: '#334155', lineHeight: 1.5, margin: '0 0 18px 0' }}>
+          Bạn có chắc chắn muốn xóa mã{' '}
+          <strong style={{ color: '#DC2626', background: '#FEF2F2', padding: '2px 8px', borderRadius: 6, border: '1px solid #FECACA' }}>
+            {voucherToDelete.code}
+          </strong>{' '}
+          khỏi hệ thống? Khách hàng sẽ không thể săn hoặc áp dụng mã này ở bước Thanh toán nữa.
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <button
+            type="button"
+            onClick={() => setVoucherToDelete(null)}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: '1px solid #CBD5E1',
+              background: '#FFFFFF',
+              color: '#334155',
+              fontSize: '0.83rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Hủy bỏ
+          </button>
+          <button
+            type="button"
+            onClick={confirmDeleteVoucher}
+            style={{
+              padding: '8px 18px',
+              borderRadius: 8,
+              border: 'none',
+              background: '#DC2626',
+              color: '#FFFFFF',
+              fontSize: '0.83rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            Xác nhận xóa
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   // Merchant Reviews & Replies State (Loaded directly from SQL Server database — No hardcoded demo reviews)
   const loadStoredReviews = () => {
@@ -1775,6 +1996,50 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   };
 
   const [reviews, setReviews] = useState<any[]>([]);
+
+  // AI Knowledge Base (RAG) State — Loaded from SQL Server knowledge_base_vectors
+  const [knowledgeChunks, setKnowledgeChunks] = useState<
+    Array<{ id: string; source: string; content: string; authorName: string; createdAt: string }>
+  >([]);
+  const [kbSourceInput, setKbSourceInput] = useState('');
+  const [kbContentInput, setKbContentInput] = useState('');
+  const [kbSearchQuery, setKbSearchQuery] = useState('');
+  const [kbSaving, setKbSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void adminApi.getKnowledgeChunks().then((rows) => {
+      if (active && Array.isArray(rows)) setKnowledgeChunks(rows);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleAddKnowledgeChunk = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!kbContentInput.trim() || kbSaving) return;
+    setKbSaving(true);
+    const created = await adminApi.createKnowledgeChunk({
+      source: kbSourceInput.trim() || 'Cẩm nang ẩm thực DineGo',
+      content: kbContentInput.trim(),
+    });
+    setKbSaving(false);
+    if (created) {
+      setKnowledgeChunks((prev) => [created, ...prev]);
+      setKbSourceInput('');
+      setKbContentInput('');
+      appendAuditLog('THÊM TRI THỨC AI (RAG)', created.source, created.content.slice(0, 80));
+      triggerAdminToast('Đã thêm đoạn tri thức mới vào cơ sở dữ liệu AI (SQL Server).');
+    }
+  };
+
+  const handleDeleteKnowledgeChunk = async (chunkId: string) => {
+    await adminApi.deleteKnowledgeChunk(chunkId);
+    setKnowledgeChunks((prev) => prev.filter((k) => k.id !== chunkId));
+    appendAuditLog('XÓA TRI THỨC AI (RAG)', chunkId, 'Gỡ bỏ đoạn tri thức khỏi knowledge_base_vectors');
+    triggerAdminToast('Đã xóa đoạn tri thức khỏi cơ sở dữ liệu AI.');
+  };
 
   // Load real feastBookings, complaints, and reviews directly from SQL Server database on mount
   useEffect(() => {
@@ -1795,6 +2060,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         setReviews(ledger.reviews);
         localStorage.setItem('dinego_merchant_reviews', JSON.stringify(ledger.reviews));
         window.dispatchEvent(new CustomEvent('dinego_reviews_updated'));
+      }
+      if (Array.isArray(ledger.merchantWithdrawals) && ledger.merchantWithdrawals.length > 0) {
+        setMerchantWithdrawals(ledger.merchantWithdrawals);
+      }
+      if (Array.isArray(ledger.driverWithdrawals) && ledger.driverWithdrawals.length > 0) {
+        setDriverWithdrawals(ledger.driverWithdrawals);
       }
     };
     void loadFromSqlServer();
@@ -3087,11 +3358,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                 letterSpacing: '0.04em',
                               }}
                             >
-                              <th style={{ padding: '11px 20px' }}>Gian hàng</th>
-                              <th style={{ padding: '11px 16px' }}>Đại diện &amp; Giấy phép</th>
-                              <th style={{ padding: '11px 16px' }}>Địa chỉ kinh doanh</th>
-                              <th style={{ padding: '11px 16px' }}>Trạng thái</th>
-                              <th style={{ padding: '11px 20px', textAlign: 'right' }}>Ghi chú &amp; Thao tác</th>
+                              <th style={{ padding: '11px 14px' }}>Gian hàng</th>
+                              <th style={{ padding: '11px 12px' }}>Đại diện &amp; Giấy phép</th>
+                              <th style={{ padding: '11px 12px' }}>Địa chỉ kinh doanh</th>
+                              <th style={{ padding: '11px 12px' }}>Trạng thái</th>
+                              <th style={{ padding: '11px 14px', textAlign: 'right' }}>Ghi chú &amp; Thao tác</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3130,8 +3401,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                     }}
                                   >
                                     {/* Column 1: Store Identity (Single-line protected) */}
-                                    <td style={{ padding: '12px 20px' }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 11, maxWidth: 230 }}>
+                                    <td style={{ padding: '12px 14px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, maxWidth: 195 }}>
                                         <img
                                           src={
                                             m.storeFrontImage ||
@@ -3140,8 +3411,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                           }
                                           alt={m.name}
                                           style={{
-                                            width: 38,
-                                            height: 38,
+                                            width: 36,
+                                            height: 36,
                                             borderRadius: 8,
                                             objectFit: 'cover',
                                             flexShrink: 0,
@@ -3149,7 +3420,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                             opacity: isSuspended ? 0.6 : 1,
                                           }}
                                         />
-                                        <div style={{ minWidth: 0, maxWidth: 180 }}>
+                                        <div style={{ minWidth: 0, maxWidth: 150 }}>
                                           <div
                                             title={m.name}
                                             style={{
@@ -3180,14 +3451,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                     </td>
 
                                     {/* Column 2: Representative & Business License */}
-                                    <td style={{ padding: '12px 14px' }}>
+                                    <td style={{ padding: '12px 12px' }}>
                                       <div
                                         title={m.ownerName || 'Chủ Hộ Kinh Doanh'}
                                         style={{
                                           fontWeight: 500,
                                           color: '#1E293B',
                                           fontSize: '0.82rem',
-                                          maxWidth: 175,
+                                          maxWidth: 145,
                                           whiteSpace: 'nowrap',
                                           overflow: 'hidden',
                                           textOverflow: 'ellipsis',
@@ -3201,7 +3472,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                           fontSize: '0.72rem',
                                           color: '#64748B',
                                           marginTop: 2,
-                                          maxWidth: 175,
+                                          maxWidth: 145,
                                           fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
                                           whiteSpace: 'nowrap',
                                           overflow: 'hidden',
@@ -3213,13 +3484,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                     </td>
 
                                     {/* Column 3: Business Address (Single-line truncated with tooltip) */}
-                                    <td style={{ padding: '12px 14px' }}>
+                                    <td style={{ padding: '12px 12px' }}>
                                       <div
                                         title={m.address}
                                         style={{
                                           color: '#475569',
                                           fontSize: '0.8rem',
-                                          maxWidth: 230,
+                                          maxWidth: 175,
                                           whiteSpace: 'nowrap',
                                           overflow: 'hidden',
                                           textOverflow: 'ellipsis',
@@ -3297,7 +3568,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                     </td>
 
                                     {/* Column 5: Unified Note & Restrained Action Controls */}
-                                    <td style={{ padding: '12px 20px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                    <td style={{ padding: '12px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                       <div
                                         style={{
                                           display: 'inline-flex',
@@ -3317,13 +3588,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                             }))
                                           }
                                           style={{
-                                            padding: '5px 10px',
+                                            padding: '5px 8px',
                                             borderRadius: 6,
                                             border: '1px solid #E2E8F0',
                                             background: '#F8FAFC',
                                             color: '#0F172A',
                                             fontSize: '0.76rem',
-                                            width: 145,
+                                            width: 100,
                                             outline: 'none',
                                           }}
                                         />
@@ -3885,18 +4156,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                   <div style={{ fontWeight: 700, color: '#0F172A' }}>{cmp.code}</div>
                                   <div style={{ fontSize: '0.74rem', color: '#4F46E5', fontWeight: 600 }}>#{cmp.orderNumber}</div>
                                 </td>
-                                <td style={{ padding: '14px 16px' }}>
-                                  <div style={{ fontWeight: 600, color: '#0F172A' }}>{cmp.customerName}</div>
-                                  <div style={{ fontSize: '0.75rem', color: '#64748B' }}>
+                                <td style={{ padding: '14px 16px', minWidth: 165 }}>
+                                  <div style={{ fontWeight: 600, color: '#0F172A', whiteSpace: 'nowrap' }}>{cmp.customerName}</div>
+                                  <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: 2 }}>
                                     Quán: <strong>{cmp.merchantName}</strong>
                                   </div>
                                   {cmp.driverName && (
-                                    <div style={{ fontSize: '0.72rem', color: '#0284C7', marginTop: 2 }}>
+                                    <div style={{ fontSize: '0.72rem', color: '#0284C7', marginTop: 2, whiteSpace: 'nowrap' }}>
                                       Shipper: {cmp.driverName}
                                     </div>
                                   )}
                                 </td>
-                                <td style={{ padding: '14px 16px', color: '#334155', maxWidth: 290 }}>
+                                <td style={{ padding: '14px 16px', color: '#334155', minWidth: 220, maxWidth: 280 }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                     {cmp.evidenceImage && (
                                       <button
@@ -3923,16 +4194,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                       </button>
                                     )}
                                     <div>
-                                      <span style={{ fontSize: '0.81rem', display: 'block', lineHeight: 1.35 }}>{cmp.issueType}</span>
+                                      <span style={{ fontSize: '0.81rem', display: 'block', lineHeight: 1.4 }}>{cmp.issueType}</span>
                                       {cmp.faultParty && cmp.status === 'REFUNDED' && (
                                         <span
                                           style={{
                                             display: 'inline-block',
-                                            marginTop: 4,
+                                            marginTop: 5,
                                             fontSize: '0.7rem',
                                             fontWeight: 600,
-                                            padding: '1px 6px',
+                                            padding: '2px 7px',
                                             borderRadius: 4,
+                                            whiteSpace: 'nowrap',
                                             background:
                                               cmp.faultParty === 'DRIVER'
                                                 ? '#EFF6FF'
@@ -3957,14 +4229,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                     </div>
                                   </div>
                                 </td>
-                                <td style={{ padding: '14px 16px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap' }}>
-                                  {cmp.compensationAmount.toLocaleString('vi-VN')}đ
+                                <td style={{ padding: '14px 16px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', minWidth: 105 }}>
+                                  {(Number(cmp.compensationAmount) || 0).toLocaleString('vi-VN')}đ
                                 </td>
-                                <td style={{ padding: '14px 16px' }}>
+                                <td style={{ padding: '14px 16px', minWidth: 210 }}>
                                   {cmp.status === 'OPEN' ? (
                                     <input
                                       type="text"
-                                      placeholder="Ghi chú phân xử..."
+                                      placeholder="Nhập ghi chú trước khi chọn xử lý..."
                                       value={complaintNoteInputs[cmp.id] || ''}
                                       onChange={(e) =>
                                         setComplaintNoteInputs((prev) => ({
@@ -3973,17 +4245,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                         }))
                                       }
                                       style={{
-                                        padding: '6px 10px',
+                                        padding: '7px 10px',
                                         borderRadius: 6,
-                                        border: '1px solid #E2E8F0',
-                                        background: '#F8FAFC',
-                                        fontSize: '0.76rem',
-                                        width: 195,
+                                        border: '1px solid #CBD5E1',
+                                        background: '#FFFFFF',
+                                        color: '#0F172A',
+                                        fontSize: '0.78rem',
+                                        width: '100%',
+                                        minWidth: 195,
                                         outline: 'none',
                                       }}
                                     />
                                   ) : (
-                                    <span style={{ fontSize: '0.76rem', color: '#475569' }}>
+                                    <span style={{ fontSize: '0.77rem', color: '#334155', lineHeight: 1.45, display: 'block' }}>
                                       {cmp.resolutionNotes || 'Đã hoàn tất xử lý'}
                                     </span>
                                   )}
@@ -4672,6 +4946,25 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                           }}
                         >
                           <Download size={14} /> Xuất CSV
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleExportPdf}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '6px 12px',
+                            borderRadius: 8,
+                            background: '#DC2626',
+                            color: '#FFFFFF',
+                            fontWeight: 600,
+                            fontSize: '0.78rem',
+                            border: 'none',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <Printer size={14} /> Xuất PDF
                         </button>
                       </div>
                     </div>
@@ -5954,39 +6247,179 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               </div>
             )}
 
-            {/* ADMIN TAB: AI LOCAL CULINARY KNOWLEDGE BASE (ĐANG BẢO TRÌ) */}
+            {/* ADMIN TAB: AI LOCAL CULINARY KNOWLEDGE BASE (RAG CRUD - SQL SERVER) */}
             {currentAdminTab === 'admin-knowledge' && (
-              <div
-                style={{
-                  background: '#FFFFFF',
-                  border: '1px solid #E2E8F0',
-                  borderRadius: 12,
-                  padding: '64px 24px',
-                  textAlign: 'center',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                }}
-              >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
                 <div
                   style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: '50%',
-                    background: '#FEF3C7',
-                    color: '#D97706',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: 16,
+                    background: '#FFFFFF',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: 12,
+                    padding: '20px 24px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
                   }}
                 >
-                  <AlertTriangle size={28} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+                    <div>
+                      <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                        Quản trị Cơ sở Tri thức AI (RAG Knowledge Base)
+                      </h3>
+                      <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '4px 0 0 0' }}>
+                        Quản lý trực tiếp các đoạn tri thức ẩm thực trong bảng <code>knowledge_base_vectors</code> (SQL Server) phục vụ trợ lý DineGo Guide
+                      </p>
+                    </div>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#059669', background: '#ECFDF5', padding: '5px 12px', borderRadius: 999 }}>
+                      {knowledgeChunks.length} đoạn tri thức đang hoạt động
+                    </span>
+                  </div>
+
+                  <form onSubmit={handleAddKnowledgeChunk} style={{ display: 'flex', flexDirection: 'column', gap: 12, background: '#F8FAFC', padding: 16, borderRadius: 10, border: '1px solid #E2E8F0' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        placeholder="Nguồn / Chủ đề tri thức (VD: Cẩm nang ẩm thực Quận 1 TP.HCM)"
+                        value={kbSourceInput}
+                        onChange={(e) => setKbSourceInput(e.target.value)}
+                        style={{
+                          padding: '9px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          background: '#FFFFFF',
+                          fontSize: '0.84rem',
+                          color: '#0F172A',
+                          outline: 'none',
+                        }}
+                      />
+                      <button
+                        type="submit"
+                        disabled={kbSaving || !kbContentInput.trim()}
+                        style={{
+                          padding: '9px 18px',
+                          borderRadius: 8,
+                          background: kbSaving || !kbContentInput.trim() ? '#CBD5E1' : '#0F172A',
+                          color: '#FFFFFF',
+                          fontWeight: 700,
+                          fontSize: '0.83rem',
+                          border: 'none',
+                          cursor: kbSaving || !kbContentInput.trim() ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {kbSaving ? 'Đang lưu...' : '+ Thêm đoạn tri thức'}
+                      </button>
+                    </div>
+                    <textarea
+                      rows={3}
+                      placeholder="Nhập nội dung tri thức chi tiết về món ăn, quán đặc sản, quy định đặt mâm cỗ..."
+                      value={kbContentInput}
+                      onChange={(e) => setKbContentInput(e.target.value)}
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #CBD5E1',
+                        background: '#FFFFFF',
+                        fontSize: '0.84rem',
+                        color: '#0F172A',
+                        resize: 'vertical',
+                        outline: 'none',
+                      }}
+                    />
+                  </form>
                 </div>
-                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', margin: '0 0 8px 0' }}>
-                  Phân hệ Tri thức AI (RAG) đang bảo trì
-                </h3>
-                <p style={{ fontSize: '0.88rem', color: '#64748B', maxWidth: 460, margin: '0 auto' }}>
-                  Chức năng quản trị cơ sở tri thức AI hiện đang để trống và tạm ngưng để bảo trì nâng cấp hệ thống.
-                </p>
+
+                <div
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: 12,
+                    padding: '18px 24px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+                    <h4 style={{ fontSize: '0.94rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      Danh sách Tri thức trong SQL Server
+                    </h4>
+                    <input
+                      type="text"
+                      placeholder="Tìm theo nguồn hoặc nội dung..."
+                      value={kbSearchQuery}
+                      onChange={(e) => setKbSearchQuery(e.target.value)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #E2E8F0',
+                        background: '#F8FAFC',
+                        fontSize: '0.8rem',
+                        width: 240,
+                        outline: 'none',
+                      }}
+                    />
+                  </div>
+
+                  {knowledgeChunks.length === 0 ? (
+                    <div style={{ padding: '32px 16px', textAlign: 'center', color: '#64748B', fontSize: '0.86rem' }}>
+                      Chưa có đoạn tri thức nào trong cơ sở dữ liệu. Hãy thêm đoạn tri thức mới ở khung phía trên!
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {knowledgeChunks
+                        .filter((k) => {
+                          const q = kbSearchQuery.trim().toLowerCase();
+                          if (!q) return true;
+                          return (
+                            k.source.toLowerCase().includes(q) ||
+                            k.content.toLowerCase().includes(q)
+                          );
+                        })
+                        .map((k) => (
+                          <div
+                            key={k.id}
+                            style={{
+                              padding: '14px 16px',
+                              borderRadius: 10,
+                              border: '1px solid #E2E8F0',
+                              background: '#F8FAFC',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'flex-start',
+                              gap: 14,
+                            }}
+                          >
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#4F46E5', background: '#EEF2FF', padding: '2px 8px', borderRadius: 6 }}>
+                                  {k.source}
+                                </span>
+                                <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                                  {k.authorName} • {k.createdAt || 'Mới tạo'}
+                                </span>
+                              </div>
+                              <p style={{ margin: 0, fontSize: '0.85rem', color: '#1E293B', lineHeight: 1.5 }}>
+                                {k.content}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteKnowledgeChunk(k.id)}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: 6,
+                                border: '1px solid #FECACA',
+                                background: '#FFFFFF',
+                                color: '#DC2626',
+                                fontSize: '0.76rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                flexShrink: 0,
+                              }}
+                            >
+                              Xóa
+                            </button>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -7039,6 +7472,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
           </div>
         )}
+        {deleteVoucherModalJsx}
       </div>
     );
   }
@@ -9067,6 +9501,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                 minute: '2-digit',
                               }),
                             };
+                            void adminApi.createDatabaseWithdrawal({
+                              ...newReq,
+                              actorType: 'MERCHANT',
+                              actorId: currentMerchantId,
+                              actorName: newReq.merchantName,
+                            });
                             setMerchantWithdrawals((prev) => [newReq, ...prev]);
                             setMerchantWithdrawAmountInput('');
                             setMerchantWithdrawError('');
@@ -9242,52 +9682,63 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       </div>
                     ) : (
                       currentMerchantReviews.map((rev: any) => (
-                        <div key={rev.id} style={{ padding: 14, borderRadius: 8, background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
-                            <div>
-                              <span style={{ fontWeight: 800, fontSize: '0.88rem', color: '#0F172A' }}>
-                                {rev.customerName}{' '}
-                                <span style={{ color: '#64748B', fontWeight: 600 }}>(#{rev.orderRef})</span>
-                              </span>
-                              {rev.date && (
-                                <span style={{ fontSize: '0.75rem', color: '#94A3B8', marginLeft: 8 }}>
-                                  • {rev.date}
-                                </span>
-                              )}
-                              {rev.itemsSummary && (
-                                <div style={{ fontSize: '0.76rem', color: '#059669', fontWeight: 700, marginTop: 2 }}>
-                                  Món đã đặt: {rev.itemsSummary}
-                                </div>
-                              )}
+                        <div
+                          key={rev.id}
+                          style={{
+                            padding: 14,
+                            borderRadius: 10,
+                            border: '1px solid #E2E8F0',
+                            background: '#F8FAFC',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <div style={{ fontWeight: 700, fontSize: '0.86rem', color: '#0F172A' }}>
+                              {rev.customerName || 'Thực khách'} •{' '}
+                              <span style={{ color: '#D97706' }}>{'★'.repeat(Number(rev.rating) || 5)}</span>
                             </div>
-                            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#D97706', background: '#FEF3C7', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>
-                              {'★'.repeat(Math.max(1, Math.min(5, Number(rev.rating) || 5)))} ({rev.rating}.0)
-                            </span>
+                            <span style={{ fontSize: '0.74rem', color: '#64748B' }}>{rev.createdAt}</span>
                           </div>
-                          <p style={{ fontSize: '0.86rem', color: '#1E293B', margin: '6px 0 10px 0', fontWeight: 500 }}>
-                            &ldquo;{rev.comment}&rdquo;
+                          {rev.dishOrdered && (
+                            <div style={{ fontSize: '0.76rem', color: '#4F46E5', fontWeight: 600, marginBottom: 4 }}>
+                              Món: {rev.dishOrdered}
+                            </div>
+                          )}
+                          <p style={{ margin: '0 0 8px 0', fontSize: '0.84rem', color: '#334155', lineHeight: 1.45 }}>
+                            {rev.comment}
                           </p>
                           {rev.reply ? (
-                            <div style={{ background: '#FFFFFF', borderLeft: '3px solid #D97706', padding: '8px 12px', borderRadius: 4, fontSize: '0.8rem', color: '#475569' }}>
-                              <strong style={{ color: '#B45309' }}>Phản hồi của quán:</strong> {rev.reply}
-                              {rev.repliedAt && (
-                                <span style={{ fontSize: '0.72rem', color: '#94A3B8', marginLeft: 6 }}>
-                                  ({rev.repliedAt})
-                                </span>
-                              )}
+                            <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: '8px 10px', fontSize: '0.8rem', color: '#065F46' }}>
+                              <strong>Phản hồi của quán:</strong> {rev.reply}
                             </div>
                           ) : (
-                            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                            <div style={{ display: 'flex', gap: 8 }}>
                               <input
                                 type="text"
-                                placeholder="Nhập nội dung phản hồi thực khách..."
+                                placeholder="Nhập phản hồi gửi thực khách..."
                                 value={replyInput[rev.id] || ''}
                                 onChange={(e) => setReplyInput({ ...replyInput, [rev.id]: e.target.value })}
-                                style={{ flex: 1, padding: '7px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.82rem', background: '#FFFFFF' }}
+                                style={{
+                                  flex: 1,
+                                  padding: '7px 10px',
+                                  borderRadius: 6,
+                                  border: '1px solid #CBD5E1',
+                                  background: '#FFFFFF',
+                                  fontSize: '0.8rem',
+                                }}
                               />
                               <button
+                                type="button"
                                 onClick={() => handleSendReply(rev.id)}
-                                style={{ padding: '7px 14px', borderRadius: 6, background: '#0F172A', color: '#FFFFFF', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', border: 'none' }}
+                                style={{
+                                  padding: '7px 14px',
+                                  borderRadius: 6,
+                                  background: '#0F172A',
+                                  color: '#FFFFFF',
+                                  fontSize: '0.78rem',
+                                  fontWeight: 700,
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                }}
                               >
                                 Gửi phản hồi
                               </button>
@@ -10206,6 +10657,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         defaultChannel="CUSTOMER_MERCHANT"
         assignedDriverName={merchantChatOrder?.assignedDriverName || undefined}
       />
+      {deleteVoucherModalJsx}
     </div>
   );
 };
