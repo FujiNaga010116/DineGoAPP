@@ -505,7 +505,7 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
   };
 
   return (
-    <div className="container" style={{ padding: '28px 20px 60px', maxWidth: 1120 }}>
+    <div className="container" style={{ padding: '24px 20px 60px' }}>
       {savedNotice && (
         <div
           style={{
@@ -527,7 +527,7 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 24, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 24, alignItems: 'start' }}>
         {/* Left Profile Navigation Card */}
         <div
           style={{
