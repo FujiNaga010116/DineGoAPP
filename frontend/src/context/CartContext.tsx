@@ -137,6 +137,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
     isActive: boolean;
     usageCount: number;
     maxUsage: number;
+    endDate?: string;
     merchantId?: string;
     merchantName?: string;
   } | null => {
@@ -156,6 +157,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
         isActive: foundAdmin.isActive !== false,
         usageCount: Number(foundAdmin.usageCount) || 0,
         maxUsage: Number(foundAdmin.maxUsage) || 999999,
+        endDate: foundAdmin.endDate,
         merchantId: foundAdmin.merchantId || 'ALL',
         merchantName: foundAdmin.merchantName || 'Toàn sàn DineGo',
       };
@@ -203,9 +205,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
 
     if (effectiveVoucherCode) {
       const v = resolveVoucherByCode(effectiveVoucherCode);
+      const todayStr = new Date().toISOString().split('T')[0];
+      const isExpired = Boolean(v?.endDate && v.endDate < todayStr);
       const merchantAllowed =
         !v?.merchantId || v.merchantId === 'ALL' || !merchantId || v.merchantId === merchantId;
-      if (!v || !v.isActive || v.usageCount >= v.maxUsage || !merchantAllowed) {
+      if (!v || !v.isActive || isExpired || v.usageCount >= v.maxUsage || !merchantAllowed) {
         effectiveVoucherCode = null;
       } else if (subtotal >= v.minOrder) {
         let rawDiscount =
@@ -318,6 +322,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
       return {
         success: false,
         message: `Mã "${normalized}" hiện đang tạm dừng hoặc đã hết lượt sử dụng.`,
+      };
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (v.endDate && v.endDate < todayStr) {
+      return {
+        success: false,
+        message: `Mã "${normalized}" đã hết hạn sử dụng (${v.endDate}).`,
       };
     }
 

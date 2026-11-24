@@ -27,6 +27,11 @@ export class UpdateUserStatusDto {
   @IsOptional()
   @IsString()
   reason?: string;
+
+  @ApiProperty({ example: 'customer@dinego.vn', required: false })
+  @IsOptional()
+  @IsString()
+  email?: string;
 }
 
 export class UpdateMerchantApprovalDto {

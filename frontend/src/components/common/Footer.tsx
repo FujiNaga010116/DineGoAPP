@@ -110,10 +110,26 @@ export const Footer: React.FC<FooterProps> = ({
               </li>
               <li>
                 <button
+                  onClick={() => onNavigate?.('vouchers')}
+                  style={{ background: 'transparent', color: '#94A3B8', fontSize: '0.86rem', padding: 0 }}
+                >
+                  Săn Voucher Sự kiện & Lễ
+                </button>
+              </li>
+              <li>
+                <button
                   onClick={() => onNavigate?.('ai-guide')}
                   style={{ background: 'transparent', color: '#94A3B8', fontSize: '0.86rem', padding: 0 }}
                 >
                   Tư vấn thực đơn theo khẩu vị
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate?.('tracking')}
+                  style={{ background: 'transparent', color: '#94A3B8', fontSize: '0.86rem', padding: 0 }}
+                >
+                  Theo dõi hành trình đơn hàng
                 </button>
               </li>
               <li>
