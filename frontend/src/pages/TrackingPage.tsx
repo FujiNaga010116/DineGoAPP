@@ -533,6 +533,15 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
   const [drvBankAcc, setDrvBankAcc] = useState(currentDriver.bankAccountNumber);
   const [drvBankHolder, setDrvBankHolder] = useState(currentDriver.bankAccountHolder);
   const [drvEmergency, setDrvEmergency] = useState(currentDriver.emergencyContact || '');
+  const [drvPortraitUrl, setDrvPortraitUrl] = useState(
+    currentDriver.portraitUrl || currentDriver.avatarUrl || '',
+  );
+  const [drvDriverLicenseImg, setDrvDriverLicenseImg] = useState(
+    currentDriver.driverLicenseFrontUrl || '',
+  );
+  const [drvNationalIdImg, setDrvNationalIdImg] = useState(
+    currentDriver.nationalIdFrontUrl || '',
+  );
   const [drvNewPassword, setDrvNewPassword] = useState('');
 
   useEffect(() => {
@@ -548,6 +557,9 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
     setDrvBankAcc(currentDriver.bankAccountNumber);
     setDrvBankHolder(currentDriver.bankAccountHolder);
     setDrvEmergency(currentDriver.emergencyContact || '');
+    setDrvPortraitUrl(currentDriver.portraitUrl || currentDriver.avatarUrl || '');
+    setDrvDriverLicenseImg(currentDriver.driverLicenseFrontUrl || '');
+    setDrvNationalIdImg(currentDriver.nationalIdFrontUrl || '');
     setDriverOnline(isDriverProfileVerified(currentDriver) && currentDriver.status !== 'OFFLINE');
     setProfileErrorNotice('');
   }, [currentDriver]);
@@ -1516,12 +1528,19 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
       !drvZone.trim() ||
       !drvBankName.trim() ||
       !drvBankAcc.trim() ||
-      !drvBankHolder.trim()
+      !drvBankHolder.trim() ||
+      !drvPortraitUrl.trim()
     ) {
       setProfileSavedNotice('');
-      setProfileErrorNotice(
-        'Vui lòng điền đầy đủ thông tin cá nhân, số CCCD, số GPLX, thông tin xe & biển số, khu vực hoạt động và tài khoản ngân hàng bắt buộc (*).',
-      );
+      if (!drvPortraitUrl.trim()) {
+        setProfileErrorNotice(
+          'Bắt buộc chụp hoặc tải lên Ảnh chân dung trực diện của tài xế để đối soát khuôn mặt và xác thực danh tính sinh trắc học trước khi được duyệt vào làm!',
+        );
+      } else {
+        setProfileErrorNotice(
+          'Vui lòng điền đầy đủ thông tin cá nhân, ảnh chụp chân dung, số CCCD, số GPLX, thông tin xe & biển số, khu vực hoạt động và tài khoản ngân hàng bắt buộc (*).',
+        );
+      }
       return;
     }
 
@@ -1531,6 +1550,11 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
       fullName: drvFullName.trim(),
       phoneNumber: drvPhone.trim(),
       email: drvEmail.trim(),
+      avatarUrl: drvPortraitUrl.trim(),
+      portraitUrl: drvPortraitUrl.trim(),
+      portraitVerifiedAt: currentDriver.portraitVerifiedAt || new Date().toISOString(),
+      driverLicenseFrontUrl: drvDriverLicenseImg.trim(),
+      nationalIdFrontUrl: drvNationalIdImg.trim(),
       nationalId: drvNationalId.trim(),
       driverLicenseNumber: drvLicenseNum.trim(),
       vehicleType: drvVehicleType.trim(),
@@ -1550,6 +1574,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
           fullName: drvFullName.trim(),
           phoneNumber: drvPhone.trim(),
           email: drvEmail.trim(),
+          avatarUrl: drvPortraitUrl.trim(),
           address: drvZone.trim(),
           bankName: drvBankName.trim(),
           bankAccountNumber: drvBankAcc.trim(),
@@ -4649,6 +4674,290 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                       ? 'Hoàn thành các trường thông tin có dấu (*) bên dưới để được cấp quyền nhận và vận chuyển đơn hàng trên DineGo'
                       : 'Cập nhật thông tin cá nhân, giấy phép lái xe, biển số phương tiện và tài khoản ngân hàng nhận thu nhập'}
                   </p>
+
+                  {/* 1. KHỐI CHỤP ẢNH CHÂN DUNG & ĐỐI SOÁT KHUÔN MẶT SINH TRẮC HỌC (BẮT BUỘC ĐỂ VÀO LÀM) */}
+                  <div
+                    style={{
+                      background: '#F8FAFC',
+                      border: drvPortraitUrl ? '1.5px solid #10B981' : '1.5px dashed #CBD5E1',
+                      borderRadius: 14,
+                      padding: 22,
+                      marginBottom: 24,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: 16,
+                        flexWrap: 'wrap',
+                        gap: 10,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div
+                          style={{
+                            background: drvPortraitUrl ? '#ECFDF5' : '#FEF3C7',
+                            color: drvPortraitUrl ? '#059669' : '#D97706',
+                            padding: 8,
+                            borderRadius: 8,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Camera size={22} />
+                        </div>
+                        <div>
+                          <h4 style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                            1. Ảnh Chụp Chân Dung Trực Diện Của Tài Xế (Bắt buộc xác thực vào làm) *
+                          </h4>
+                          <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '3px 0 0 0' }}>
+                            Yêu cầu: Nhìn thẳng, rõ ngũ quan, không đeo khẩu trang/kính đen, đủ ánh sáng. Dùng đối chiếu người nhận món thực tế & chống gian lận tài khoản.
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        style={{
+                          padding: '5px 12px',
+                          borderRadius: 8,
+                          fontSize: '0.76rem',
+                          fontWeight: 700,
+                          background: drvPortraitUrl ? '#DCFCE7' : '#FEE2E2',
+                          color: drvPortraitUrl ? '#166534' : '#991B1B',
+                          border: drvPortraitUrl ? '1px solid #BBF7D0' : '1px solid #FECACA',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                        }}
+                      >
+                        {drvPortraitUrl ? '✓ Đã xác thực chân dung' : '⚠️ Bắt buộc phải có ảnh'}
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(160px, 180px) 1fr',
+                        gap: 22,
+                        alignItems: 'center',
+                      }}
+                    >
+                      {/* Portrait Preview Frame */}
+                      <div
+                        style={{
+                          height: 200,
+                          borderRadius: 12,
+                          border: drvPortraitUrl ? '2px solid #10B981' : '2px dashed #CBD5E1',
+                          background: '#FFFFFF',
+                          overflow: 'hidden',
+                          position: 'relative',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 4px 14px rgba(0,0,0,0.06)',
+                        }}
+                      >
+                        {drvPortraitUrl ? (
+                          <>
+                            <img
+                              src={drvPortraitUrl}
+                              alt="Ảnh chân dung tài xế"
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                            <div
+                              style={{
+                                position: 'absolute',
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                background: 'linear-gradient(to top, rgba(15,23,42,0.85), transparent)',
+                                padding: '8px 10px',
+                                textAlign: 'center',
+                                color: '#34D399',
+                                fontSize: '0.72rem',
+                                fontWeight: 800,
+                              }}
+                            >
+                              ✓ Ảnh khuôn mặt hợp lệ
+                            </div>
+                          </>
+                        ) : (
+                          <div style={{ textAlign: 'center', padding: 14, color: '#94A3B8' }}>
+                            <Camera size={40} color="#CBD5E1" style={{ margin: '0 auto 8px' }} />
+                            <div style={{ fontSize: '0.76rem', fontWeight: 700, color: '#64748B' }}>
+                              Chưa có ảnh chân dung
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: '#94A3B8', marginTop: 2 }}>
+                              Chụp hoặc tải ảnh lên
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Controls & Presets */}
+                      <div>
+                        <div style={{ marginBottom: 14 }}>
+                          <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                            ĐƯỜNG DẪN ẢNH CHÂN DUNG HOẶC TẢI LÊN TỪ MÁY
+                          </label>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <input
+                              type="text"
+                              required
+                              placeholder="Dán link ảnh chân dung (URL) hoặc chọn ảnh mẫu bên dưới..."
+                              value={drvPortraitUrl}
+                              onChange={(e) => setDrvPortraitUrl(e.target.value)}
+                              style={{
+                                flex: 1,
+                                minWidth: 200,
+                                padding: '10px 14px',
+                                borderRadius: 8,
+                                border: '1px solid #CBD5E1',
+                                fontSize: '0.84rem',
+                                background: '#FFFFFF',
+                              }}
+                            />
+                            <label
+                              style={{
+                                background: '#0284C7',
+                                color: '#FFFFFF',
+                                padding: '10px 16px',
+                                borderRadius: 8,
+                                fontSize: '0.82rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              <Upload size={15} />
+                              <span>Tải ảnh từ máy</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const reader = new FileReader();
+                                    reader.onload = (ev) => {
+                                      if (ev.target?.result) {
+                                        setDrvPortraitUrl(String(ev.target.result));
+                                      }
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#64748B', marginBottom: 8 }}>
+                            HOẶC CHỌN NHANH ẢNH CHÂN DUNG TÀI XẾ MẪU (CHUẨN BẢO HỘ ĐỐI TÁC DINEGO):
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {[
+                              {
+                                label: '👨 Nam tài xế 1',
+                                url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=500&auto=format&fit=crop&q=80',
+                              },
+                              {
+                                label: '👨 Nam tài xế 2',
+                                url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500&auto=format&fit=crop&q=80',
+                              },
+                              {
+                                label: '👩 Nữ tài xế',
+                                url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&auto=format&fit=crop&q=80',
+                              },
+                              {
+                                label: '👨 Tài xế thanh niên',
+                                url: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=500&auto=format&fit=crop&q=80',
+                              },
+                            ].map((preset, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => setDrvPortraitUrl(preset.url)}
+                                style={{
+                                  padding: '7px 14px',
+                                  borderRadius: 8,
+                                  border: drvPortraitUrl === preset.url ? '1.5px solid #0284C7' : '1px solid #CBD5E1',
+                                  background: drvPortraitUrl === preset.url ? '#F0F9FF' : '#FFFFFF',
+                                  color: drvPortraitUrl === preset.url ? '#0369A1' : '#475569',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Document Scans Row: CCCD & GPLX */}
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: 16,
+                        marginTop: 18,
+                        paddingTop: 16,
+                        borderTop: '1px solid #E2E8F0',
+                      }}
+                    >
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                          ẢNH CHỤP CĂN CƯỚC CÔNG DÂN (CCCD) MẶT TRƯỚC
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Link ảnh chụp CCCD hoặc dán URL..."
+                          value={drvNationalIdImg}
+                          onChange={(e) => setDrvNationalIdImg(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            borderRadius: 6,
+                            border: '1px solid #CBD5E1',
+                            fontSize: '0.82rem',
+                            background: '#FFFFFF',
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                          ẢNH CHỤP GIẤY PHÉP LÁI XE (GPLX A1/A2)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Link ảnh chụp GPLX hoặc dán URL..."
+                          value={drvDriverLicenseImg}
+                          onChange={(e) => setDrvDriverLicenseImg(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            borderRadius: 6,
+                            border: '1px solid #CBD5E1',
+                            fontSize: '0.82rem',
+                            background: '#FFFFFF',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <h4 style={{ fontSize: '0.98rem', fontWeight: 800, color: '#0F172A', marginBottom: 12 }}>
+                    2. Thông Tin Cá Nhân &amp; Phương Tiện Vận Chuyển
+                  </h4>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                     <div>

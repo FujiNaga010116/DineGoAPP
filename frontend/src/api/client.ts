@@ -349,7 +349,11 @@ export const MOCK_DRIVERS: DriverProfile[] = [
     fullName: 'Trần Quốc Tuấn',
     email: 'tuan.driver@dinego.vn',
     phoneNumber: '0909888999',
-    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80',
+    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=500&auto=format&fit=crop&q=80',
+    portraitUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=500&auto=format&fit=crop&q=80',
+    portraitVerifiedAt: '2025-04-12T10:00:00Z',
+    driverLicenseFrontUrl: 'https://images.unsplash.com/photo-1568667256549-094345857637?w=600&auto=format&fit=crop&q=80',
+    nationalIdFrontUrl: 'https://images.unsplash.com/photo-1618042164219-62c820f10723?w=600&auto=format&fit=crop&q=80',
     licensePlate: '59-X3 892.14',
     vehicleType: 'Honda Winner X 150cc',
     nationalId: '079094008124',
@@ -373,7 +377,11 @@ export const MOCK_DRIVERS: DriverProfile[] = [
     fullName: 'Lê Mạnh Hùng',
     email: 'hung.driver@dinego.vn',
     phoneNumber: '0918223344',
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
+    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500&auto=format&fit=crop&q=80',
+    portraitUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500&auto=format&fit=crop&q=80',
+    portraitVerifiedAt: '2025-07-20T14:30:00Z',
+    driverLicenseFrontUrl: 'https://images.unsplash.com/photo-1568667256549-094345857637?w=600&auto=format&fit=crop&q=80',
+    nationalIdFrontUrl: 'https://images.unsplash.com/photo-1618042164219-62c820f10723?w=600&auto=format&fit=crop&q=80',
     licensePlate: '59-G2 441.09',
     vehicleType: 'Honda AirBlade 125cc',
     nationalId: '079091004519',
@@ -397,7 +405,11 @@ export const MOCK_DRIVERS: DriverProfile[] = [
     fullName: 'Phạm Đăng Khoa',
     email: 'khoa.driver@dinego.vn',
     phoneNumber: '0933778899',
-    avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=120&auto=format&fit=crop&q=80',
+    avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=500&auto=format&fit=crop&q=80',
+    portraitUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=500&auto=format&fit=crop&q=80',
+    portraitVerifiedAt: '2025-11-05T08:15:00Z',
+    driverLicenseFrontUrl: 'https://images.unsplash.com/photo-1568667256549-094345857637?w=600&auto=format&fit=crop&q=80',
+    nationalIdFrontUrl: 'https://images.unsplash.com/photo-1618042164219-62c820f10723?w=600&auto=format&fit=crop&q=80',
     licensePlate: '59-T1 778.52',
     vehicleType: 'Yamaha Exciter 155 VVA',
     nationalId: '079096009811',
@@ -421,7 +433,11 @@ export const MOCK_DRIVERS: DriverProfile[] = [
     fullName: 'Võ Hoài Nam',
     email: 'nam.driver@dinego.vn',
     phoneNumber: '0977665544',
-    avatarUrl: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=120&auto=format&fit=crop&q=80',
+    avatarUrl: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=500&auto=format&fit=crop&q=80',
+    portraitUrl: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=500&auto=format&fit=crop&q=80',
+    portraitVerifiedAt: '2026-01-18T16:45:00Z',
+    driverLicenseFrontUrl: 'https://images.unsplash.com/photo-1568667256549-094345857637?w=600&auto=format&fit=crop&q=80',
+    nationalIdFrontUrl: 'https://images.unsplash.com/photo-1618042164219-62c820f10723?w=600&auto=format&fit=crop&q=80',
     licensePlate: '59-C1 612.88',
     vehicleType: 'Honda Wave RSX FI 110cc',
     nationalId: '079093001287',
@@ -943,7 +959,8 @@ export function isDriverProfileVerified(driver?: DriverProfile | null): boolean 
       driver.operatingZone?.trim() &&
       driver.bankName?.trim() &&
       driver.bankAccountNumber?.trim() &&
-      driver.bankAccountHolder?.trim(),
+      driver.bankAccountHolder?.trim() &&
+      Boolean(driver.portraitUrl?.trim() || driver.avatarUrl?.trim()), // Bắt buộc phải có ảnh chân dung trực diện của tài xế mới được duyệt vào làm
   );
 }
 
