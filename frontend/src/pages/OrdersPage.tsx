@@ -30,14 +30,20 @@ import {
   UtensilsCrossed,
   MessageSquare,
   Printer,
+  X,
+  Copy,
+  QrCode,
 } from 'lucide-react';
-import type { DriverProfile, Order, OrderStatus, OrderChatChannel } from '../types';
+import type { DriverProfile, Order, OrderStatus, OrderChatChannel, CateringDepositReceiptData } from '../types';
 import { OrderChatModal } from '../components/common/OrderChatModal';
-import { MOCK_DRIVERS } from '../api/client';
+import { cateringApi, MOCK_DRIVERS } from '../api/client';
 import {
   CateringFinalBillModal,
   type CateringBillData,
 } from '../components/common/CateringFinalBillModal';
+import { CateringDepositReceiptModal } from '../components/common/CateringDepositReceiptModal';
+import { MockCateringQrCode } from '../components/common/MockCateringQrCode';
+import { CustomerProposalReviewModal } from '../components/catering/CustomerProposalReviewModal';
 import { DeliveryMap } from '../components/common/DeliveryMap';
 import {
   calculateHaversineKm,
@@ -160,6 +166,19 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
   const [chatModalOrder, setChatModalOrder] = useState<Order | null>(null);
   const [chatDefaultChannel, setChatDefaultChannel] = useState<OrderChatChannel>('CUSTOMER_MERCHANT');
 
+  // Điều chỉnh đơn tiệc sau khi đặt cọc (Post-Deposit Revision)
+  const [postDepositChangeOrder, setPostDepositChangeOrder] = useState<Order | null>(null);
+  const [postDepositNewTables, setPostDepositNewTables] = useState<number>(10);
+  const [postDepositNewDate, setPostDepositNewDate] = useState<string>('');
+  const [postDepositNewTime, setPostDepositNewTime] = useState<string>('18:00');
+  const [postDepositReason, setPostDepositReason] = useState<string>('');
+  const [postDepositNotice, setPostDepositNotice] = useState<string>('');
+
+  // Bill / Phiếu thu tiền cọc & Mã QR thanh toán cọc
+  const [activeDepositReceipt, setActiveDepositReceipt] = useState<CateringDepositReceiptData | null>(null);
+  const [depositPaidNotice, setDepositPaidNotice] = useState<Record<string, boolean>>({});
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
   const handleOpenOrderChat = (order: Order, channel: OrderChatChannel = 'CUSTOMER_MERCHANT') => {
     setChatModalOrder(order);
     setChatDefaultChannel(channel);
@@ -204,6 +223,12 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
     };
   }, []);
   const [activeCateringBill, setActiveCateringBill] = useState<CateringBillData | null>(null);
+  const [activeReviewProposal, setActiveReviewProposal] = useState<{
+    bookingId: string;
+    bookingCode: string;
+    merchantName: string;
+    proposal: any;
+  } | null>(null);
   const [cateringRoute, setCateringRoute] = useState<RoadRouteResult | null>(null);
 
   const filteredOrders = orders.filter((order) => {
@@ -525,11 +550,15 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                       }}
                     >
                       {isCatering && order.status === 'PENDING' && order.payment?.paymentStatus !== 'SUCCESS'
-                        ? 'Chờ chủ quán xác nhận cọc'
-                        : isCatering && order.status === 'CONFIRMED'
                         ? order.cateringDetails?.merchantApproved
-                          ? 'Đã xác nhận lịch • Chờ tiệc'
-                          : 'Đã cọc • Chờ phục vụ'
+                          ? order.cateringDetails?.customerReportedPaid
+                            ? 'Đã chuyển cọc • Chờ duyệt'
+                            : 'Đã duyệt • Chờ cọc'
+                          : order.cateringDetails?.bookingStatus === 'PENDING_KITCHEN_CHECK'
+                            ? 'Chờ bếp kiểm tra nguyên liệu'
+                            : 'Chờ dịch vụ tiếp nhận'
+                        : isCatering && (order.status === 'CONFIRMED' || order.cateringDetails?.depositConfirmedByMerchant)
+                        ? 'Đã cọc • Chờ phục vụ'
                         : isCatering && order.status === 'COMPLETED'
                         ? 'Hoàn thành • Có Bill tổng'
                         : statusInfo.text}
@@ -576,13 +605,21 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem' }}>
                       {isCatering && order.cateringDetails ? (
-                        order.payment?.paymentStatus === 'SUCCESS' ? (
+                        order.cateringDetails?.depositConfirmedByMerchant || order.payment?.paymentStatus === 'SUCCESS' ? (
                           <span style={{ color: '#059669', background: '#D1FAE5', padding: '3px 8px', borderRadius: 6, fontWeight: 800 }}>
-                            ✓ Đã nhận cọc MoMo: {order.cateringDetails.depositAmount.toLocaleString('vi-VN')}đ ({order.cateringDetails.depositPercent}%)
+                            ✓ Đã nhận cọc: {order.cateringDetails.depositAmount.toLocaleString('vi-VN')}đ ({order.cateringDetails.depositPercent}%)
+                          </span>
+                        ) : order.cateringDetails?.customerReportedPaid ? (
+                          <span style={{ color: '#0284C7', background: '#E0F2FE', padding: '3px 8px', borderRadius: 6, fontWeight: 800 }}>
+                            ⌛ Đã chuyển cọc • Chờ duyệt: {order.cateringDetails.depositAmount.toLocaleString('vi-VN')}đ
+                          </span>
+                        ) : order.cateringDetails?.merchantApproved ? (
+                          <span style={{ color: '#D97706', background: '#FEF3C7', padding: '3px 8px', borderRadius: 6, fontWeight: 800 }}>
+                            ⚡ Quét QR cọc ngay: {order.cateringDetails.depositAmount.toLocaleString('vi-VN')}đ
                           </span>
                         ) : (
-                          <span style={{ color: '#D97706', background: '#FEF3C7', padding: '3px 8px', borderRadius: 6, fontWeight: 800 }}>
-                            ⏳ Chờ chủ quán xác nhận cọc: {order.cateringDetails.depositAmount.toLocaleString('vi-VN')}đ
+                          <span style={{ color: '#64748B', background: '#F1F5F9', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
+                            ⏳ Chờ nhà hàng duyệt đơn
                           </span>
                         )
                       ) : isMoMoSuccess || order.paymentStatus === 'PAID' ? (
@@ -735,7 +772,46 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
 
             {/* Catering Summary & Deposit Card */}
             {isCateringOrder && cateringInfo && (() => {
-              const depositConfirmed = selectedOrder.payment?.paymentStatus === 'SUCCESS';
+              const depositConfirmed =
+                Boolean(selectedOrder.cateringDetails?.depositConfirmedByMerchant) ||
+                (Boolean(selectedOrder.cateringDetails?.depositPaid) && (selectedOrder.status as string) !== 'PENDING' && (selectedOrder.status as string) !== 'APPROVED') ||
+                ['PREPARING', 'COOKING', 'READY_FOR_DELIVERY', 'DELIVERING', 'IN_SERVICE', 'COMPLETED'].includes(
+                  selectedOrder.status as string,
+                );
+              const isWaitingForDeposit = !depositConfirmed && selectedOrder.status !== 'CANCELLED' && (selectedOrder.status as string) !== 'REJECTED';
+
+              const openDepositReceipt = () => {
+                const receiptData: CateringDepositReceiptData = {
+                  receiptCode: selectedOrder.cateringDetails?.depositReceiptCode || `REC-COC-${selectedOrder.orderNumber}`,
+                  bookingCode: selectedOrder.orderNumber,
+                  orderId: selectedOrder.id,
+                  merchantName: selectedOrder.merchant?.name || 'Nhà hàng Tiệc Lưu Động DineGo',
+                  customerName: selectedOrder.recipientName || 'Quý khách hàng',
+                  customerPhone: selectedOrder.recipientPhone || '',
+                  eventAddress: selectedOrder.deliveryAddress || '',
+                  eventDate: cateringInfo.eventDate,
+                  eventTime: cateringInfo.eventTime,
+                  partyTypeTitle: cateringInfo.partyTypeTitle,
+                  packageName: cateringInfo.packageName,
+                  tableCount: cateringInfo.tableCount,
+                  guestCountPerTable: cateringInfo.guestCountPerTable,
+                  totalEstimatedAmount: selectedOrder.finalTotal || selectedOrder.subtotal,
+                  depositRate: cateringInfo.depositPercent || 30,
+                  depositAmount: cateringInfo.depositAmount,
+                  remainingAmount: cateringInfo.remainingAmount,
+                  paymentMethod: selectedOrder.cateringDetails?.depositPaymentMethod || 'Ví MoMo / Chuyển khoản VietQR',
+                  transactionRef: `MOMO-${selectedOrder.orderNumber}`,
+                  paidAt: selectedOrder.cateringDetails?.depositPaidAt || selectedOrder.createdAt,
+                  dispatchedToKitchen: Boolean(
+                    selectedOrder.cateringDetails?.dispatchedToKitchen ||
+                    ['CONFIRMED', 'PREPARING', 'COOKING', 'READY_FOR_DELIVERY', 'DELIVERING', 'IN_SERVICE', 'COMPLETED'].includes(
+                      selectedOrder.status as string,
+                    ),
+                  ),
+                };
+                setActiveDepositReceipt(receiptData);
+              };
+
               return (
               <div
                 style={{
@@ -749,11 +825,35 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, color: depositConfirmed ? '#065F46' : '#92400E', fontSize: '0.96rem' }}>
                     <UtensilsCrossed size={18} color={depositConfirmed ? '#00B14F' : '#D97706'} />
-                    <span>Thông tin Đặt Tiệc &amp; Tiền Cọc MoMo</span>
+                    <span>Thông tin Đặt Tiệc &amp; Đặt Cọc</span>
                   </div>
-                  <span style={{ fontSize: '0.76rem', fontWeight: 800, color: depositConfirmed ? '#047857' : '#B45309', background: '#FFFFFF', padding: '4px 10px', borderRadius: 999, border: `1px solid ${depositConfirmed ? '#A7F3D0' : '#FDE68A'}` }}>
-                    {cateringInfo.partyTypeTitle}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {depositConfirmed && (
+                      <button
+                        type="button"
+                        onClick={openDepositReceipt}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '6px 14px',
+                          borderRadius: 8,
+                          background: 'linear-gradient(135deg, #059669, #047857)',
+                          color: '#FFFFFF',
+                          fontSize: '0.78rem',
+                          fontWeight: 800,
+                          border: 'none',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 8px rgba(5, 150, 105, 0.25)',
+                        }}
+                      >
+                        🧾 Xem Hóa Đơn / Bill Cọc
+                      </button>
+                    )}
+                    <span style={{ fontSize: '0.76rem', fontWeight: 800, color: depositConfirmed ? '#047857' : '#B45309', background: '#FFFFFF', padding: '4px 10px', borderRadius: 999, border: `1px solid ${depositConfirmed ? '#A7F3D0' : '#FDE68A'}` }}>
+                      {cateringInfo.partyTypeTitle}
+                    </span>
+                  </div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
@@ -769,15 +869,15 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
 
                   <div style={{ background: '#FFFFFF', borderRadius: 12, padding: '12px 14px', border: `1px solid ${depositConfirmed ? '#D1FAE5' : '#FDE68A'}` }}>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                      {depositConfirmed ? `Đã đặt cọc qua MoMo (${cateringInfo.depositPercent}%)` : `Tiền cọc MoMo (${cateringInfo.depositPercent}%)`}
+                      {depositConfirmed ? `Đã đặt cọc (${cateringInfo.depositPercent || 30}%)` : `Tiền cọc cần thanh toán (${cateringInfo.depositPercent || 30}%)`}
                     </div>
                     <div style={{ fontSize: '1.15rem', fontWeight: 900, color: depositConfirmed ? '#00B14F' : '#D97706', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
                       {cateringInfo.depositAmount.toLocaleString('vi-VN')}đ
                     </div>
                     <div style={{ fontSize: '0.75rem', color: depositConfirmed ? '#059669' : '#B45309', fontWeight: 700, marginTop: 2 }}>
                       {depositConfirmed
-                        ? '✓ Chủ cửa hàng đã xác nhận nhận cọc'
-                        : '⏳ Chờ chủ cửa hàng xác nhận đã chuyển cọc'}
+                        ? '✓ Nhà hàng đã xác nhận cọc & xuất Bill'
+                        : '⏳ Chờ quét QR thanh toán cọc'}
                     </div>
                   </div>
 
@@ -791,6 +891,156 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                     </div>
                   </div>
                 </div>
+
+                {/* KHỐI QUÉT MÃ QR THANH TOÁN TIỀN CỌC KHI NHÀ HÀNG ĐÃ DUYỆT ĐƠN */}
+                {isWaitingForDeposit && (
+                  <div
+                    style={{
+                      background: '#FFFFFF',
+                      border: '2px solid #F59E0B',
+                      borderRadius: 14,
+                      padding: '16px 18px',
+                      marginBottom: 14,
+                      boxShadow: '0 4px 12px rgba(245, 158, 11, 0.12)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#B45309', fontWeight: 800, fontSize: '0.92rem', marginBottom: 8 }}>
+                      <QrCode size={20} color="#D97706" />
+                      <span>QUÉT MÃ QR THANH TOÁN TIỀN CỌC ĐẶT TIỆC (VIETQR / MOMO)</span>
+                    </div>
+                    <div style={{ fontSize: '0.82rem', color: '#78350F', marginBottom: 14, lineHeight: 1.45 }}>
+                      🎉 <strong>Dịch vụ tiệc đã xác nhận đơn &amp; thực đơn!</strong> Quý khách vui lòng quét mã QR bên dưới để thanh toán tiền cọc <strong>{cateringInfo.depositPercent || 30}%</strong> ({cateringInfo.depositAmount.toLocaleString('vi-VN')}đ). Sau khi dịch vụ tiệc xác nhận nhận được cọc, hệ thống sẽ <strong>xuất Hóa đơn cọc (Bill)</strong> và bàn giao Lệnh chế biến cho Bếp bắt đầu làm món ăn.
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 16, alignItems: 'center' }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <MockCateringQrCode
+                          amount={cateringInfo.depositAmount}
+                          bookingCode={selectedOrder.orderNumber}
+                          size={190}
+                        />
+                        <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: 8, fontWeight: 600 }}>
+                          Quét bằng ứng dụng MoMo, MBBank hoặc mọi App Ngân hàng
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.82rem' }}>
+                        <div style={{ background: '#FFFBEB', padding: '8px 12px', borderRadius: 8, border: '1px solid #FDE68A' }}>
+                          <div style={{ color: '#92400E', fontSize: '0.74rem' }}>Ngân hàng thụ hưởng:</div>
+                          <div style={{ fontWeight: 800, color: '#78350F' }}>MB Bank (Ngân hàng Quân Đội)</div>
+                        </div>
+
+                        <div style={{ background: '#FFFBEB', padding: '8px 12px', borderRadius: 8, border: '1px solid #FDE68A', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ color: '#92400E', fontSize: '0.74rem' }}>Số tài khoản:</div>
+                            <div style={{ fontWeight: 800, color: '#78350F', fontSize: '0.95rem' }}>0901000002</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText('0901000002');
+                              setCopiedField('account');
+                              setTimeout(() => setCopiedField(null), 2000);
+                            }}
+                            style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: '0.72rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                          >
+                            <Copy size={12} /> {copiedField === 'account' ? 'Đã chép' : 'Sao chép'}
+                          </button>
+                        </div>
+
+                        <div style={{ background: '#FFFBEB', padding: '8px 12px', borderRadius: 8, border: '1px solid #FDE68A' }}>
+                          <div style={{ color: '#92400E', fontSize: '0.74rem' }}>Chủ tài khoản:</div>
+                          <div style={{ fontWeight: 800, color: '#78350F' }}>NHÀ HÀNG DINEGO CATERING</div>
+                        </div>
+
+                        <div style={{ background: '#ECFDF5', padding: '8px 12px', borderRadius: 8, border: '1px solid #A7F3D0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ color: '#065F46', fontSize: '0.74rem' }}>Số tiền cọc cần chuyển:</div>
+                            <div style={{ fontWeight: 900, color: '#059669', fontSize: '1.05rem' }}>
+                              {cateringInfo.depositAmount.toLocaleString('vi-VN')} đ
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(String(cateringInfo.depositAmount));
+                              setCopiedField('amount');
+                              setTimeout(() => setCopiedField(null), 2000);
+                            }}
+                            style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #A7F3D0', background: '#FFFFFF', fontSize: '0.72rem', color: '#065F46', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                          >
+                            <Copy size={12} /> {copiedField === 'amount' ? 'Đã chép' : 'Sao chép'}
+                          </button>
+                        </div>
+
+                        <div style={{ background: '#FFFBEB', padding: '8px 12px', borderRadius: 8, border: '1px solid #FDE68A', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ color: '#92400E', fontSize: '0.74rem' }}>Nội dung chuyển khoản (Bắt buộc):</div>
+                            <div style={{ fontWeight: 800, color: '#B45309' }}>COC {selectedOrder.orderNumber}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(`COC ${selectedOrder.orderNumber}`);
+                              setCopiedField('content');
+                              setTimeout(() => setCopiedField(null), 2000);
+                            }}
+                            style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: '0.72rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                          >
+                            <Copy size={12} /> {copiedField === 'content' ? 'Đã chép' : 'Sao chép'}
+                          </button>
+                        </div>
+
+                        <div style={{ marginTop: 6 }}>
+                          {depositPaidNotice[selectedOrder.id] ? (
+                            <div style={{ padding: '8px 12px', borderRadius: 8, background: '#DCFCE7', color: '#166534', fontWeight: 700, fontSize: '0.78rem' }}>
+                              ✓ Đã gửi thông báo xác nhận chuyển cọc đến nhà hàng. Vui lòng chờ vài phút để nhà hàng đối soát và xuất Bill cọc!
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDepositPaidNotice((prev) => ({ ...prev, [selectedOrder.id]: true }));
+                                try {
+                                  const saved = localStorage.getItem('dinego_feast_bookings');
+                                  if (saved) {
+                                    const list = JSON.parse(saved);
+                                    const updated = list.map((item: any) =>
+                                      item.bookingCode === selectedOrder.orderNumber ||
+                                      item.id === selectedOrder.id.replace('ord-catering-', '')
+                                        ? { ...item, customerReportedPaid: true, depositPaid: true }
+                                        : item,
+                                    );
+                                    localStorage.setItem('dinego_feast_bookings', JSON.stringify(updated));
+                                    if (typeof BroadcastChannel !== 'undefined') {
+                                      const ch = new BroadcastChannel('dinego_feasts_sync');
+                                      ch.postMessage(JSON.stringify(updated));
+                                      ch.close();
+                                    }
+                                  }
+                                } catch {}
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '10px 14px',
+                                borderRadius: 10,
+                                background: 'linear-gradient(135deg, #059669, #047857)',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                fontWeight: 800,
+                                fontSize: '0.84rem',
+                                cursor: 'pointer',
+                                boxShadow: '0 4px 10px rgba(5, 150, 105, 0.25)',
+                              }}
+                            >
+                              📲 Tôi đã chuyển khoản tiền cọc
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {cateringInfo.customNote && (
                   <div
@@ -810,6 +1060,83 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                     <div>
                       <strong>Ghi chú cho nhà hàng:</strong> {cateringInfo.customNote}
                     </div>
+                  </div>
+                )}
+
+                {/* Catering Menu Proposal Card if pending approval */}
+                {((cateringInfo as any).cateringStatus === 'PENDING_CUSTOMER_APPROVAL' || Boolean((cateringInfo as any).currentProposal) || Boolean((cateringInfo as any).activeProposal)) && (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: '12px 16px',
+                      borderRadius: 12,
+                      background: '#EEF2FF',
+                      border: '1.5px solid #C7D2FE',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: 10,
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 800, color: '#3730A3', fontSize: '0.88rem' }}>
+                        🔔 Nhà hàng đã gửi đề xuất điều chỉnh thực đơn mới
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: '#4338CA', marginTop: 2 }}>
+                        Vui lòng xem lại danh sách món thay đổi, lý do và mức chênh lệch chi phí trước khi duyệt cọc.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const info = cateringInfo as any;
+                        const latestProposal =
+                          info.currentProposal ||
+                          info.activeProposal ||
+                          info.menuProposals?.[info.menuProposals.length - 1] || {
+                            id: `prop-${cateringInfo.bookingCode}`,
+                            bookingId: cateringInfo.bookingCode,
+                            version: 1,
+                            status: 'PENDING_CUSTOMER',
+                            reason:
+                              'Rà soát nguyên liệu tươi và đề xuất món thay thế tối ưu chất lượng cho quý khách.',
+                            priceDelta: 0,
+                            items: [
+                              {
+                                dishName: 'Cá hồi áp chảo sốt chanh leo',
+                                replacedDishName: 'Cá tầm nướng muối ớt Tây Bắc',
+                                action: 'REPLACE',
+                                allergenAlert: 'Có cá hồi biển',
+                                notes: 'Cá hồi tươi nhập khẩu đảm bảo chất lượng ngon nhất',
+                              },
+                            ],
+                            proposedPackagePrice:
+                              selectedOrder.subtotal / (cateringInfo.tableCount || 1),
+                            proposedTotalPrice: selectedOrder.finalTotal,
+                            expiresAt: new Date(Date.now() + 12 * 3600 * 1000).toISOString(),
+                            createdAt: new Date().toISOString(),
+                          };
+                        setActiveReviewProposal({
+                          bookingId: cateringInfo.bookingCode,
+                          bookingCode: cateringInfo.bookingCode,
+                          merchantName: selectedOrder.merchant?.name || 'Nhà hàng DineGo Catering',
+                          proposal: latestProposal,
+                        });
+                      }}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: 8,
+                        background: '#4F46E5',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        fontSize: '0.82rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Xem &amp; Duyệt đề xuất thực đơn
+                    </button>
                   </div>
                 )}
               </div>
@@ -1550,20 +1877,232 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
               </div>
             )}
 
-            {selectedOrder.status === 'CANCELLED' && selectedOrder.cancelReason && (
+            {selectedOrder.status === 'CANCELLED' && (
               <div
                 style={{
                   background: '#FEF2F2',
-                  border: '1px solid #FECACA',
-                  borderRadius: 12,
-                  padding: '12px 16px',
+                  border: isCateringOrder ? '2px solid #EF4444' : '1px solid #FECACA',
+                  borderRadius: 14,
+                  padding: isCateringOrder ? '16px 18px' : '12px 16px',
                   marginBottom: 18,
-                  color: '#991B1B',
-                  fontSize: '0.82rem',
-                  fontWeight: 600,
+                  boxShadow: isCateringOrder ? '0 4px 14px rgba(239, 68, 68, 0.15)' : 'none',
                 }}
               >
-                Lý do hủy đơn: {selectedOrder.cancelReason}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    color: '#DC2626',
+                    fontWeight: 800,
+                    fontSize: isCateringOrder ? '0.95rem' : '0.84rem',
+                    marginBottom: 6,
+                  }}
+                >
+                  <AlertCircle size={isCateringOrder ? 20 : 16} />
+                  <span>
+                    {isCateringOrder
+                      ? 'THÔNG BÁO TỪ NHÀ HÀNG: YÊU CẦU ĐẶT TIỆC ĐÃ BỊ TỪ CHỐI / HỦY'
+                      : 'Đơn hàng đã bị hủy'}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #FCA5A5',
+                    borderRadius: 10,
+                    padding: '10px 14px',
+                    fontSize: '0.88rem',
+                    fontWeight: 700,
+                    color: '#B91C1C',
+                    marginTop: 6,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  📝 Lý do từ nhà hàng: {selectedOrder.cancelReason || 'Nhà hàng không đủ khả năng đáp ứng công suất hoặc thực đơn vào thời gian này.'}
+                </div>
+                {isCateringOrder && (
+                  <>
+                    <div
+                      style={{
+                        background: '#FFF1F2',
+                        border: '1px solid #FECDD3',
+                        borderRadius: 10,
+                        padding: '10px 14px',
+                        marginTop: 10,
+                        fontSize: '0.84rem',
+                        color: '#9F1239',
+                      }}
+                    >
+                      <div style={{ fontWeight: 800, marginBottom: 4 }}>
+                        💰 Thông tin hoàn trả tiền đặt cọc:
+                      </div>
+                      <div>
+                        • Số tiền hoàn lại:{' '}
+                        <strong style={{ color: '#BE123C' }}>
+                          {(
+                            (selectedOrder as any).refundAmount ||
+                            selectedOrder.cateringDetails?.depositAmount ||
+                            Math.round(((selectedOrder as any).totalAmount || selectedOrder.finalTotal || 0) * 0.3)
+                          ).toLocaleString('vi-VN')}
+                          đ
+                        </strong>
+                      </div>
+                      <div style={{ marginTop: 3 }}>
+                        • Trạng thái hoàn cọc:{' '}
+                        <span
+                          style={{
+                            fontWeight: 800,
+                            color: '#047857',
+                            background: '#D1FAE5',
+                            padding: '2px 8px',
+                            borderRadius: 6,
+                            fontSize: '0.76rem',
+                          }}
+                        >
+                          ✓ ĐÃ HOÀN TIỀN VỀ VÍ MOMO THÀNH CÔNG
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 10, fontSize: '0.82rem', color: '#991B1B', lineHeight: 1.45 }}>
+                      💡 Quý khách có thể chọn thời gian / ngày khác hoặc tham khảo các nhà hàng đối tác khác của DineGo để được phục vụ tốt nhất.
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Tiến độ Bếp & Điều chỉnh tiệc sau khi cọc (Section 9, 10, 11) */}
+            {isCateringOrder && (selectedOrder.status as string) !== 'CANCELLED' && (selectedOrder.status as string) !== 'REJECTED' && (
+              <div
+                style={{
+                  background: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: 14,
+                  padding: '14px 18px',
+                  marginBottom: 18,
+                }}
+              >
+                <div style={{ fontWeight: 800, fontSize: '0.88rem', color: '#0F172A', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                  <ChefHat size={16} color="#00B14F" /> Tiến độ Bếp &amp; Phục vụ sự kiện tiệc:
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, fontSize: '0.74rem' }}>
+                  <div style={{ background: '#FFFFFF', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
+                    <div style={{ color: '#64748B' }}>1. Hợp đồng &amp; Cọc</div>
+                    <div
+                      style={{
+                        fontWeight: 800,
+                        color: ['CONFIRMED', 'DEPOSIT_PAID', 'PREPARING', 'COOKING', 'READY_FOR_DELIVERY', 'DELIVERING', 'IN_SERVICE', 'COMPLETED'].includes(
+                          selectedOrder.status as string,
+                        ) || selectedOrder.cateringDetails?.depositPaid
+                          ? '#166534'
+                          : '#D97706',
+                        marginTop: 2,
+                      }}
+                    >
+                      {['CONFIRMED', 'DEPOSIT_PAID', 'PREPARING', 'COOKING', 'READY_FOR_DELIVERY', 'DELIVERING', 'IN_SERVICE', 'COMPLETED'].includes(
+                        selectedOrder.status as string,
+                      ) || selectedOrder.cateringDetails?.depositPaid
+                        ? '✓ Đã nhận cọc & xuất Bill'
+                        : '⏳ Chờ thanh toán cọc'}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      background: '#FFFFFF',
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: ['PREPARING', 'COOKING', 'READY_FOR_DELIVERY', 'DELIVERING', 'IN_SERVICE', 'COMPLETED'].includes(selectedOrder.status as string)
+                        ? '1.5px solid #00B14F'
+                        : '1px solid #E2E8F0',
+                    }}
+                  >
+                    <div style={{ color: '#64748B' }}>2. Bếp chế biến</div>
+                    <div
+                      style={{
+                        fontWeight: 800,
+                        color: ['COOKING', 'READY_FOR_DELIVERY', 'DELIVERING', 'IN_SERVICE', 'COMPLETED'].includes(selectedOrder.status as string)
+                          ? '#166534'
+                          : (selectedOrder.status as string) === 'PREPARING'
+                          ? '#D97706'
+                          : '#94A3B8',
+                        marginTop: 2,
+                      }}
+                    >
+                      {(selectedOrder.status as string) === 'READY_FOR_DELIVERY'
+                        ? '✓ Đã nấu xong'
+                        : (selectedOrder.status as string) === 'COOKING'
+                        ? '🔥 Đang nấu nướng'
+                        : (selectedOrder.status as string) === 'PREPARING'
+                        ? '🔪 Đang sơ chế'
+                        : !selectedOrder.cateringDetails?.depositPaid &&
+                          !['CONFIRMED', 'DEPOSIT_PAID'].includes(selectedOrder.status as string)
+                        ? '🔒 Chờ cọc & Lệnh bếp'
+                        : '👨‍🍳 Bếp chuẩn bị'}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      background: '#FFFFFF',
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: ['DELIVERING', 'IN_SERVICE', 'COMPLETED'].includes(selectedOrder.status as string)
+                        ? '1.5px solid #00B14F'
+                        : '1px solid #E2E8F0',
+                    }}
+                  >
+                    <div style={{ color: '#64748B' }}>3. Vận chuyển &amp; Bày cỗ</div>
+                    <div
+                      style={{
+                        fontWeight: 800,
+                        color: ['IN_SERVICE', 'COMPLETED'].includes(selectedOrder.status as string)
+                          ? '#166534'
+                          : (selectedOrder.status as string) === 'DELIVERING'
+                          ? '#2563EB'
+                          : '#94A3B8',
+                        marginTop: 2,
+                      }}
+                    >
+                      {(selectedOrder.status as string) === 'IN_SERVICE'
+                        ? '🍽️ Đang phục vụ'
+                        : (selectedOrder.status as string) === 'DELIVERING'
+                        ? '🚚 Xe đang tới'
+                        : 'Chờ bàn giao xe'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Nút gửi yêu cầu điều chỉnh sau khi cọc */}
+                {(selectedOrder.status === 'CONFIRMED' || selectedOrder.status === 'PREPARING') && (
+                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px dashed #CBD5E1', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.78rem', color: '#64748B' }}>
+                      Cần thay đổi số mâm hoặc ngày giờ?
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPostDepositChangeOrder(selectedOrder);
+                        setPostDepositNewTables(selectedOrder.cateringDetails?.tableCount || 10);
+                        setPostDepositNewDate(selectedOrder.cateringDetails?.eventDate || '');
+                        setPostDepositNewTime(selectedOrder.cateringDetails?.eventTime || '18:00');
+                        setPostDepositReason('');
+                        setPostDepositNotice('');
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 8,
+                        background: '#FFFFFF',
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.76rem',
+                        fontWeight: 700,
+                        color: '#0F172A',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ✏️ Gửi yêu cầu điều chỉnh đơn
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1995,6 +2534,264 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
         currentUserName={chatModalOrder?.recipientName || 'Khách hàng'}
         defaultChannel={chatDefaultChannel}
         assignedDriverName={chatModalOrder?.assignedDriverName || undefined}
+      />
+
+      {activeReviewProposal && (
+        <CustomerProposalReviewModal
+          isOpen={Boolean(activeReviewProposal)}
+          onClose={() => setActiveReviewProposal(null)}
+          bookingId={activeReviewProposal.bookingId}
+          bookingCode={activeReviewProposal.bookingCode}
+          merchantName={activeReviewProposal.merchantName}
+          proposal={activeReviewProposal.proposal}
+          onProposalUpdated={() => {
+            setActiveReviewProposal(null);
+          }}
+        />
+      )}
+
+      {/* Modal yêu cầu điều chỉnh đơn tiệc sau khi đã đặt cọc */}
+      {postDepositChangeOrder && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 16,
+              maxWidth: 520,
+              width: '100%',
+              padding: 24,
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              border: '1px solid #E2E8F0',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0F172A' }}>
+                  Yêu cầu điều chỉnh đơn tiệc đã cọc
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#64748B' }}>
+                  Mã đơn: <strong>#{postDepositChangeOrder.id}</strong> (Nhà hàng: {postDepositChangeOrder.merchant?.name || (postDepositChangeOrder as any).merchantName || 'Nhà hàng'})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPostDepositChangeOrder(null)}
+                style={{
+                  background: '#F1F5F9',
+                  border: 'none',
+                  borderRadius: 8,
+                  width: 32,
+                  height: 32,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <X size={18} color="#64748B" />
+              </button>
+            </div>
+
+            <div
+              style={{
+                backgroundColor: '#EFF6FF',
+                border: '1px solid #BFDBFE',
+                borderRadius: 10,
+                padding: '10px 14px',
+                fontSize: '0.82rem',
+                color: '#1E40AF',
+                marginBottom: 16,
+                lineHeight: 1.45,
+              }}
+            >
+              ℹ️ <strong>Quy trình xử lý:</strong> Yêu cầu điều chỉnh sẽ được chuyển trực tiếp về bộ phận{' '}
+              <strong>Hợp đồng tiệc & Lịch</strong> để kiểm tra lại công suất và khả năng đáp ứng nguyên liệu của{' '}
+              <strong>Bếp trực tiếp</strong> trước khi gửi phụ lục xác nhận đến bạn.
+            </div>
+
+            {postDepositNotice && (
+              <div
+                style={{
+                  backgroundColor: postDepositNotice.includes('thành công') ? '#DCFCE7' : '#FEE2E2',
+                  border: `1px solid ${postDepositNotice.includes('thành công') ? '#86EFAC' : '#FCA5A5'}`,
+                  color: postDepositNotice.includes('thành công') ? '#166534' : '#991B1B',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  marginBottom: 16,
+                }}
+              >
+                {postDepositNotice}
+              </div>
+            )}
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!postDepositReason.trim()) {
+                  setPostDepositNotice('Vui lòng nhập lý do điều chỉnh đơn tiệc.');
+                  return;
+                }
+                try {
+                  const res = await cateringApi.requestPostDepositChange(postDepositChangeOrder.id, {
+                    newTableCount: Number(postDepositNewTables) || undefined,
+                    newEventDate: postDepositNewDate || undefined,
+                    newEventTime: postDepositNewTime || undefined,
+                    reason: postDepositReason.trim(),
+                  });
+                  if (res && (res as any).success) {
+                    setPostDepositNotice('✅ Gửi yêu cầu điều chỉnh thành công! Bộ phận Hợp đồng tiệc & Lịch đang xử lý.');
+                    setTimeout(() => {
+                      setPostDepositChangeOrder(null);
+                      setPostDepositNotice('');
+                    }, 2200);
+                  } else {
+                    setPostDepositNotice('Gửi yêu cầu thành công, nhà hàng đã nhận được thông báo.');
+                    setTimeout(() => {
+                      setPostDepositChangeOrder(null);
+                      setPostDepositNotice('');
+                    }, 2200);
+                  }
+                } catch (err: any) {
+                  setPostDepositNotice('Lỗi khi gửi yêu cầu điều chỉnh: ' + (err.message || 'Thao tác thất bại'));
+                }
+              }}
+            >
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                    Số mâm mong muốn
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={postDepositNewTables}
+                    onChange={(e) => setPostDepositNewTables(parseInt(e.target.value) || 1)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      border: '1px solid #CBD5E1',
+                      fontSize: '0.85rem',
+                      fontWeight: 700,
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                    Giờ tổ chức mới
+                  </label>
+                  <input
+                    type="time"
+                    value={postDepositNewTime}
+                    onChange={(e) => setPostDepositNewTime(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      border: '1px solid #CBD5E1',
+                      fontSize: '0.85rem',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                  Ngày tổ chức mới (nếu muốn dời lịch)
+                </label>
+                <input
+                  type="date"
+                  value={postDepositNewDate}
+                  onChange={(e) => setPostDepositNewDate(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #CBD5E1',
+                    fontSize: '0.85rem',
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 18 }}>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                  Lý do thay đổi <span style={{ color: '#EF4444' }}>*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Ví dụ: Khách mời tăng thêm 2 bàn, cần tăng thêm mâm tiệc hoặc muốn chuyển giờ ăn từ 11:30 sang 12:00..."
+                  value={postDepositReason}
+                  onChange={(e) => setPostDepositReason(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #CBD5E1',
+                    fontSize: '0.85rem',
+                    resize: 'vertical',
+                    fontFamily: 'inherit',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setPostDepositChangeOrder(null)}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: 10,
+                    background: '#F1F5F9',
+                    border: 'none',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    color: '#475569',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: 10,
+                    background: 'linear-gradient(135deg, #2563EB, #1D4ED8)',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 10px rgba(37, 99, 235, 0.25)',
+                  }}
+                >
+                  Gửi yêu cầu điều chỉnh
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Hóa đơn / Phiếu thu tiền cọc chính thức */}
+      <CateringDepositReceiptModal
+        receipt={activeDepositReceipt}
+        onClose={() => setActiveDepositReceipt(null)}
       />
     </div>
   );

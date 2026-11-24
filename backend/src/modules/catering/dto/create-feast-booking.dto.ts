@@ -18,7 +18,7 @@ export class CreateFeastBookingDto {
   packageId!: string;
 
   @ApiProperty({
-    example: '2026-11-20',
+    example: '2026-11-30',
     description: 'Ngày tổ chức sự kiện (Định dạng YYYY-MM-DD, tối thiểu trước 3 ngày theo BR-24)',
   })
   @IsString()
@@ -31,12 +31,22 @@ export class CreateFeastBookingDto {
   eventTime!: string;
 
   @ApiProperty({
-    example: 'Trung Tâm Tiệc Cưới Rex, 141 Nguyễn Huệ, Quận 1, TP.HCM',
+    example: '141 Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP.HCM',
     description: 'Địa điểm tổ chức sự kiện phục vụ tiệc',
   })
   @IsString()
   @IsNotEmpty()
   eventLocation!: string;
+
+  @ApiProperty({ example: 10.7736, required: false, description: 'Vĩ độ địa điểm tổ chức tiệc' })
+  @IsOptional()
+  @IsNumber()
+  eventLatitude?: number;
+
+  @ApiProperty({ example: 106.7037, required: false, description: 'Kinh độ địa điểm tổ chức tiệc' })
+  @IsOptional()
+  @IsNumber()
+  eventLongitude?: number;
 
   @ApiProperty({ example: 10, description: 'Số lượng mâm cỗ cần đặt' })
   @IsInt()
@@ -49,7 +59,7 @@ export class CreateFeastBookingDto {
   guestCount!: number;
 
   @ApiProperty({
-    example: 40,
+    example: 30,
     description: 'Tỷ lệ phần trăm muốn đặt cọc đợt 1 (30% đến 50% theo BR-21)',
     default: 30,
   })
@@ -68,12 +78,38 @@ export class CreateFeastBookingDto {
   customDishes?: string[];
 
   @ApiProperty({
+    example: 'Nguyễn Văn An',
+    description: 'Họ tên người liên hệ đặt cỗ',
+  })
+  @IsOptional()
+  @IsString()
+  contactName?: string;
+
+  @ApiProperty({
     example: '0901234567',
     description: 'Số điện thoại người liên hệ đặt cỗ',
   })
   @IsString()
   @Matches(/^[0-9]{10,11}$/, { message: 'Số điện thoại phải từ 10-11 chữ số' })
   customerPhone!: string;
+
+  @ApiProperty({
+    example: 'Có 5 khách ăn chay, 2 khách dị ứng tôm cua biển',
+    required: false,
+    description: 'Yêu cầu đặc biệt về món chay, dị ứng, khẩu vị',
+  })
+  @IsOptional()
+  @IsString()
+  dietaryNotes?: string;
+
+  @ApiProperty({
+    example: 'Cần thuê 10 bộ bàn ghế inox và 1 nhà rạp bạt 3 gian',
+    required: false,
+    description: 'Yêu cầu về bàn ghế, rạp, âm thanh, thiết bị',
+  })
+  @IsOptional()
+  @IsString()
+  equipmentNotes?: string;
 
   @ApiProperty({
     example: 'Cần chuẩn bị trước bàn tiệc 1 tiếng',
@@ -83,4 +119,3 @@ export class CreateFeastBookingDto {
   @IsString()
   specialNotes?: string;
 }
-

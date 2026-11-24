@@ -279,6 +279,174 @@ export interface DeliveryDisputeReport {
   createdAt: string;
 }
 
+export type CateringBookingStatus =
+  | 'PENDING_REVIEW'
+  | 'PENDING_KITCHEN_CHECK'
+  | 'KITCHEN_APPROVED'
+  | 'PENDING_RESTAURANT_CONFIRMATION'
+  | 'PENDING_CUSTOMER_APPROVAL'
+  | 'PENDING_RESTAURANT_REVISION'
+  | 'PENDING_DEPOSIT'
+  | 'CONFIRMED'
+  | 'PREPARING'
+  | 'COOKING'
+  | 'READY_FOR_DELIVERY'
+  | 'DELIVERING'
+  | 'IN_SERVICE'
+  | 'COMPLETED'
+  | 'REJECTED'
+  | 'EXPIRED'
+  | 'CANCELLED';
+
+export type SupplyStatus = 'AVAILABLE' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'UNAVAILABLE';
+
+export interface CateringDishSupply {
+  id: string;
+  merchantId: string;
+  dishId: string;
+  dishName: string;
+  course: 'APPETIZER' | 'MAIN' | 'SOUP' | 'DESSERT';
+  packageNames: string[];
+  supplyStatus: SupplyStatus;
+  maxDailyPortions?: number;
+  committedPortions: number;
+  remainingPortions?: number;
+  availableDateRange?: string;
+  outOfStockReason?: string;
+  restockExpectedAt?: string;
+  suggestedReplacementDish?: string;
+  updatedBy?: string;
+  updatedAt: string | Date;
+}
+
+export type KitchenCheckStatus = 'PENDING' | 'APPROVED' | 'PARTIAL_SHORTAGE' | 'UNABLE_TO_SERVE';
+
+export interface PreEventReadinessCheckDto {
+  bookingId: string;
+  kitchenIngredientsReady: boolean;
+  kitchenPrepProgressPercent: number;
+  kitchenNotes?: string;
+  staffAssigned: boolean;
+  equipmentReady: boolean;
+  transportVehicleReady: boolean;
+  contractNotes?: string;
+  completedAt: string | Date;
+  passed: boolean;
+}
+
+export interface ForecastOverloadDay {
+  date: string;
+  status: AvailabilityStatus;
+  capacityPercent: number;
+  totalBookedTables: number;
+  totalHeldTables: number;
+  maxTablesPerDay: number;
+  isOverloaded: boolean;
+}
+
+export interface CateringForecastOverload {
+  merchantId: string;
+  threeDaysAveragePercent: number;
+  sevenDaysAveragePercent: number;
+  isThreeDaysOverloaded: boolean;
+  isAllSevenDaysFullyBooked: boolean;
+  warningMessage?: string;
+  days: ForecastOverloadDay[];
+}
+
+export type AvailabilityStatus =
+  | 'AVAILABLE'
+  | 'LIMITED'
+  | 'FULLY_BOOKED'
+  | 'BLOCKED'
+  | 'CLOSED'
+  | 'SOLD_OUT';
+
+export interface CateringMenuProposalItem {
+  dishId?: string;
+  dishName: string;
+  course?: 'APPETIZER' | 'MAIN' | 'SOUP' | 'DESSERT';
+  action: 'KEEP' | 'REPLACE' | 'ADD' | 'REMOVE';
+  originalDishName?: string;
+  replacedDishName?: string;
+  extraPrice?: number;
+  allergens?: string;
+  allergenAlert?: string;
+  notes?: string;
+}
+
+export interface CateringMenuProposal {
+  id?: string;
+  versionNumber?: number;
+  version?: number;
+  status: 'PROPOSED' | 'PENDING_CUSTOMER' | 'ACCEPTED' | 'REJECTED' | 'SUPERSEDED' | 'EXPIRED';
+  reason: string;
+  dishes?: CateringMenuProposalItem[];
+  items?: CateringMenuProposalItem[];
+  diffSummary?: {
+    added: string[];
+    removed: string[];
+    replaced: { from: string; to: string }[];
+  };
+  priceDelta?: number;
+  priceDeltaPerTable?: number;
+  proposedPackagePrice?: number;
+  proposedTotalPrice?: number;
+  newTotalAmount?: number;
+  proposedDepositAmount?: number;
+  expiresAt: string;
+  createdAt: string;
+  customerFeedback?: string;
+}
+
+export interface CateringCapacityConfig {
+  merchantId: string;
+  maxOrdersPerDay: number;
+  maxTablesPerDay: number;
+  maxTablesPerSlot: number;
+  minNoticeHours: number;
+  prepBufferHours: number;
+  transitBufferHours: number;
+  serviceBufferHours: number;
+  cleanupBufferHours: number;
+  isActive: boolean;
+}
+
+export interface CateringBlockedSlot {
+  id?: string;
+  merchantId: string;
+  blockDate: string;
+  timeSlot?: string;
+  reason?: string;
+}
+
+export interface SlotAvailability {
+  timeSlot: string;
+  status: AvailabilityStatus;
+  maxCapacityTables: number;
+  bookedTables: number;
+  heldTables: number;
+  remainingTables: number;
+  isAvailable: boolean;
+}
+
+export interface DayAvailability {
+  date: string;
+  status: AvailabilityStatus;
+  maxTablesPerDay: number;
+  totalBookedTables: number;
+  totalHeldTables: number;
+  totalRemainingTables: number;
+  slots: SlotAvailability[];
+  isBlocked: boolean;
+  blockReason?: string;
+  alternativeSuggestions?: {
+    recommendedDates?: string[];
+    recommendedSlots?: string[];
+    alternativeMerchants?: { id: string; name: string; availableTables: number }[];
+  };
+}
+
 export interface CateringOrderDetails {
   bookingCode: string;
   partyTypeTitle: string;
@@ -295,12 +463,60 @@ export interface CateringOrderDetails {
   remainingAmount: number;
   voucherCode?: string;
   customNote?: string;
+  dietaryNotes?: string;
+  equipmentNotes?: string;
+  cateringStatus?: string;
+  subtotal?: number;
+  totalAmount?: number;
+  currentProposal?: any;
+  bookingStatus?: CateringBookingStatus;
+  restaurantDeadline?: string;
+  customerDeadline?: string;
+  depositDeadline?: string;
+  activeProposal?: CateringMenuProposal;
+  menuProposals?: CateringMenuProposal[];
+  cancelReason?: string;
+  cancelledBy?: string;
   depositConfirmedByMerchant?: boolean;
   depositConfirmedAt?: string;
   merchantApproved?: boolean;
+  customerReportedPaid?: boolean;
+  depositPaid?: boolean;
+  depositPaidAt?: string;
+  depositReceiptCode?: string;
+  depositPaymentMethod?: string;
+  dispatchedToKitchen?: boolean;
+  dispatchedToKitchenAt?: string;
   finalBillIssued?: boolean;
   finalBillCode?: string;
   completedAt?: string;
+}
+
+export interface CateringDepositReceiptData {
+  receiptCode: string;
+  bookingCode: string;
+  orderId?: string;
+  merchantName: string;
+  merchantPhone?: string;
+  merchantAddress?: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  eventAddress: string;
+  eventDate: string;
+  eventTime: string;
+  partyTypeTitle: string;
+  packageName: string;
+  tableCount: number;
+  guestCountPerTable?: number;
+  totalEstimatedAmount: number;
+  depositRate: number;
+  depositAmount: number;
+  remainingAmount: number;
+  paymentMethod: string;
+  transactionRef?: string;
+  paidAt: string;
+  dispatchedToKitchen?: boolean;
 }
 
 export interface Order {

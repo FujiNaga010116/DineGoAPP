@@ -932,7 +932,7 @@ export class DashboardService {
       LONGEVITY: 'Lễ mừng thượng thọ',
     };
 
-    const feastBookings = feastRows.map((fr) => {
+    const feastBookings: Array<any> = feastRows.map((fr) => {
       const canonicalMerchantId = this.mapCanonicalMerchantId(
         fr.merchant_id,
         fr.merchant_slug,
@@ -985,6 +985,42 @@ export class DashboardService {
         depositPaid: true,
       };
     });
+
+    // Also query from CateringBooking model
+    try {
+      const cBookings = await (this.prisma as any).cateringBooking.findMany({
+        include: { merchant: true, package: true },
+        orderBy: { createdAt: 'desc' },
+      });
+      for (const cb of cBookings) {
+        if (!feastBookings.some((fb) => fb.id === cb.id || fb.bookingCode === cb.bookingCode)) {
+          feastBookings.push({
+            id: cb.id,
+            bookingCode: cb.bookingCode,
+            merchantId: cb.merchantId,
+            merchantName: cb.merchant?.name || 'Bếp Cỗ Hoàng Gia — Quận 1',
+            partyTypeTitle: 'Đặt tiệc lưu động',
+            customerName: cb.contactName || 'Khách hàng DineGo',
+            customerPhone: cb.contactPhone || '0901000004',
+            packageName: cb.package?.name || 'Mâm Cỗ Sự Kiện DineGo',
+            tableCount: cb.tableCount,
+            guestCountPerTable: cb.package?.guestCountPerTable || 10,
+            dishes: cb.package?.dishes ? JSON.parse(cb.package.dishes) : [],
+            eventDate: cb.eventDate ? new Date(cb.eventDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+            eventTime: cb.eventTime || '18:00',
+            address: cb.eventAddress || 'TP. Hồ Chí Minh',
+            subtotal: Number(cb.subtotal || cb.totalAmount || 0),
+            totalAmount: Number(cb.totalAmount || 0),
+            depositAmount: Number(cb.depositAmount || 0),
+            depositPercent: 30,
+            status: cb.status,
+            depositPaid: cb.status === 'CONFIRMED' || cb.status === 'PREPARING' || cb.status === 'COMPLETED',
+            dietaryNotes: cb.dietaryNotes,
+            equipmentNotes: cb.equipmentNotes,
+          });
+        }
+      }
+    } catch {}
 
     // Query complaints from SQL Server
     let complaintRows: Array<any> = [];
