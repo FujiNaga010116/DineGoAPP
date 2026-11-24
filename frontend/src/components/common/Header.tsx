@@ -239,11 +239,11 @@ export const Header: React.FC<HeaderProps> = ({
                 }}
                 style={{
                   height: '100%',
-                  padding: '0 11px',
+                  padding: '0 9px',
                   background: 'transparent',
                   color: isActive ? '#00B14F' : '#334155',
                   fontWeight: isActive ? 700 : 600,
-                  fontSize: '0.86rem',
+                  fontSize: '0.85rem',
                   borderBottom: isActive ? '2.5px solid #00B14F' : '2.5px solid transparent',
                   borderRadius: 0,
                   whiteSpace: 'nowrap',
