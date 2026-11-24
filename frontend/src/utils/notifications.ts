@@ -74,13 +74,41 @@ const DEFAULT_SEED_NOTIFICATIONS: ActorNotification[] = [
     category: 'ORDER',
     title: '🍳 Nhắc nhở vận hành Bếp & Bàn giao Shipper',
     message:
-      'Vui lòng xác nhận tiếp nhận đơn mới trong vòng 3 phút và bấm xác nhận bàn giao khi tài xế đã tới quán.',
+      'Vui lòng xác nhận tiếp nhận đơn mới trong vòng 3 phút và bấm xác nhận bàn giao khi tài xế đã tới quán trong bán kính 100m.',
     createdAt: 'Hôm nay, 09:00',
     timestampMs: Date.now() - 3600 * 1000 * 2,
     isRead: false,
     priority: 'high',
     actionTab: 'merchant-orders',
     senderLabel: 'Hệ thống Điều phối',
+  },
+  {
+    id: 'notif-seed-mer-3',
+    targetRole: 'MERCHANT',
+    category: 'VOUCHER',
+    title: '🎟️ Tạo mã giảm giá độc quyền để kích cầu doanh thu quán',
+    message:
+      'Chương trình Flash Sale giờ vàng đang mở! Bạn có thể phát hành voucher độc quyền giảm giá trực tiếp cho khách quen.',
+    createdAt: 'Hôm nay, 09:20',
+    timestampMs: Date.now() - 3600 * 1000 * 1.5,
+    isRead: false,
+    priority: 'normal',
+    actionTab: 'merchant-vouchers',
+    senderLabel: 'Kênh Khuyến Mãi',
+  },
+  {
+    id: 'notif-seed-mer-4',
+    targetRole: 'MERCHANT',
+    category: 'REVIEW',
+    title: '⭐ Khách hàng vừa để lại đánh giá 5 sao cho món Cơm Tấm Sườn',
+    message:
+      'Thực khách Nguyễn Văn An khen ngợi chất lượng món ăn nóng hổi và thời gian chuẩn bị món nhanh chóng.',
+    createdAt: 'Hôm nay, 09:45',
+    timestampMs: Date.now() - 3600 * 1000 * 0.8,
+    isRead: false,
+    priority: 'normal',
+    actionTab: 'merchant-analytics',
+    senderLabel: 'CSKH Đánh Giá',
   },
   // CUSTOMER seeds
   {
@@ -111,19 +139,75 @@ const DEFAULT_SEED_NOTIFICATIONS: ActorNotification[] = [
     actionTab: 'orders',
     senderLabel: 'DineGo CSKH',
   },
+  {
+    id: 'notif-seed-cus-3',
+    targetRole: 'CUSTOMER',
+    category: 'DELIVERY',
+    title: '📍 Đơn hàng đang được Shipper DineGo Express giao tới bạn',
+    message:
+      'Tài xế đang di chuyển trên lộ trình tối ưu và dự kiến có mặt tại điểm giao trong vòng 15 phút. Theo dõi trực tiếp trên bản đồ!',
+    createdAt: 'Hôm nay, 10:10',
+    timestampMs: Date.now() - 3600 * 1000 * 0.5,
+    isRead: false,
+    priority: 'high',
+    actionTab: 'tracking',
+    senderLabel: 'DineGo Tracking',
+  },
   // DRIVER seeds
   {
     id: 'notif-seed-drv-1',
     targetRole: 'DRIVER',
     category: 'DELIVERY',
-    title: '🛵 Hệ thống định tuyến GPS & Đối soát ca trực sẵn sàng',
+    title: '🛵 Hệ thống định tuyến GPS & Geofence 100m sẵn sàng',
     message:
-      'Bật trạng thái "Đang trực tuyến" để nhận chuyến mới. Nhớ bấm "Báo đã đến nhà hàng" để quán xác nhận bàn giao món.',
+      'Bật trạng thái "Đang trực tuyến" để nhận chuyến mới. Nhớ bấm "Báo đã đến nhà hàng" trong bán kính 100m để quán bàn giao món.',
     createdAt: 'Hôm nay, 08:45',
     timestampMs: Date.now() - 3600 * 1000 * 2.5,
     isRead: false,
     priority: 'high',
     actionTab: 'driver-orders',
+    senderLabel: 'DineGo Express',
+  },
+  {
+    id: 'notif-seed-drv-2',
+    targetRole: 'DRIVER',
+    category: 'ORDER',
+    title: '💰 Đơn hàng giao thành công — Tiền cước đã cộng vào Ví thu nhập',
+    message:
+      'Chuyến xe hoàn thành đúng hẹn. Bạn nhận được 100% tiền cước vận chuyển và tiền tip từ khách hàng.',
+    createdAt: 'Hôm nay, 09:30',
+    timestampMs: Date.now() - 3600 * 1000 * 1.3,
+    isRead: false,
+    priority: 'normal',
+    actionTab: 'driver-earnings',
+    senderLabel: 'Ví Tài Xế',
+  },
+  {
+    id: 'notif-seed-drv-3',
+    targetRole: 'DRIVER',
+    category: 'KYC',
+    title: '📸 Xác thực ảnh chân dung & Giấy tờ xe thành công',
+    message:
+      'Hồ sơ phương tiện Honda Winner X và ảnh chân dung đồng phục của bạn đã được kiểm duyệt hợp lệ trên hệ thống.',
+    createdAt: 'Hôm nay, 09:50',
+    timestampMs: Date.now() - 3600 * 1000 * 0.7,
+    isRead: false,
+    priority: 'normal',
+    actionTab: 'driver-profile',
+    senderLabel: 'Ban Thẩm Định',
+  },
+  {
+    id: 'notif-seed-drv-4',
+    targetRole: 'DRIVER',
+    category: 'DELIVERY',
+    title: '🎁 Thưởng ca trực năng động hôm nay',
+    message:
+      'Hoàn thành 5 chuyến xe trong ca trực để nhận thêm thưởng 50.000đ từ DineGo Express!',
+    createdAt: 'Hôm nay, 10:15',
+    timestampMs: Date.now() - 3600 * 1000 * 0.3,
+    isRead: false,
+    priority: 'high',
+    actionTab: 'driver-history',
     senderLabel: 'DineGo Express',
   },
   // ADMIN seeds
@@ -141,6 +225,34 @@ const DEFAULT_SEED_NOTIFICATIONS: ActorNotification[] = [
     actionTab: 'admin-merchants',
     senderLabel: 'DineGo Core',
   },
+  {
+    id: 'notif-seed-adm-2',
+    targetRole: 'ADMIN',
+    category: 'DISPUTE',
+    title: '⚖️ Cảnh báo giám sát đối soát & Khiếu nại vận chuyển',
+    message:
+      'Đội ngũ điều hành ghi nhận tỷ lệ giao hàng đúng hẹn đạt 98.4%. Không có tranh chấp nghiêm trọng cần can thiệp khẩn cấp.',
+    createdAt: 'Hôm nay, 09:10',
+    timestampMs: Date.now() - 3600 * 1000 * 2.2,
+    isRead: false,
+    priority: 'high',
+    actionTab: 'admin-complaints',
+    senderLabel: 'Hệ Thống Phân Xử',
+  },
+  {
+    id: 'notif-seed-adm-3',
+    targetRole: 'ADMIN',
+    category: 'DELIVERY',
+    title: '🛵 Đội ngũ tài xế hoàn tất xác thực chân dung & phương tiện',
+    message:
+      'Đã duyệt bổ sung các tài xế mới đủ điều kiện tham gia mạng lưới vận chuyển DineGo Express.',
+    createdAt: 'Hôm nay, 09:55',
+    timestampMs: Date.now() - 3600 * 1000 * 0.6,
+    isRead: false,
+    priority: 'normal',
+    actionTab: 'admin-drivers',
+    senderLabel: 'Quản Lý Tài Xế',
+  },
 ];
 
 export function loadAllActorNotifications(): ActorNotification[] {
@@ -149,6 +261,14 @@ export function loadAllActorNotifications(): ActorNotification[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
+        // Merge missing seed notifications so all 4 actors always have initial operational notifications
+        const existingIds = new Set(parsed.map((p: any) => p.id));
+        const missingSeeds = DEFAULT_SEED_NOTIFICATIONS.filter((s) => !existingIds.has(s.id));
+        if (missingSeeds.length > 0) {
+          const merged = [...parsed, ...missingSeeds];
+          localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(merged));
+          return merged;
+        }
         return parsed;
       }
     }

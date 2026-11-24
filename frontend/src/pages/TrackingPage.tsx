@@ -1976,31 +1976,6 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
               zIndex: 10,
             }}
           >
-            {onExploreFood && (
-              <button
-                onClick={onExploreFood}
-                style={{
-                  width: '100%',
-                  padding: '9px 12px',
-                  borderRadius: 8,
-                  background: 'rgba(0, 177, 79, 0.12)',
-                  border: '1px solid rgba(0, 177, 79, 0.3)',
-                  color: '#34D399',
-                  fontSize: '0.82rem',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  cursor: 'pointer',
-                  marginBottom: 8,
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                <Compass size={15} /> Xem sàn khách hàng
-              </button>
-            )}
-
             {onLogout && (
               <button
                 onClick={onLogout}
@@ -2027,11 +2002,13 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
         </aside>
 
         {/* Right Main Operational Area */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', overflowY: 'auto', overflowX: 'hidden' }}>
-          {/* Top Operational Header */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', overflow: 'hidden', background: '#F8FAFC' }}>
+          {/* Top Operational Header (Always Fixed at Top, Never Clipped) */}
           <header
             style={{
+              minHeight: 64,
               height: 64,
+              flexShrink: 0,
               background: '#FFFFFF',
               borderBottom: '1px solid #E2E8F0',
               padding: '0 24px',
@@ -2040,11 +2017,9 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
               justifyContent: 'space-between',
               flexWrap: 'nowrap',
               gap: 14,
-              position: 'sticky',
-              top: 0,
-              zIndex: 30,
+              zIndex: 50,
               boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
-              overflowX: 'auto',
+              overflow: 'visible',
             }}
           >
             {/* Left: Driver Title & Shift Badge on 1 single row */}
@@ -2281,7 +2256,8 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
             </div>
           </header>
 
-          <div style={{ padding: 28, maxWidth: 1240, width: '100%' }}>
+          {/* Scrollable Content Workspace Below Fixed Header */}
+          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: 28, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
             {disputeSuccessBanner && (
               <div
                 style={{

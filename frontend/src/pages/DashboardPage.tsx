@@ -66,6 +66,7 @@ import {
   CateringFinalBillModal,
   type CateringBillData,
 } from '../components/common/CateringFinalBillModal';
+import { NotificationBell } from '../components/common/NotificationBell';
 
 interface DashboardPageProps {
   currentUser: User | null;
@@ -2296,27 +2297,52 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         )}
 
         {/* Right Main Workspace */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', overflowY: 'auto', overflowX: 'hidden' }}>
-          {/* Top Operational Header (Always Sticky with Direct Logout) */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', overflow: 'hidden', background: '#F8FAFC' }}>
+          {/* Top Operational Header (Always Fixed at Top, Never Clipped) */}
           <header
             style={{
               minHeight: 64,
+              height: 64,
+              flexShrink: 0,
               background: '#FFFFFF',
               borderBottom: '1px solid #E2E8F0',
-              padding: '10px 24px',
+              padding: '0 24px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: 12,
-              position: 'sticky',
-              top: 0,
-              zIndex: 30,
+              flexWrap: 'nowrap',
+              gap: 14,
+              zIndex: 50,
               boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+              overflow: 'visible',
             }}
           >
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <h1 style={{ fontSize: '1.08rem', fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: -0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                  background: 'linear-gradient(135deg, #00B14F 0%, #059669 100%)',
+                  color: '#FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  boxShadow: '0 2px 6px rgba(0, 177, 79, 0.25)',
+                }}
+              >
+                {currentAdminTab === 'admin-overview' && <BarChart3 size={18} />}
+                {currentAdminTab === 'admin-merchants' && <Store size={18} />}
+                {currentAdminTab === 'admin-drivers' && <Bike size={18} />}
+                {currentAdminTab === 'admin-users' && <UsersIcon size={18} />}
+                {currentAdminTab === 'admin-complaints' && <AlertTriangle size={18} />}
+                {currentAdminTab === 'admin-reconciliation' && <DollarSign size={18} />}
+                {currentAdminTab === 'admin-vouchers' && <Ticket size={18} />}
+                {currentAdminTab === 'admin-knowledge' && <FileText size={18} />}
+                {currentAdminTab === 'admin-settings' && <Sliders size={18} />}
+              </div>
+              <h1 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: -0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {currentAdminTab === 'admin-overview' && 'Tổng quan vận hành & Giám sát giao dịch toàn sàn'}
                 {currentAdminTab === 'admin-merchants' && 'Quản lý Đối tác Nhà hàng & Hồ sơ Pháp lý'}
                 {currentAdminTab === 'admin-drivers' && 'Quản lý Đội ngũ Tài xế Giao hàng (DineGo Express)'}
@@ -2329,15 +2355,24 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               </h1>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: '#475569', background: '#F1F5F9', padding: '6px 12px', borderRadius: 20 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
-                <span style={{ fontWeight: 600 }}>Cơ sở dữ liệu máy chủ: Đang kết nối</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#475569', background: '#F1F5F9', border: '1px solid #E2E8F0', padding: '5px 12px', borderRadius: 20 }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#10B981', display: 'inline-block', boxShadow: '0 0 6px #10B981' }} />
+                <span style={{ fontWeight: 600 }}>Hệ thống trực tuyến</span>
               </div>
+
+              {/* Universal Notification Bell for Admin Backoffice */}
+              <NotificationBell
+                actorRole="ADMIN"
+                userId={currentUser?.id}
+                actorDisplayName={currentUser?.fullName || 'Ban Quản Trị'}
+                onNavigate={(tab) => onNavigate?.(tab)}
+                variant="light"
+              />
 
               <div style={{ height: 20, width: 1, background: '#E2E8F0' }} />
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                 <div
                   style={{
                     width: 32,
@@ -2349,17 +2384,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontWeight: 800,
-                    fontSize: '0.82rem',
+                    fontSize: '0.8rem',
                     boxShadow: '0 2px 8px rgba(0, 177, 79, 0.35)',
+                    flexShrink: 0,
                   }}
                 >
                   AD
                 </div>
-                <div>
-                  <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0F172A', lineHeight: 1.2 }}>
-                    {currentUser?.fullName || 'Ban Quản Trị Hệ Thống'}
+                <div style={{ textAlign: 'left', lineHeight: 1.15 }}>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {currentUser?.fullName || 'Ban Quản Trị'}
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: '#00B14F', fontWeight: 600 }}>DINEGO ADMINISTRATOR</div>
+                  <div style={{ fontSize: '0.67rem', color: '#00B14F', fontWeight: 600 }}>DINEGO ADMIN</div>
                 </div>
               </div>
 
@@ -2371,16 +2407,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
-                  padding: '7px 14px',
+                  padding: '7px 13px',
                   borderRadius: 8,
                   background: '#FEF2F2',
                   border: '1px solid #FECACA',
                   color: '#DC2626',
-                  fontSize: '0.82rem',
+                  fontSize: '0.8rem',
                   fontWeight: 700,
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
-                  marginLeft: 6,
+                  marginLeft: 4,
+                  flexShrink: 0,
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = '#DC2626';
@@ -2393,14 +2430,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   e.currentTarget.style.borderColor = '#FECACA';
                 }}
               >
-                <LogOut size={14} />
+                <LogOut size={13} />
                 <span>Đăng xuất</span>
               </button>
             </div>
           </header>
 
-          {/* Content Body (Clean Flow Without Vertical Shifting) */}
-          <div style={{ padding: '22px 24px', flex: 1, minWidth: 0 }}>
+          {/* Content Body (Clean Flow with Dedicated Scroll Container) */}
+          <div style={{ padding: '22px 24px', flex: 1, minWidth: 0, overflowY: 'auto', overflowX: 'hidden' }}>
 
             {/* ADMIN TAB 1: OVERVIEW */}
             {currentAdminTab === 'admin-overview' && (
@@ -7316,25 +7353,49 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       </aside>
 
       {/* Right Main Seller Workspace */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', overflowY: 'auto', overflowX: 'hidden' }}>
-        {/* Seller Top Operational Bar */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', overflow: 'hidden', background: '#F8FAFC' }}>
+        {/* Seller Top Operational Bar (Always Fixed at Top, Never Clipped) */}
         <header
           style={{
+            minHeight: 64,
             height: 64,
+            flexShrink: 0,
             background: '#FFFFFF',
             borderBottom: '1px solid #E2E8F0',
-            padding: '0 28px',
+            padding: '0 24px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            position: 'sticky',
-            top: 0,
-            zIndex: 30,
+            flexWrap: 'nowrap',
+            gap: 14,
+            zIndex: 50,
             boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+            overflow: 'visible',
           }}
         >
-          <div>
-            <h1 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: 'linear-gradient(135deg, #D97706 0%, #B45309 100%)',
+                color: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                boxShadow: '0 2px 6px rgba(217, 119, 6, 0.25)',
+              }}
+            >
+              {currentMerchantTab === 'merchant-orders' && <ChefHat size={18} />}
+              {currentMerchantTab === 'merchant-menu' && <UtensilsCrossed size={18} />}
+              {currentMerchantTab === 'merchant-vouchers' && <Ticket size={18} />}
+              {currentMerchantTab === 'merchant-catering' && <Calendar size={18} />}
+              {currentMerchantTab === 'merchant-analytics' && <BarChart3 size={18} />}
+              {currentMerchantTab === 'merchant-kyc' && <ShieldCheck size={18} />}
+            </div>
+            <h1 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: -0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {currentMerchantTab === 'merchant-orders' && 'Điều phối đơn hàng & Bếp trực tiếp'}
               {currentMerchantTab === 'merchant-menu' && 'Quản lý danh mục Thực đơn & Trạng thái món'}
               {currentMerchantTab === 'merchant-vouchers' && 'Quản lý Mã Ưu Đãi & Voucher Độc Quyền Của Quán'}
@@ -7344,20 +7405,25 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </h1>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+            {/* Store Status Toggle */}
             <button
               onClick={() => setStoreOpen(!storeOpen)}
+              title={storeOpen ? 'Bấm để chuyển sang tạm đóng cửa' : 'Bấm để mở cửa nhận đơn mới'}
               style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
-                gap: 8,
-                padding: '6px 14px',
-                borderRadius: 6,
+                gap: 7,
+                padding: '6px 12px',
+                borderRadius: 999,
                 border: storeOpen ? '1px solid #86EFAC' : '1px solid #FCA5A5',
                 background: storeOpen ? '#F0FDF4' : '#FEF2F2',
                 color: storeOpen ? '#15803D' : '#DC2626',
-                fontSize: '0.8rem',
+                fontSize: '0.78rem',
                 fontWeight: 700,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.15s ease',
               }}
             >
               <span
@@ -7366,32 +7432,102 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   height: 7,
                   borderRadius: '50%',
                   background: storeOpen ? '#16A34A' : '#DC2626',
+                  boxShadow: storeOpen ? '0 0 6px #16A34A' : 'none',
                 }}
               />
-              <span>{storeOpen ? 'Trạng thái: Đang mở cửa nhận đơn' : 'Trạng thái: Tạm đóng cửa'}</span>
+              <span>{storeOpen ? 'Đang mở cửa nhận đơn' : 'Tạm đóng cửa'}</span>
             </button>
 
-            <div style={{ height: 18, width: 1, background: '#E2E8F0' }} />
+            {/* Universal Notification Bell for Merchant Portal */}
+            <NotificationBell
+              actorRole="MERCHANT"
+              userId={currentUser?.id}
+              merchantId={currentMerchant?.id}
+              actorDisplayName={currentMerchant?.name}
+              onNavigate={(tab) => onNavigate?.(tab)}
+              variant="light"
+            />
 
-            <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0F172A' }}>
-              {currentMerchant?.name || 'Cơm Tấm Sài Gòn 1985'}
+            <div style={{ height: 20, width: 1, background: '#E2E8F0' }} />
+
+            {/* Merchant Identity Card Chip */}
+            <div
+              onClick={() => onNavigate?.('merchant-kyc')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                padding: '4px 10px 4px 6px',
+                borderRadius: 8,
+                cursor: 'pointer',
+                flexShrink: 0,
+                transition: 'all 0.15s ease',
+              }}
+              title="Hồ sơ gian hàng — Bấm để mở Hồ sơ & Cài đặt"
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#CBD5E1';
+                e.currentTarget.style.background = '#F1F5F9';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#E2E8F0';
+                e.currentTarget.style.background = '#F8FAFC';
+              }}
+            >
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 6,
+                  background: '#D97706',
+                  color: '#FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 800,
+                  fontSize: '0.78rem',
+                  flexShrink: 0,
+                }}
+              >
+                <Store size={15} />
+              </div>
+              <div style={{ textAlign: 'left', lineHeight: 1.15 }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0F172A', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {currentMerchant?.name || 'Cơm Tấm Sài Gòn 1985'}
+                </div>
+                <div style={{ fontSize: '0.67rem', color: '#D97706', fontWeight: 600 }}>DineGo Partner</div>
+              </div>
             </div>
 
+            {/* Logout Button */}
             <button
               onClick={() => onLogout?.()}
               title="Đăng xuất khỏi Kênh Người Bán"
               style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
                 gap: 6,
-                padding: '6px 12px',
-                borderRadius: 6,
+                padding: '7px 13px',
+                borderRadius: 8,
                 background: '#FEF2F2',
                 border: '1px solid #FECACA',
                 color: '#DC2626',
                 fontSize: '0.8rem',
                 fontWeight: 700,
                 cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                flexShrink: 0,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#DC2626';
+                e.currentTarget.style.color = '#FFFFFF';
+                e.currentTarget.style.borderColor = '#DC2626';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#FEF2F2';
+                e.currentTarget.style.color = '#DC2626';
+                e.currentTarget.style.borderColor = '#FECACA';
               }}
             >
               <LogOut size={13} />
@@ -7400,8 +7536,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         </header>
 
-        {/* Seller Content Area */}
-        <div style={{ padding: 28, flex: 1, minWidth: 0 }}>
+        {/* Seller Content Area (Clean Flow with Dedicated Scroll Container) */}
+        <div style={{ padding: 28, flex: 1, minWidth: 0, overflowY: 'auto', overflowX: 'hidden' }}>
           {/* MERCHANT TAB 1: LIVE KITCHEN & ORDERS */}
           {currentMerchantTab === 'merchant-orders' && (
             <div>

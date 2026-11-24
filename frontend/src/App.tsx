@@ -1532,6 +1532,11 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     )
     : orders.filter((o) => o.customerId === 'guest');
 
+  // Ensure window is always at top 0 when switching tabs or portals
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+  }, [currentTab]);
+
   const driverActiveOrder =
     orders.find(
       (o) =>
@@ -1547,7 +1552,13 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
   ).length;
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div
+      style={
+        !isCustomerStorefrontShell
+          ? { height: '100vh', maxHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }
+          : { minHeight: '100vh', display: 'flex', flexDirection: 'column' }
+      }
+    >
       {isCustomerStorefrontShell && (
         <Header
           key={currentUser?.id || 'guest'}
@@ -1572,7 +1583,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
         />
       )}
 
-      <main style={{ flexGrow: 1 }}>
+      <main style={!isCustomerStorefrontShell ? { height: '100vh', maxHeight: '100vh', overflow: 'hidden', flex: 1 } : { flexGrow: 1 }}>
         {/* 1. CUSTOMER STOREFRONT SHELL */}
         {currentTab === 'home' && (
           <HomePage
