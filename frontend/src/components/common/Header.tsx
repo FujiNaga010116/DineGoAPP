@@ -13,6 +13,9 @@ import {
   User as UserIcon,
   ClipboardList,
   Receipt,
+  ShieldCheck,
+  Store,
+  Bike,
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import type { Role, User } from '../../types';
@@ -470,6 +473,91 @@ export const Header: React.FC<HeaderProps> = ({
                     >
                       <Receipt size={15} color="#00B14F" /> Hóa đơn &amp; Giao dịch
                     </button>
+
+                    {/* Quick Portal Switcher for Multi-Role Accounts */}
+                    {currentUser.roles.includes('ADMIN') && (
+                      <button
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          onNavigate('admin-overview');
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: 6,
+                          background: '#EEF2FF',
+                          textAlign: 'left',
+                          fontSize: '0.84rem',
+                          color: '#4F46E5',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          border: '1px solid #C7D2FE',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          marginTop: 4,
+                        }}
+                      >
+                        <ShieldCheck size={15} color="#4F46E5" /> Quản trị Sàn (Admin Console)
+                      </button>
+                    )}
+
+                    {currentUser.roles.includes('MERCHANT') && (
+                      <button
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          onNavigate('merchant-orders');
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: 6,
+                          background: '#FFFBEB',
+                          textAlign: 'left',
+                          fontSize: '0.84rem',
+                          color: '#B45309',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          border: '1px solid #FDE68A',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          marginTop: 4,
+                        }}
+                      >
+                        <Store size={15} color="#D97706" /> Kênh Nhà Hàng (Seller Center)
+                      </button>
+                    )}
+
+                    {currentUser.roles.includes('DRIVER') && (
+                      <button
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          onNavigate('driver-orders');
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: 6,
+                          background: '#F0FDF4',
+                          textAlign: 'left',
+                          fontSize: '0.84rem',
+                          color: '#047857',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          border: '1px solid #BBF7D0',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          marginTop: 4,
+                        }}
+                      >
+                        <Bike size={15} color="#00B14F" /> Bảng Tài Xế (Driver Console)
+                      </button>
+                    )}
 
                     <div style={{ height: 1, background: '#F1F5F9', margin: '4px 0' }} />
 

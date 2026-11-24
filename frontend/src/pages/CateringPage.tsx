@@ -626,7 +626,7 @@ export const CateringPage: React.FC<CateringPageProps> = ({
   return (
     <div
       className="container"
-      style={{ padding: '24px 16px 72px', maxWidth: 1140 }}
+      style={{ padding: '20px 20px 72px' }}
     >
       {/* Top Header & Mode Switcher */}
       <div

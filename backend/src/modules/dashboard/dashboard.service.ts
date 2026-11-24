@@ -776,7 +776,8 @@ export class DashboardService {
   }
 
   async getDatabaseLedger() {
-    const dbOrders = await this.prisma.order.findMany({
+    try {
+      const dbOrders = await this.prisma.order.findMany({
       include: {
         items: {
           include: { toppings: true },
@@ -1140,6 +1141,14 @@ export class DashboardService {
       complaints,
       reviews,
     };
+    } catch {
+      return {
+        orders: [],
+        feastBookings: [],
+        complaints: [],
+        reviews: [],
+      };
+    }
   }
 
   async upsertDatabaseOrder(body: Record<string, any>) {

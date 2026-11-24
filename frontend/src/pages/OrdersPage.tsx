@@ -30,6 +30,7 @@ import {
   UtensilsCrossed,
   MessageSquare,
   Printer,
+  ClipboardList,
 } from 'lucide-react';
 import type { DriverProfile, Order, OrderStatus, OrderChatChannel } from '../types';
 import { OrderChatModal } from '../components/common/OrderChatModal';
@@ -375,6 +376,24 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
         }}
       >
         <div>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '4px 12px',
+              borderRadius: 999,
+              background: 'rgba(0, 177, 79, 0.1)',
+              color: 'var(--primary)',
+              fontSize: '0.74rem',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              marginBottom: 6,
+            }}
+          >
+            <ClipboardList size={13} /> Tiến Trình Đơn Hàng Thời Gian Thực
+          </div>
           <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
             Đơn hàng của tôi
           </h1>
