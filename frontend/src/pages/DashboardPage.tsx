@@ -283,7 +283,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const initialKycMeta = loadStoredOwnerKycMeta(currentMerchant?.id);
 
   const [isEditingMerchantKyc, setIsEditingMerchantKyc] = useState(true);
-  const [kycSectionFilter, setKycSectionFilter] = useState<'ALL' | 'OWNER_LEGAL' | 'STORE_OPS' | 'BANK_PAYOUT'>('ALL');
+  const [kycSectionFilter, setKycSectionFilter] = useState<'OWNER_LEGAL' | 'STORE_OPS' | 'BANK_PAYOUT'>('OWNER_LEGAL');
   const [merchantKycSavedBanner, setMerchantKycSavedBanner] = useState('');
   const [kycStoreName, setKycStoreName] = useState(currentMerchant?.name || '');
   const [kycCategory, setKycCategory] = useState(
@@ -9812,7 +9812,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   {/* Filter Tabs for Fast Navigation */}
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {[
-                      { id: 'ALL' as const, label: 'Tất cả hồ sơ' },
                       { id: 'OWNER_LEGAL' as const, label: 'Định danh Chủ quán & GPKD' },
                       { id: 'STORE_OPS' as const, label: 'Thương hiệu & Mặt tiền' },
                       { id: 'BANK_PAYOUT' as const, label: 'Ngân hàng Đối soát' },
@@ -9861,7 +9860,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               )}
 
               {/* DEDICATED ROW 1: OWNER IDENTIFICATION AVATAR & LEGAL KYC CERTIFICATES */}
-              {(kycSectionFilter === 'ALL' || kycSectionFilter === 'OWNER_LEGAL') && (
+              {kycSectionFilter === 'OWNER_LEGAL' && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 1fr', gap: 20, alignItems: 'start' }}>
                   {/* Card A: Định danh Chủ sở hữu Cửa hàng & Avatar Nhận diện */}
                   <div
@@ -10329,7 +10328,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               )}
 
               {/* Grid Row 2: Store Identity & Operational Settings + Storefront Image */}
-              {(kycSectionFilter === 'ALL' || kycSectionFilter === 'STORE_OPS') && (
+              {kycSectionFilter === 'STORE_OPS' && (
               <div style={{ display: 'grid', gridTemplateColumns: '1.35fr 1fr', gap: 20, alignItems: 'start' }}>
                 {/* Section 3: Thông tin Thương hiệu & Cài đặt Vận hành */}
                 <div
@@ -10543,7 +10542,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   </div>
                 </div>
 
-                {/* Section 2: Hình ảnh Mặt tiền & Bảng hiệu Gian hàng */}
+                {/* Section 4: Hình ảnh Mặt tiền & Bảng hiệu Gian hàng */}
                 <div
                   style={{
                     background: '#FFFFFF',
@@ -10558,7 +10557,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
                     <Camera size={18} color="#0284C7" />
                     <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                      2. Hình ảnh Mặt tiền &amp; Ảnh đại diện Quán
+                      4. Hình ảnh Mặt tiền &amp; Ảnh đại diện Quán
                     </h4>
                   </div>
 
@@ -10668,7 +10667,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               )}
 
               {/* Grid Row 3: Payout Bank Account */}
-              {(kycSectionFilter === 'ALL' || kycSectionFilter === 'BANK_PAYOUT') && (
+              {kycSectionFilter === 'BANK_PAYOUT' && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 20, alignItems: 'start' }}>
                 {/* Section 5: Tài khoản Ngân hàng Nhận Đối Soát Doanh Thu */}
                 <div
