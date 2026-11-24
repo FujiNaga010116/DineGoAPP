@@ -1985,198 +1985,151 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
           {/* Top Operational Header */}
           <header
             style={{
-              minHeight: 68,
+              height: 64,
               background: '#FFFFFF',
               borderBottom: '1px solid #E2E8F0',
-              padding: '10px 24px',
+              padding: '0 24px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              flexWrap: 'wrap',
+              flexWrap: 'nowrap',
               gap: 14,
               position: 'sticky',
               top: 0,
               zIndex: 30,
               boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+              overflowX: 'auto',
             }}
           >
-            {/* Left: Driver Title & Shift Badge */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+            {/* Left: Driver Title & Shift Badge on 1 single row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flexShrink: 1 }}>
               <div
                 style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 10,
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
                   background: 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)',
                   color: '#FFFFFF',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0,
-                  boxShadow: '0 3px 10px rgba(2, 132, 199, 0.25)',
+                  boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
                 }}
               >
-                <Bike size={20} />
+                <Bike size={18} />
               </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <h1 style={{ fontSize: '1.12rem', fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: -0.3 }}>
-                    {currentDriverTab === 'driver-orders' && 'Bảng Điều Phối & Xác Nhận Giao Nhận'}
-                    {currentDriverTab === 'driver-map' && 'Bản Đồ Lộ Trình Thời Gian Thực & Geofence 100m'}
-                    {currentDriverTab === 'driver-history' && 'Lịch Sử Ca Làm Việc & Chuyến Đã Giao'}
-                    {currentDriverTab === 'driver-earnings' && 'Ví Thu Nhập Tài Xế & Lịch Sử Đối Soát'}
-                    {currentDriverTab === 'driver-profile' &&
-                      (!isDriverApproved
-                        ? 'Hoàn Tất Thủ Tục Đăng Ký Xe & Thông Tin Cá Nhân'
-                        : 'Quản Lý Hồ Sơ Tài Xế & Thông Tin Phương Tiện')}
-                  </h1>
-                  {isDriverApproved && (
-                    <span
-                      style={{
-                        background: driverOnline ? '#ECFDF5' : '#F1F5F9',
-                        color: driverOnline ? '#047857' : '#64748B',
-                        border: `1px solid ${driverOnline ? '#A7F3D0' : '#CBD5E1'}`,
-                        padding: '2px 8px',
-                        borderRadius: 999,
-                        fontSize: '0.7rem',
-                        fontWeight: 700,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 5,
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: '50%',
-                          background: driverOnline ? '#10B981' : '#94A3B8',
-                          boxShadow: driverOnline ? '0 0 6px #10B981' : 'none',
-                        }}
-                      />
-                      {driverOnline
-                        ? (activeShift ? `Đang trực ca #${activeShift.shiftCode}` : 'Trực tuyến')
-                        : 'Ngoại tuyến'}
-                    </span>
-                  )}
-                </div>
-                <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  <span>DineGo Driver Express</span>
-                  <span>•</span>
-                  <span>Tài xế: <strong style={{ color: '#0F172A' }}>{currentDriver.fullName}</strong></span>
-                  {currentDriver.licensePlate && (
-                    <>
-                      <span>•</span>
-                      <span>Biển số: <strong style={{ color: '#0284C7' }}>{currentDriver.licensePlate}</strong></span>
-                    </>
-                  )}
-                </div>
-              </div>
+              <h1
+                style={{
+                  fontSize: '1.05rem',
+                  fontWeight: 800,
+                  color: '#0F172A',
+                  margin: 0,
+                  letterSpacing: -0.2,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  flexShrink: 1,
+                }}
+              >
+                {currentDriverTab === 'driver-orders' && 'Bảng Điều Phối & Xác Nhận Giao Nhận'}
+                {currentDriverTab === 'driver-map' && 'Bản Đồ Lộ Trình Thời Gian Thực & Geofence 100m'}
+                {currentDriverTab === 'driver-history' && 'Lịch Sử Ca Làm Việc & Chuyến Đã Giao'}
+                {currentDriverTab === 'driver-earnings' && 'Ví Thu Nhập Tài Xế & Lịch Sử Đối Soát'}
+                {currentDriverTab === 'driver-profile' &&
+                  (!isDriverApproved
+                    ? 'Hoàn Tất Thủ Tục Đăng Ký Xe & Thông Tin Cá Nhân'
+                    : 'Quản Lý Hồ Sơ Tài Xế & Thông Tin Phương Tiện')}
+              </h1>
+              {isDriverApproved && (
+                <button
+                  onClick={handleToggleDriverShiftOnline}
+                  title={driverOnline ? 'Bấm để chuyển sang ngoại tuyến' : 'Bấm để trực tuyến nhận đơn'}
+                  style={{
+                    background: driverOnline ? '#ECFDF5' : '#F1F5F9',
+                    color: driverOnline ? '#047857' : '#64748B',
+                    border: `1px solid ${driverOnline ? '#A7F3D0' : '#CBD5E1'}`,
+                    padding: '4px 10px',
+                    borderRadius: 999,
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      background: driverOnline ? '#10B981' : '#94A3B8',
+                      boxShadow: driverOnline ? '0 0 6px #10B981' : 'none',
+                    }}
+                  />
+                  <span>
+                    {driverOnline
+                      ? (activeShift ? `Trực ca #${activeShift.shiftCode}` : 'Đang trực tuyến')
+                      : 'Ngoại tuyến'}
+                  </span>
+                </button>
+              )}
             </div>
 
             {/* Right: Driver Status Chips & Action Buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontVariantNumeric: 'tabular-nums' }}>
-              {/* Chip 1: Khu vực hoạt động */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'nowrap', flexShrink: 0, marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>
+              {/* Chip 1: Đánh giá sao */}
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 6,
-                  background: '#F8FAFC',
-                  border: '1px solid #E2E8F0',
-                  padding: '6px 12px',
-                  borderRadius: 8,
-                  fontSize: '0.79rem',
-                  color: '#475569',
-                }}
-                title="Khu vực hoạt động đăng ký"
-              >
-                <MapPin size={13} color="#64748B" style={{ flexShrink: 0 }} />
-                <span>
-                  Khu vực: <strong style={{ color: '#0F172A' }}>{currentDriver.operatingZone || 'Quận 1, 3, Bình Thạnh'}</strong>
-                </span>
-              </div>
-
-              {/* Chip 2: Đánh giá sao */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
+                  gap: 5,
                   background: '#FFFBEB',
                   border: '1px solid #FDE68A',
-                  padding: '6px 12px',
+                  padding: '4px 9px',
                   borderRadius: 8,
-                  fontSize: '0.79rem',
+                  fontSize: '0.78rem',
                   color: '#92400E',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
                 }}
                 title="Đánh giá từ khách hàng"
               >
-                <Star size={13} fill="#F59E0B" color="#F59E0B" style={{ flexShrink: 0 }} />
+                <Star size={12} fill="#F59E0B" color="#F59E0B" style={{ flexShrink: 0 }} />
                 <span>
                   <strong style={{ color: '#B45309' }}>{currentDriver.rating} ★</strong>{' '}
-                  <span style={{ color: '#78350F' }}>({currentDriver.completedTrips + completedDriverOrders.length} chuyến)</span>
+                  <span style={{ color: '#78350F' }}>({currentDriver.completedTrips + completedDriverOrders.length})</span>
                 </span>
               </div>
 
-              {/* Chip 3: Số dư ví thu nhập */}
+              {/* Chip 2: Số dư ví thu nhập */}
               <div
+                onClick={() => onNavigate?.('driver-earnings')}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 6,
+                  gap: 5,
                   background: '#F0F9FF',
                   border: '1px solid #BAE6FD',
-                  padding: '6px 12px',
+                  padding: '4px 10px',
                   borderRadius: 8,
-                  fontSize: '0.79rem',
+                  fontSize: '0.78rem',
                   color: '#0369A1',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
                 }}
-                title="Số dư ví khả dụng hiện tại"
+                title="Số dư ví khả dụng — Bấm để mở Ví thu nhập"
               >
                 <Wallet size={13} color="#0284C7" style={{ flexShrink: 0 }} />
                 <span>
                   Ví: <strong style={{ color: '#0284C7', fontWeight: 800 }}>{driverWalletBalance.toLocaleString('vi-VN')}đ</strong>
                 </span>
               </div>
-
-              {/* Subtle Divider */}
-              <div style={{ height: 22, width: 1, background: '#E2E8F0' }} />
-
-              {/* Button 1: Xem sàn khách hàng */}
-              {onExploreFood && (
-                <button
-                  onClick={onExploreFood}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '7px 13px',
-                    borderRadius: 8,
-                    background: '#F0FDF4',
-                    border: '1px solid #BBF7D0',
-                    color: '#15803D',
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    transition: 'all 0.15s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#00B14F';
-                    e.currentTarget.style.color = '#FFFFFF';
-                    e.currentTarget.style.borderColor = '#00B14F';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = '#F0FDF4';
-                    e.currentTarget.style.color = '#15803D';
-                    e.currentTarget.style.borderColor = '#BBF7D0';
-                  }}
-                >
-                  <Compass size={14} />
-                  <span>Xem sàn khách hàng</span>
-                </button>
-              )}
 
               {/* Real-time Notification Bell */}
               <NotificationBell
@@ -2188,7 +2141,62 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                 variant="light"
               />
 
-              {/* Button 2: Đăng xuất */}
+              {/* Driver Profile Card Chip */}
+              <div
+                onClick={() => onNavigate?.('driver-profile')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  background: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
+                  padding: '4px 10px 4px 5px',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  transition: 'all 0.15s ease',
+                }}
+                title="Hồ sơ tài xế — Bấm để quản lý thông tin & phương tiện"
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = '#CBD5E1';
+                  e.currentTarget.style.background = '#F1F5F9';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = '#E2E8F0';
+                  e.currentTarget.style.background = '#F8FAFC';
+                }}
+              >
+                <img
+                  src={
+                    currentDriver.portraitUrl ||
+                    currentDriver.avatarUrl ||
+                    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
+                  }
+                  alt={currentDriver.fullName}
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: '2px solid #0284C7',
+                    flexShrink: 0,
+                  }}
+                />
+                <div style={{ textAlign: 'left', lineHeight: 1.15 }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#0F172A', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {currentDriver.fullName}
+                  </div>
+                  <div style={{ fontSize: '0.67rem', color: '#0284C7', fontWeight: 600 }}>
+                    {currentDriver.licensePlate || 'DineGo Express'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Subtle Divider */}
+              <div style={{ height: 20, width: 1, background: '#E2E8F0', flexShrink: 0 }} />
+
+              {/* Nút Đăng xuất ở góc phải trên cùng */}
               {onLogout && (
                 <button
                   onClick={onLogout}
@@ -2197,7 +2205,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 6,
-                    padding: '7px 12px',
+                    padding: '7px 14px',
                     borderRadius: 8,
                     background: '#FEF2F2',
                     border: '1px solid #FECACA',
@@ -2206,6 +2214,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                     fontWeight: 700,
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',
+                    flexShrink: 0,
                     transition: 'all 0.15s ease',
                   }}
                   onMouseEnter={(e) => {

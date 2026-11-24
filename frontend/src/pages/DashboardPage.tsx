@@ -2477,23 +2477,52 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           {/* Top Operational Header (Always Sticky with Direct Logout) */}
           <header
             style={{
-              minHeight: 64,
+              height: 64,
               background: '#FFFFFF',
               borderBottom: '1px solid #E2E8F0',
-              padding: '10px 24px',
+              padding: '0 24px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: 12,
+              flexWrap: 'nowrap',
+              gap: 16,
               position: 'sticky',
               top: 0,
               zIndex: 30,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
             }}
           >
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <h1 style={{ fontSize: '1.08rem', fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: -0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {/* Left: Admin Badge + Title + System Status on 1 single row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flexShrink: 1 }}>
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                  background: 'linear-gradient(135deg, #4F46E5 0%, #3730A3 100%)',
+                  color: '#FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)',
+                }}
+              >
+                <ShieldCheck size={18} />
+              </div>
+              <h1
+                style={{
+                  fontSize: '1.05rem',
+                  fontWeight: 800,
+                  color: '#0F172A',
+                  margin: 0,
+                  letterSpacing: -0.2,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  flexShrink: 1,
+                }}
+              >
                 {currentAdminTab === 'admin-overview' && 'Tổng quan vận hành & Giám sát giao dịch toàn sàn'}
                 {currentAdminTab === 'admin-merchants' && 'Quản lý Đối tác Nhà hàng & Hồ sơ Pháp lý'}
                 {currentAdminTab === 'admin-drivers' && 'Quản lý Đội ngũ Tài xế Giao hàng (DineGo Express)'}
@@ -2504,14 +2533,37 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 {currentAdminTab === 'admin-knowledge' && 'Quản trị Cơ sở Tri thức Ẩm thực Địa phương'}
                 {currentAdminTab === 'admin-settings' && 'Cấu Hình Tham Số Sàn & Nhật Ký Kiểm Toán Quản Trị'}
               </h1>
+              <div
+                style={{
+                  background: '#ECFDF5',
+                  color: '#047857',
+                  border: '1px solid #A7F3D0',
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                }}
+              >
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: '#10B981',
+                    boxShadow: '0 0 6px #10B981',
+                  }}
+                />
+                <span>Hệ thống: Đang kết nối</span>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: '#475569', background: '#F1F5F9', padding: '6px 12px', borderRadius: 20 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
-                <span style={{ fontWeight: 600 }}>Cơ sở dữ liệu máy chủ: Đang kết nối</span>
-              </div>
-
+            {/* Right: Notification Center & Admin Profile Chip & Top-Right Logout */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 'auto' }}>
               <NotificationBell
                 actorRole="ADMIN"
                 userId={currentUser?.id}
@@ -2520,67 +2572,98 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 variant="light"
               />
 
-              <div style={{ height: 20, width: 1, background: '#E2E8F0' }} />
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {/* Admin Profile Card Chip */}
+              <div
+                onClick={() => onNavigate?.('admin-settings')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  background: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
+                  padding: '4px 10px 4px 5px',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  transition: 'all 0.15s ease',
+                }}
+                title="Tài khoản quản trị — Bấm để mở Cài đặt Sàn"
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = '#CBD5E1';
+                  e.currentTarget.style.background = '#F1F5F9';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = '#E2E8F0';
+                  e.currentTarget.style.background = '#F8FAFC';
+                }}
+              >
                 <div
                   style={{
-                    width: 32,
-                    height: 32,
+                    width: 30,
+                    height: 30,
                     borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #00B14F 0%, #059669 100%)',
+                    background: 'linear-gradient(135deg, #4F46E5 0%, #3730A3 100%)',
                     color: '#FFFFFF',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontWeight: 800,
-                    fontSize: '0.82rem',
-                    boxShadow: '0 2px 8px rgba(0, 177, 79, 0.35)',
+                    fontSize: '0.78rem',
+                    flexShrink: 0,
                   }}
                 >
                   AD
                 </div>
-                <div>
-                  <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0F172A', lineHeight: 1.2 }}>
-                    {currentUser?.fullName || 'Ban Quản Trị Hệ Thống'}
+                <div style={{ textAlign: 'left', lineHeight: 1.15 }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#0F172A', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {currentUser?.fullName || 'Ban Quản Trị'}
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: '#00B14F', fontWeight: 600 }}>DINEGO ADMINISTRATOR</div>
+                  <div style={{ fontSize: '0.67rem', color: '#4F46E5', fontWeight: 600 }}>
+                    DineGo Administrator
+                  </div>
                 </div>
               </div>
 
-              {/* Direct Header Logout Button — 100% Never Missed */}
-              <button
-                onClick={() => onLogout?.()}
-                title="Đăng xuất khỏi hệ thống quản trị"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '7px 14px',
-                  borderRadius: 8,
-                  background: '#FEF2F2',
-                  border: '1px solid #FECACA',
-                  color: '#DC2626',
-                  fontSize: '0.82rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  marginLeft: 6,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#DC2626';
-                  e.currentTarget.style.color = '#FFFFFF';
-                  e.currentTarget.style.borderColor = '#DC2626';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#FEF2F2';
-                  e.currentTarget.style.color = '#DC2626';
-                  e.currentTarget.style.borderColor = '#FECACA';
-                }}
-              >
-                <LogOut size={14} />
-                <span>Đăng xuất</span>
-              </button>
+              {/* Subtle Divider */}
+              <div style={{ height: 20, width: 1, background: '#E2E8F0', flexShrink: 0 }} />
+
+              {/* Nút Đăng xuất ở góc phải trên cùng */}
+              {onLogout && (
+                <button
+                  onClick={() => onLogout()}
+                  title="Đăng xuất khỏi hệ thống quản trị"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '7px 14px',
+                    borderRadius: 8,
+                    background: '#FEF2F2',
+                    border: '1px solid #FECACA',
+                    color: '#DC2626',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#DC2626';
+                    e.currentTarget.style.color = '#FFFFFF';
+                    e.currentTarget.style.borderColor = '#DC2626';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#FEF2F2';
+                    e.currentTarget.style.color = '#DC2626';
+                    e.currentTarget.style.borderColor = '#FECACA';
+                  }}
+                >
+                  <LogOut size={13} />
+                  <span>Đăng xuất</span>
+                </button>
+              )}
             </div>
           </header>
 
@@ -7597,18 +7680,49 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             height: 64,
             background: '#FFFFFF',
             borderBottom: '1px solid #E2E8F0',
-            padding: '0 28px',
+            padding: '0 24px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            flexWrap: 'nowrap',
+            gap: 16,
             position: 'sticky',
             top: 0,
             zIndex: 30,
-            boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
           }}
         >
-          <div>
-            <h1 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+          {/* Left: Merchant Title & Store Status Badge on 1 single row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flexShrink: 1 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: 'linear-gradient(135deg, #D97706 0%, #B45309 100%)',
+                color: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                boxShadow: '0 2px 6px rgba(217, 119, 6, 0.25)',
+              }}
+            >
+              <Store size={18} />
+            </div>
+            <h1
+              style={{
+                fontSize: '1.05rem',
+                fontWeight: 800,
+                color: '#0F172A',
+                margin: 0,
+                letterSpacing: -0.2,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                flexShrink: 1,
+              }}
+            >
               {currentMerchantTab === 'merchant-orders' && 'Điều phối đơn hàng & Bếp trực tiếp'}
               {currentMerchantTab === 'merchant-menu' && 'Quản lý danh mục Thực đơn & Trạng thái món'}
               {currentMerchantTab === 'merchant-vouchers' && 'Quản lý Mã Ưu Đãi & Voucher Độc Quyền Của Quán'}
@@ -7616,92 +7730,138 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               {currentMerchantTab === 'merchant-analytics' && 'Báo cáo Doanh thu, Đối soát & Đánh giá'}
               {currentMerchantTab === 'merchant-kyc' && 'Hồ sơ Pháp lý Gian hàng & Cài đặt Vận hành'}
             </h1>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <button
               onClick={() => setStoreOpen(!storeOpen)}
+              title={storeOpen ? 'Bấm để chuyển sang tạm đóng cửa' : 'Bấm để mở cửa nhận đơn'}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '6px 14px',
-                borderRadius: 6,
-                border: storeOpen ? '1px solid #86EFAC' : '1px solid #FCA5A5',
-                background: storeOpen ? '#F0FDF4' : '#FEF2F2',
-                color: storeOpen ? '#15803D' : '#DC2626',
-                fontSize: '0.8rem',
+                background: storeOpen ? '#ECFDF5' : '#FEF2F2',
+                color: storeOpen ? '#047857' : '#DC2626',
+                border: `1px solid ${storeOpen ? '#A7F3D0' : '#FECACA'}`,
+                padding: '4px 10px',
+                borderRadius: 999,
+                fontSize: '0.72rem',
                 fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+                transition: 'all 0.15s ease',
               }}
             >
               <span
                 style={{
-                  width: 7,
-                  height: 7,
+                  width: 6,
+                  height: 6,
                   borderRadius: '50%',
-                  background: storeOpen ? '#16A34A' : '#DC2626',
+                  background: storeOpen ? '#10B981' : '#EF4444',
+                  boxShadow: storeOpen ? '0 0 6px #10B981' : 'none',
                 }}
               />
-              <span>{storeOpen ? 'Trạng thái: Đang mở cửa nhận đơn' : 'Trạng thái: Tạm đóng cửa'}</span>
+              <span>{storeOpen ? 'Đang mở cửa nhận đơn' : 'Tạm đóng cửa'}</span>
             </button>
+          </div>
 
+          {/* Right: Operational Controls & Store Profile Chip & Top-Right Logout */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 'auto' }}>
+            {/* Notification Center */}
             <NotificationBell
               actorRole="MERCHANT"
               userId={currentUser?.id}
               merchantId={currentMerchant?.id}
               actorDisplayName={currentMerchant?.name || 'Cửa hàng'}
               onNavigate={onNavigate}
-              variant="seller"
+              variant="light"
             />
 
-            <div style={{ height: 18, width: 1, background: '#E2E8F0' }} />
-
+            {/* Merchant Store & Owner Profile Card Chip */}
             <div
               onClick={() => onNavigate?.('merchant-kyc')}
-              style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer' }}
-              title="Chủ sở hữu cửa hàng — Bấm để mở Hồ sơ Pháp lý"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                padding: '4px 10px 4px 5px',
+                borderRadius: 8,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+                transition: 'all 0.15s ease',
+              }}
+              title="Chủ sở hữu gian hàng — Bấm để mở Hồ sơ Pháp lý & Cài đặt"
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#CBD5E1';
+                e.currentTarget.style.background = '#F1F5F9';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#E2E8F0';
+                e.currentTarget.style.background = '#F8FAFC';
+              }}
             >
               <img
                 src={kycOwnerAvatar}
                 alt={kycOwnerName || 'Chủ quán'}
                 style={{
-                  width: 32,
-                  height: 32,
+                  width: 30,
+                  height: 30,
                   borderRadius: '50%',
                   objectFit: 'cover',
                   border: '2px solid #D97706',
+                  flexShrink: 0,
                 }}
               />
-              <div>
-                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0F172A', lineHeight: 1.15 }}>
+              <div style={{ textAlign: 'left', lineHeight: 1.15 }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#0F172A', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {currentMerchant?.name || 'Cơm Tấm Sài Gòn 1985'}
                 </div>
-                <div style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600 }}>
-                  Chủ quán: {kycOwnerName || currentMerchant?.ownerName || currentUser?.fullName}
+                <div style={{ fontSize: '0.67rem', color: '#64748B', fontWeight: 600 }}>
+                  Chủ quán: {kycOwnerName || currentMerchant?.ownerName || currentUser?.fullName || 'Võ Thị Bích Thùy'}
                 </div>
               </div>
             </div>
 
-            <button
-              onClick={() => onLogout?.()}
-              title="Đăng xuất khỏi Kênh Người Bán"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '6px 12px',
-                borderRadius: 6,
-                background: '#FEF2F2',
-                border: '1px solid #FECACA',
-                color: '#DC2626',
-                fontSize: '0.8rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              <LogOut size={13} />
-              <span>Đăng xuất</span>
-            </button>
+            {/* Subtle Divider */}
+            <div style={{ height: 20, width: 1, background: '#E2E8F0', flexShrink: 0 }} />
+
+            {/* Nút Đăng xuất ở góc phải trên cùng */}
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                title="Đăng xuất khỏi Kênh Người Bán"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 14px',
+                  borderRadius: 8,
+                  background: '#FEF2F2',
+                  border: '1px solid #FECACA',
+                  color: '#DC2626',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#DC2626';
+                  e.currentTarget.style.color = '#FFFFFF';
+                  e.currentTarget.style.borderColor = '#DC2626';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#FEF2F2';
+                  e.currentTarget.style.color = '#DC2626';
+                  e.currentTarget.style.borderColor = '#FECACA';
+                }}
+              >
+                <LogOut size={13} />
+                <span>Đăng xuất</span>
+              </button>
+            )}
           </div>
         </header>
 
