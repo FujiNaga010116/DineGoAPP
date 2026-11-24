@@ -27,6 +27,7 @@ import { MerchantRegistrationModal } from './components/common/MerchantRegistrat
 import { MerchantSetupScreen } from './components/common/MerchantSetupScreen';
 import { AddressSetupModal } from './components/common/AddressSetupModal';
 import { FloatingAiChatWidget } from './components/common/FloatingAiChatWidget';
+import { CustomerDepositQrModal, CustomerDepositNoticeData } from './components/common/CustomerDepositQrModal';
 import { CartProvider } from './context/CartContext';
 import { API_BASE_URL, MOCK_MERCHANTS, MOCK_MENU_ITEMS, MOCK_DRIVERS, MOCK_USERS, isDriverProfileVerified, adminApi } from './api/client';
 import type {
@@ -42,7 +43,7 @@ import type {
   SavedAddress,
   User,
 } from './types';
-import { QrCode, CheckCircle2 } from 'lucide-react';
+import { QrCode, CheckCircle2, AlertTriangle, Calendar, X } from 'lucide-react';
 import { pushActorNotification, pushMultiActorNotifications } from './utils/notifications';
 
 function createDriverShiftRecord(driver: DriverProfile, existingShifts: DriverShift[]): DriverShift {
@@ -232,6 +233,65 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
       ? drivers.find((d) => d.id === currentUser.driverId || d.userId === currentUser.id) ||
       drivers[0]
       : drivers[0];
+
+  // High-Visibility Customer Rejection Notice state
+  const [customerRejectionNotice, setCustomerRejectionNotice] = useState<any | null>(() => {
+    try {
+      const saved = localStorage.getItem('dinego_customer_rejection_notice');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && !parsed.isDismissed) return parsed;
+      }
+    } catch {}
+    return null;
+  });
+
+  // High-Visibility Customer Approval & Deposit QR Modal state
+  const [customerApprovalNotice, setCustomerApprovalNotice] = useState<CustomerDepositNoticeData | null>(() => {
+    try {
+      const saved = localStorage.getItem('dinego_customer_approval_notice');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && !parsed.isDismissed) return parsed;
+      }
+    } catch {}
+    return null;
+  });
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'dinego_customer_rejection_notice' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed && !parsed.isDismissed) setCustomerRejectionNotice(parsed);
+        } catch {}
+      }
+      if (e.key === 'dinego_customer_approval_notice' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed && !parsed.isDismissed) setCustomerApprovalNotice(parsed);
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    const noticeCh = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('dinego_customer_notices_sync') : null;
+    if (noticeCh) {
+      noticeCh.onmessage = (ev) => {
+        try {
+          const parsed = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
+          if (parsed?.type === 'FEAST_APPROVED_PAY_DEPOSIT' || parsed?.depositAmount) {
+            if (!parsed.isDismissed) setCustomerApprovalNotice(parsed);
+          } else if (parsed?.reason || parsed?.type === 'FEAST_REJECTED') {
+            if (!parsed.isDismissed) setCustomerRejectionNotice(parsed);
+          }
+        } catch {}
+      };
+    }
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      if (noticeCh) noticeCh.close();
+    };
+  }, []);
 
   const [allMenuItems, setAllMenuItems] = useState<Record<string, MenuItem[]>>(() => {
     const saved = localStorage.getItem('dinego_menu_items');
@@ -1086,95 +1146,148 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     }
   };
 
+  const handleCustomerConfirmPaidDeposit = (notice: CustomerDepositNoticeData) => {
+    setOrders((prev) =>
+      prev.map((o) => {
+        const matches = o.orderNumber === notice.bookingCode || o.id === notice.orderId;
+        if (!matches) return o;
+        return {
+          ...o,
+          payment: o.payment
+            ? { ...o.payment, paymentStatus: 'PROCESSING', paidAt: new Date().toISOString() }
+            : o.payment,
+          cateringDetails: o.cateringDetails
+            ? {
+                ...o.cateringDetails,
+                customerReportedPaid: true,
+                depositPaid: true,
+              }
+            : o.cateringDetails,
+        };
+      }),
+    );
+    try {
+      const saved = localStorage.getItem('dinego_feast_bookings');
+      if (saved) {
+        const list = JSON.parse(saved);
+        const updated = list.map((item: any) =>
+          item.id === notice.bookingId || item.bookingCode === notice.bookingCode
+            ? { ...item, customerReportedPaid: true, depositPaid: true }
+            : item,
+        );
+        localStorage.setItem('dinego_feast_bookings', JSON.stringify(updated));
+        if (typeof BroadcastChannel !== 'undefined') {
+          const ch = new BroadcastChannel('dinego_feasts_sync');
+          ch.postMessage(JSON.stringify(updated));
+          ch.close();
+        }
+      }
+    } catch {}
+  };
+
   const handleSyncCateringOrderFromMerchant = (
     bookingId: string,
     bookingCode: string,
     action: 'CONFIRM_DEPOSIT' | 'APPROVED' | 'REJECTED' | 'COMPLETED',
-    meta?: { finalBillCode?: string; completedAt?: string; confirmedAt?: string },
+    meta?: { finalBillCode?: string; depositReceiptCode?: string; completedAt?: string; confirmedAt?: string; reason?: string; depositAmount?: number; depositRate?: number },
   ) => {
     const nowIso = meta?.confirmedAt || new Date().toISOString();
-    setOrders((prev) =>
-      prev.map((o) => {
+    setOrders((prev) => {
+      const next = prev.map((o) => {
         const matches =
-          o.orderNumber === bookingCode || o.id === `ord-catering-${bookingId}`;
+          o.orderNumber === bookingCode ||
+          o.id === `ord-catering-${bookingId}` ||
+          o.id === bookingId ||
+          o.cateringDetails?.bookingCode === bookingCode;
         if (!matches) return o;
         if (action === 'CONFIRM_DEPOSIT') {
           return {
             ...o,
-            status: o.status === 'PENDING' ? 'CONFIRMED' : o.status,
+            status: 'CONFIRMED' as OrderStatus,
             payment: o.payment
               ? {
-                ...o.payment,
-                paymentStatus: 'SUCCESS',
-                transactionRef:
-                  o.payment.transactionRef?.startsWith('MOMO-PENDING-')
-                    ? `MOMO-FEAST-${bookingCode.slice(-6)}`
-                    : o.payment.transactionRef || `MOMO-FEAST-${bookingCode.slice(-6)}`,
-                paidAt: nowIso,
-              }
+                  ...o.payment,
+                  paymentStatus: 'SUCCESS' as const,
+                  transactionRef:
+                    o.payment.transactionRef?.startsWith('MOMO-PENDING-')
+                      ? `MOMO-FEAST-${bookingCode.slice(-6)}`
+                      : o.payment.transactionRef || `MOMO-FEAST-${bookingCode.slice(-6)}`,
+                  paidAt: nowIso,
+                }
               : o.payment,
             cateringDetails: o.cateringDetails
               ? {
-                ...o.cateringDetails,
-                depositConfirmedByMerchant: true,
-                depositConfirmedAt: nowIso,
-              }
+                  ...o.cateringDetails,
+                  depositConfirmedByMerchant: true,
+                  depositConfirmedAt: nowIso,
+                  depositPaid: true,
+                  depositReceiptCode: meta?.finalBillCode || meta?.depositReceiptCode || `REC-COC-${bookingCode}`,
+                  dispatchedToKitchen: true,
+                  bookingStatus: 'CONFIRMED' as const,
+                }
               : o.cateringDetails,
           };
         }
         if (action === 'APPROVED') {
           return {
             ...o,
-            status: 'CONFIRMED',
+            status: 'PENDING' as OrderStatus,
             payment:
-              o.payment && o.payment.paymentStatus !== 'SUCCESS'
+              o.payment
                 ? {
-                  ...o.payment,
-                  paymentStatus: 'SUCCESS',
-                  paidAt: o.payment.paidAt || nowIso,
-                }
+                    ...o.payment,
+                    paymentStatus: 'PENDING' as const,
+                  }
                 : o.payment,
             cateringDetails: o.cateringDetails
               ? {
-                ...o.cateringDetails,
-                depositConfirmedByMerchant: true,
-                depositConfirmedAt: o.cateringDetails.depositConfirmedAt || nowIso,
-                merchantApproved: true,
-              }
+                  ...o.cateringDetails,
+                  merchantApproved: true,
+                  depositConfirmedByMerchant: false,
+                  depositPaid: false,
+                  depositAmount: meta?.depositAmount || o.cateringDetails.depositAmount,
+                  depositPercent: (meta?.depositRate === 50 ? 50 : 30) as 30 | 50,
+                  bookingStatus: 'PENDING_DEPOSIT' as const,
+                }
               : o.cateringDetails,
           };
         }
         if (action === 'REJECTED') {
           return {
             ...o,
-            status: 'CANCELLED',
-            cancelReason: 'Nhà hàng từ chối tiếp nhận hợp đồng đặt tiệc',
+            status: 'CANCELLED' as OrderStatus,
+            cancelReason: meta?.reason || (meta as any)?.reason || 'Nhà hàng không đủ công suất hoặc nguyên liệu phục vụ vào thời gian này.',
           };
         }
         return {
           ...o,
-          status: 'COMPLETED',
+          status: 'COMPLETED' as OrderStatus,
           payment:
             o.payment && o.payment.paymentStatus !== 'SUCCESS'
               ? {
-                ...o.payment,
-                paymentStatus: 'SUCCESS',
-                paidAt: o.payment.paidAt || nowIso,
-              }
+                  ...o.payment,
+                  paymentStatus: 'SUCCESS' as const,
+                  paidAt: o.payment.paidAt || nowIso,
+                }
               : o.payment,
           cateringDetails: o.cateringDetails
             ? {
-              ...o.cateringDetails,
-              depositConfirmedByMerchant: true,
-              merchantApproved: true,
-              finalBillIssued: true,
-              finalBillCode: meta?.finalBillCode,
-              completedAt: meta?.completedAt,
-            }
+                ...o.cateringDetails,
+                depositConfirmedByMerchant: true,
+                merchantApproved: true,
+                finalBillIssued: true,
+                finalBillCode: meta?.finalBillCode,
+                completedAt: meta?.completedAt,
+                bookingStatus: 'COMPLETED' as const,
+              }
             : o.cateringDetails,
         };
-      }),
-    );
+      });
+      try {
+        localStorage.setItem('dinego_orders', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
 
     try {
       for (let i = 0; i < localStorage.length; i++) {
@@ -1521,6 +1634,45 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
   // Customer Storefront Header & Footer ONLY render when in Customer Portal mode
   const isCustomerStorefrontShell =
     !isMerchantPortalTab && !isAdminPortalTab && !isDriverPortalMode;
+
+  // Customer Catering notifications (Approval & QR modal, Rejection alert) MUST ONLY be shown to Customer accounts viewing Customer pages.
+  // NEVER show them to Merchant, Admin, or Driver portal views!
+  const isCustomerViewing =
+    isCustomerStorefrontShell &&
+    !isMerchantPortalTab &&
+    !isAdminPortalTab &&
+    !isDriverPortalMode &&
+    (!currentUser || !currentUser.roles?.includes('MERCHANT'));
+
+  const isTargetCustomerForApproval =
+    isCustomerViewing &&
+    Boolean(
+      customerApprovalNotice &&
+      (!currentUser ||
+       !customerApprovalNotice.customerId ||
+       currentUser.id === customerApprovalNotice.customerId ||
+       currentUser.phoneNumber === customerApprovalNotice.customerPhone ||
+       orders.some(
+         (o) =>
+           (o.customerId === currentUser.id || !o.customerId) &&
+           o.orderNumber === customerApprovalNotice.bookingCode,
+       )),
+    );
+
+  const isTargetCustomerForRejection =
+    isCustomerViewing &&
+    Boolean(
+      customerRejectionNotice &&
+      (!currentUser ||
+       !customerRejectionNotice.customerId ||
+       currentUser.id === customerRejectionNotice.customerId ||
+       currentUser.phoneNumber === customerRejectionNotice.customerPhone ||
+       orders.some(
+         (o) =>
+           (o.customerId === currentUser.id || !o.customerId) &&
+           o.orderNumber === customerRejectionNotice.bookingCode,
+       )),
+    );
 
   // Strictly scope orders by owning account / merchant
   const customerOrders = currentUser
@@ -2160,6 +2312,181 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
           }}
         />
       )}
+
+      {/* Prominent High-Visibility Catering Rejection Notification Modal */}
+      {isTargetCustomerForRejection && customerRejectionNotice && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+          onClick={() => {
+            const updated = { ...customerRejectionNotice, isDismissed: true };
+            localStorage.setItem('dinego_customer_rejection_notice', JSON.stringify(updated));
+            setCustomerRejectionNotice(null);
+          }}
+        >
+          <div
+            style={{
+              background: '#FFFFFF',
+              borderRadius: 20,
+              maxWidth: 520,
+              width: '100%',
+              padding: 26,
+              boxShadow: '0 25px 50px -12px rgba(220, 38, 38, 0.25)',
+              border: '2px solid #EF4444',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 16 }}>
+              <div
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: 14,
+                  background: '#FEE2E2',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#DC2626',
+                  flexShrink: 0,
+                }}
+              >
+                <AlertTriangle size={28} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#DC2626', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                  Thông báo khẩn từ Nhà hàng
+                </span>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0F172A', margin: '3px 0 0' }}>
+                  Yêu cầu đặt tiệc đã bị từ chối / hủy
+                </h3>
+              </div>
+            </div>
+
+            <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 14, marginBottom: 16, fontSize: '0.84rem', color: '#334155', lineHeight: 1.6 }}>
+              <div>• <strong>Mã hợp đồng:</strong> #{customerRejectionNotice.bookingCode}</div>
+              <div>• <strong>Nhà hàng:</strong> {customerRejectionNotice.merchantName}</div>
+              <div>• <strong>Gói cỗ:</strong> {customerRejectionNotice.packageName} ({customerRejectionNotice.tableCount} mâm)</div>
+              <div>• <strong>Lịch dự kiến:</strong> {customerRejectionNotice.eventTime} ngày {customerRejectionNotice.eventDate}</div>
+            </div>
+
+            <div
+              style={{
+                background: '#FEF2F2',
+                border: '1px solid #FECACA',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 18,
+              }}
+            >
+              <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#991B1B', textTransform: 'uppercase', marginBottom: 4 }}>
+                📝 Lý do từ nhà hàng:
+              </div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#B91C1C', lineHeight: 1.5 }}>
+                &ldquo;{customerRejectionNotice.reason}&rdquo;
+              </div>
+            </div>
+
+            <p style={{ fontSize: '0.82rem', color: '#64748B', lineHeight: 1.5, marginBottom: 20 }}>
+              💡 <strong>Gợi ý giải pháp:</strong> Quý khách có thể chuyển sang ngày hoặc khung giờ khác còn trống công suất, giảm bớt số lượng mâm, hoặc tham khảo các nhà hàng đối tác đặt tiệc khác trên DineGo.
+            </p>
+
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const updated = { ...customerRejectionNotice, isDismissed: true };
+                  localStorage.setItem('dinego_customer_rejection_notice', JSON.stringify(updated));
+                  setCustomerRejectionNotice(null);
+                  setCurrentTab('orders');
+                }}
+                style={{
+                  flex: 1,
+                  padding: '11px 16px',
+                  borderRadius: 8,
+                  background: '#0F172A',
+                  color: '#FFFFFF',
+                  fontSize: '0.84rem',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                Xem chi tiết đơn hàng
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const updated = { ...customerRejectionNotice, isDismissed: true };
+                  localStorage.setItem('dinego_customer_rejection_notice', JSON.stringify(updated));
+                  setCustomerRejectionNotice(null);
+                  setCurrentTab('catering');
+                }}
+                style={{
+                  flex: 1,
+                  padding: '11px 16px',
+                  borderRadius: 8,
+                  background: '#D97706',
+                  color: '#FFFFFF',
+                  fontSize: '0.84rem',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                Đặt lại tiệc khác
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const updated = { ...customerRejectionNotice, isDismissed: true };
+                  localStorage.setItem('dinego_customer_rejection_notice', JSON.stringify(updated));
+                  setCustomerRejectionNotice(null);
+                }}
+                style={{
+                  padding: '11px 16px',
+                  borderRadius: 8,
+                  background: '#F1F5F9',
+                  color: '#475569',
+                  fontSize: '0.84rem',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Prominent Customer Approval & Deposit QR Modal */}
+      <CustomerDepositQrModal
+        isOpen={Boolean(isTargetCustomerForApproval && customerApprovalNotice)}
+        notice={customerApprovalNotice}
+        onClose={() => {
+          if (customerApprovalNotice) {
+            const updated = { ...customerApprovalNotice, isDismissed: true };
+            localStorage.setItem('dinego_customer_approval_notice', JSON.stringify(updated));
+          }
+          setCustomerApprovalNotice(null);
+        }}
+        onConfirmPaid={(notice) => {
+          handleCustomerConfirmPaidDeposit(notice);
+        }}
+        onViewOrders={() => {
+          setCurrentTab('orders');
+        }}
+      />
     </div>
   );
 };
