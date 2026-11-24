@@ -1823,8 +1823,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   const [reviews, setReviews] = useState<any[]>([]);
 
-<<<<<<< Updated upstream
-=======
   // AI Knowledge Base (RAG) State — Loaded from SQL Server knowledge_base_vectors
   const [knowledgeChunks, setKnowledgeChunks] = useState<
     Array<{ id: string; source: string; content: string; authorName: string; createdAt: string }>
@@ -1888,7 +1886,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     triggerAdminToast('Đã xóa đoạn tri thức khỏi cơ sở dữ liệu AI.');
   };
 
->>>>>>> Stashed changes
   // Load real feastBookings, complaints, and reviews directly from SQL Server database on mount
   useEffect(() => {
     let active = true;
@@ -6103,41 +6100,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               </div>
             )}
 
-            {/* ADMIN TAB: AI LOCAL CULINARY KNOWLEDGE BASE (ĐANG BẢO TRÌ) */}
+            {/* ADMIN TAB: AI LOCAL CULINARY KNOWLEDGE BASE (RAG CRUD - SQL SERVER) */}
             {currentAdminTab === 'admin-knowledge' && (
-<<<<<<< Updated upstream
-              <div
-                style={{
-                  background: '#FFFFFF',
-                  border: '1px solid #E2E8F0',
-                  borderRadius: 12,
-                  padding: '64px 24px',
-                  textAlign: 'center',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                }}
-              >
-                <div
-                  style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: '50%',
-                    background: '#FEF3C7',
-                    color: '#D97706',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: 16,
-                  }}
-                >
-                  <AlertTriangle size={28} />
-                </div>
-                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', margin: '0 0 8px 0' }}>
-                  Phân hệ Tri thức AI (RAG) đang bảo trì
-                </h3>
-                <p style={{ fontSize: '0.88rem', color: '#64748B', maxWidth: 460, margin: '0 auto' }}>
-                  Chức năng quản trị cơ sở tri thức AI hiện đang để trống và tạm ngưng để bảo trì nâng cấp hệ thống.
-                </p>
-=======
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {/* Compact Header Bar with Pop-up Modal Triggers */}
                 <div
@@ -6579,7 +6543,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     </div>
                   </div>
                 )}
->>>>>>> Stashed changes
               </div>
             )}
 
