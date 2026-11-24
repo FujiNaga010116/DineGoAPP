@@ -96,9 +96,78 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
     );
   }, [customerComplaints, currentUser, orders]);
 
-  const totalRefundBalance = useMemo(() => {
+  const [refundWithdrawals, setRefundWithdrawals] = useState<
+    Array<{
+      id: string;
+      amount: number;
+      bankName: string;
+      bankAccountNumber: string;
+      bankAccountHolder: string;
+      createdAt: string;
+      status: 'COMPLETED';
+    }>
+  >(() => {
+    try {
+      const key = `dinego_customer_refund_withdrawals_${currentUser?.id || 'guest'}`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+  const [refundTransferNotice, setRefundTransferNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    try {
+      const key = `dinego_customer_refund_withdrawals_${currentUser?.id || 'guest'}`;
+      localStorage.setItem(key, JSON.stringify(refundWithdrawals));
+    } catch {}
+  }, [refundWithdrawals, currentUser?.id]);
+
+  const totalRefundEarned = useMemo(() => {
     return resolvedRefunds.reduce((s, c) => s + (Number(c.compensationAmount) || 0), 0);
   }, [resolvedRefunds]);
+
+  const totalRefundWithdrawn = useMemo(() => {
+    return refundWithdrawals.reduce((s, w) => s + (Number(w.amount) || 0), 0);
+  }, [refundWithdrawals]);
+
+  const totalRefundBalance = Math.max(0, totalRefundEarned - totalRefundWithdrawn);
+
+  const handleTransferRefundToBank = () => {
+    if (totalRefundBalance <= 0) return;
+    if (!bankName.trim() || !bankAccountNumber.trim() || !bankAccountHolder.trim()) {
+      setRefundTransferNotice({
+        type: 'error',
+        text: 'Vui lòng điền đầy đủ Tên ngân hàng, Số tài khoản và Tên chủ tài khoản phía trên trước khi chuyển tiền.',
+      });
+      return;
+    }
+
+    const transferredAmount = totalRefundBalance;
+    const newTx = {
+      id: `wd-cust-${Date.now()}`,
+      amount: transferredAmount,
+      bankName: bankName.trim(),
+      bankAccountNumber: bankAccountNumber.trim(),
+      bankAccountHolder: bankAccountHolder.trim(),
+      createdAt: new Date().toLocaleString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      status: 'COMPLETED' as const,
+    };
+
+    setRefundWithdrawals((prev) => [newTx, ...prev]);
+    const successText = `Đã chuyển thành công ${transferredAmount.toLocaleString('vi-VN')}đ về ${newTx.bankName} (${newTx.bankAccountNumber} - ${newTx.bankAccountHolder}).`;
+    setRefundTransferNotice({ type: 'success', text: successText });
+    triggerSavedBanner(successText);
+  };
 
   const invoiceStats = useMemo(() => {
     let totalPaidAmount = 0;
@@ -1000,11 +1069,12 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
                   </div>
                   <div style={{ fontSize: '0.76rem', color: '#15803D', marginTop: 4 }}>
                     {resolvedRefunds.length} khiếu nại đã được Admin giải quyết &amp; bồi hoàn
+                    {totalRefundWithdrawn > 0 ? ` • Đã rút ${totalRefundWithdrawn.toLocaleString('vi-VN')}đ` : ''}
                   </div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => triggerSavedBanner(`Đã gửi lệnh rút ${totalRefundBalance.toLocaleString('vi-VN')}đ về ${bankName || 'tài khoản thụ hưởng'}.`)}
+                  onClick={handleTransferRefundToBank}
                   disabled={totalRefundBalance <= 0}
                   style={{
                     padding: '10px 18px',
@@ -1020,6 +1090,77 @@ export const CustomerProfilePage: React.FC<CustomerProfilePageProps> = ({
                   Chuyển về tài khoản ngân hàng thụ hưởng
                 </button>
               </div>
+
+              {refundTransferNotice && (
+                <div
+                  style={{
+                    marginBottom: 16,
+                    padding: '12px 16px',
+                    borderRadius: 8,
+                    fontSize: '0.84rem',
+                    fontWeight: 600,
+                    background: refundTransferNotice.type === 'success' ? '#DCFCE7' : '#FEE2E2',
+                    color: refundTransferNotice.type === 'success' ? '#166534' : '#991B1B',
+                    border: refundTransferNotice.type === 'success' ? '1px solid #86EFAC' : '1px solid #FECACA',
+                  }}
+                >
+                  {refundTransferNotice.text}
+                </div>
+              )}
+
+              {refundWithdrawals.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0F172A', marginBottom: 10 }}>
+                    Lịch sử Chuyển tiền về Ngân hàng ({refundWithdrawals.length})
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {refundWithdrawals.map((w) => (
+                      <div
+                        key={w.id}
+                        style={{
+                          background: '#F8FAFC',
+                          border: '1px solid #E2E8F0',
+                          borderRadius: 8,
+                          padding: '12px 16px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          flexWrap: 'wrap',
+                          gap: 10,
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>
+                            Rút tiền về {w.bankName} ({w.bankAccountNumber})
+                          </div>
+                          <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: 2 }}>
+                            Chủ TK: {w.bankAccountHolder} • Lúc {w.createdAt}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A' }}>
+                            -{w.amount.toLocaleString('vi-VN')}đ
+                          </div>
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              marginTop: 2,
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              padding: '2px 8px',
+                              borderRadius: 4,
+                              background: '#DCFCE7',
+                              color: '#15803D',
+                            }}
+                          >
+                            Đã chuyển thành công
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {resolvedRefunds.length > 0 && (
                 <div>
