@@ -12,6 +12,7 @@ import {
   Plus,
   Minus,
   Check,
+  CheckCircle2,
   ShoppingBag,
   Sparkles,
   ShieldCheck,
@@ -340,23 +341,24 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
         <div
           style={{
             position: 'fixed',
-            bottom: 30,
-            right: 30,
-            zIndex: 999,
-            background: 'var(--primary)',
-            color: '#fff',
-            padding: '14px 24px',
+            bottom: 28,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#0F172A',
+            color: '#FFFFFF',
+            padding: '12px 24px',
             borderRadius: 14,
-            boxShadow: '0 10px 30px rgba(0, 177, 79, 0.35)',
+            boxShadow: '0 12px 30px rgba(0, 0, 0, 0.28)',
             display: 'flex',
             alignItems: 'center',
             gap: 10,
+            zIndex: 2000,
             fontWeight: 700,
-            fontSize: '0.95rem',
-            animation: 'fadeIn 0.25s ease-out',
+            fontSize: '0.88rem',
+            animation: 'fadeIn 0.2s ease-out',
           }}
         >
-          <Check size={20} />
+          <CheckCircle2 size={18} color="#00B14F" />
           <span>{toastMessage}</span>
         </div>
       )}

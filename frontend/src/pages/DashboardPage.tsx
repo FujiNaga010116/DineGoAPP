@@ -39,6 +39,7 @@ import {
   AlertTriangle,
   Camera,
   Phone,
+  Compass,
 } from 'lucide-react';
 import type { Role, User, Order, OrderStatus, MenuItem, Merchant, DriverProfile, DeliveryDisputeReport } from '../types';
 import { OrderChatModal } from '../components/common/OrderChatModal';
@@ -2143,6 +2144,36 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 ONLINE
               </span>
             </div>
+            <button
+              onClick={() => onNavigate?.('home')}
+              style={{
+                width: '100%',
+                padding: '9px 12px',
+                borderRadius: 8,
+                background: 'rgba(0, 177, 79, 0.12)',
+                border: '1px solid rgba(0, 177, 79, 0.3)',
+                color: '#34D399',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                marginBottom: 8,
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#00B14F';
+                e.currentTarget.style.color = '#FFFFFF';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(0, 177, 79, 0.12)';
+                e.currentTarget.style.color = '#34D399';
+              }}
+            >
+              <Compass size={15} /> Xem Website Khách hàng
+            </button>
             <button
               onClick={() => onLogout?.()}
               style={{
@@ -7247,6 +7278,27 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               + Đăng ký mở chi nhánh mới
             </button>
           )}
+          <button
+            onClick={() => onNavigate?.('home')}
+            style={{
+              width: '100%',
+              padding: '9px 12px',
+              borderRadius: 8,
+              background: '#F0FDF4',
+              border: '1px solid #BBF7D0',
+              color: '#00B14F',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              cursor: 'pointer',
+              marginBottom: 4,
+            }}
+          >
+            <Compass size={15} /> Xem Gian hàng trên Sàn
+          </button>
           <button
             onClick={() => onLogout?.()}
             style={{
