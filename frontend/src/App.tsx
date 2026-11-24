@@ -858,14 +858,37 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleUpdateOrderDetails = (orderId: string, updates: Partial<Order>) => {
+    setOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, ...updates } : o)),
+    );
+  };
+
   const handleUpdateOrderStatus = (orderId: string, newStatus: OrderStatus) => {
     const completedOrder = orders.find((o) => o.id === orderId);
+    let merchantComp = 0;
+    // Operational Case 6: Quán hủy khi tài xế đã đến nơi -> Bồi thường tài xế 15.000đ cước di chuyển
+    if (newStatus === 'CANCELLED' && completedOrder && (completedOrder.driverArrivedAtStore || completedOrder.assignedDriverId)) {
+      merchantComp = 15000;
+      const assignedDrvId = completedOrder.assignedDriverId;
+      if (assignedDrvId) {
+        setDrivers((prev) =>
+          prev.map((drv) =>
+            drv.id === assignedDrvId
+              ? { ...drv, walletBalance: (drv.walletBalance || 0) + 15000 }
+              : drv,
+          ),
+        );
+      }
+    }
+
     setOrders((prev) =>
       prev.map((o) => {
         if (o.id === orderId) {
           return {
             ...o,
             status: newStatus,
+            merchantCancellationCompensation: merchantComp || o.merchantCancellationCompensation,
           };
         }
         return o;
@@ -1123,6 +1146,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
       target &&
       target.status === 'PENDING_REVIEW'
     ) {
+      // 1. Bồi hoàn cước phí vào ví của tài xế
       setDrivers((prev) =>
         prev.map((drv) =>
           drv.id === target.driverId
@@ -1133,6 +1157,39 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
             : drv,
         ),
       );
+
+      // 2. Chế tài khách hàng (Khóa COD + Blacklist nếu vi phạm bom hàng) - Images 1 & 3
+      const isFeastBom = target.orderId.includes('catering') || target.reason === 'REFUSED_ORDER';
+      setUsers((prev) =>
+        prev.map((u) => {
+          if (u.id === target.customerId || u.phoneNumber === target.customerPhone) {
+            return {
+              ...u,
+              codBlocked: true,
+              isBlacklisted: isFeastBom ? true : u.isBlacklisted,
+              blacklistReason: isFeastBom
+                ? 'Vi phạm bom đơn tiệc lớn / từ chối nhận hàng không lý do'
+                : u.blacklistReason,
+            };
+          }
+          return u;
+        }),
+      );
+
+      // Cập nhật currentUser nếu đang đăng nhập tài khoản khách này
+      setCurrentUser((prev) => {
+        if (prev && (prev.id === target.customerId || prev.phoneNumber === target.customerPhone)) {
+          return {
+            ...prev,
+            codBlocked: true,
+            isBlacklisted: isFeastBom ? true : prev.isBlacklisted,
+            blacklistReason: isFeastBom
+              ? 'Vi phạm bom đơn tiệc lớn / từ chối nhận hàng không lý do'
+              : prev.blacklistReason,
+          };
+        }
+        return prev;
+      });
     }
   };
 
@@ -1276,6 +1333,8 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
             onNavigate={(tab: any) => setCurrentTab(tab)}
             merchants={merchants}
             onOpenMerchantRegisterModal={() => handleOpenAuthModal('register', 'MERCHANT')}
+            currentUser={currentUser}
+            onOpenAddressSetup={handleRequireAddressSetup}
           />
         )}
 
@@ -1403,6 +1462,7 @@ export const AppContent: React.FC<AppContentProps> = ({ currentUser, setCurrentU
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             onUpdateOrderStatus={handleUpdateOrderStatus}
+            onUpdateOrderDetails={handleUpdateOrderDetails}
             onAcceptDriverOrder={handleAcceptDriverOrder}
             onMarkDriverArrivedAtStore={handleMarkDriverArrivedAtStore}
             onConfirmCustomerReceipt={handleConfirmCustomerReceipt}

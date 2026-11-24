@@ -37,7 +37,12 @@ import {
   AlertTriangle,
   Camera,
   Upload,
+  MessageSquare,
+  Banknote,
+  QrCode,
+  AlertCircle,
 } from 'lucide-react';
+import { VietQrPaymentModal } from '../components/common/VietQrPaymentModal';
 import type {
   DeliveryDisputeReason,
   DeliveryDisputeReport,
@@ -48,8 +53,10 @@ import type {
   Order,
   OrderItem,
   OrderStatus,
+  OrderChatChannel,
   User,
 } from '../types';
+import { OrderChatModal } from '../components/common/OrderChatModal';
 import type { NavTab } from '../components/common/Header';
 import {
   MOCK_DRIVERS,
@@ -216,10 +223,11 @@ function estimateOrderRouteMetrics(
 }
 
 const DISPUTE_REASON_LABELS: Record<DeliveryDisputeReason, string> = {
-  NO_ANSWER: 'Khách không nghe máy / Chặn liên lạc nhiều lần',
+  NO_ANSWER: 'Khách không nghe máy / Chặn liên lạc nhiều lần (>10 phút)',
   REFUSED_ORDER: 'Khách từ chối nhận hàng / Bom đơn không lý do',
   WRONG_ADDRESS: 'Địa chỉ sai / Không có người nhận tại điểm giao',
   UNABLE_COLLECT: 'Từ chối thanh toán COD khi nhận món',
+  ADDRESS_TOO_FAR: 'Khách tự ý đổi địa chỉ xa (>1km) không chịu trả phụ phí',
 };
 
 function compressEvidenceFile(file: File): Promise<string> {
@@ -306,6 +314,7 @@ export interface TrackingPageProps {
   activeTab?: NavTab;
   onNavigate?: (tab: NavTab) => void;
   onUpdateOrderStatus?: (orderId: string, newStatus: OrderStatus) => void;
+  onUpdateOrderDetails?: (orderId: string, updates: Partial<Order>) => void;
   onAcceptDriverOrder?: (orderId: string, driver: DriverProfile) => void;
   onMarkDriverArrivedAtStore?: (orderId: string) => void;
   onConfirmCustomerReceipt?: (orderId: string) => void;
@@ -331,6 +340,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
   activeTab = 'tracking',
   onNavigate,
   onUpdateOrderStatus,
+  onUpdateOrderDetails,
   onAcceptDriverOrder,
   onMarkDriverArrivedAtStore,
   onConfirmCustomerReceipt,
@@ -367,6 +377,79 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
   const [disputeEvidenceImages, setDisputeEvidenceImages] = useState<string[]>([]);
   const [disputeError, setDisputeError] = useState('');
   const [disputeSuccessBanner, setDisputeSuccessBanner] = useState('');
+  const [isOrderChatOpen, setIsOrderChatOpen] = useState(false);
+  const [orderChatDefaultChannel, setOrderChatDefaultChannel] = useState<OrderChatChannel>('CUSTOMER_MERCHANT');
+  const [vietQrPaymentOrder, setVietQrPaymentOrder] = useState<Order | null>(null);
+
+  const handleOpenOrderChat = (channel: OrderChatChannel = 'CUSTOMER_MERCHANT') => {
+    setOrderChatDefaultChannel(channel);
+    setIsOrderChatOpen(true);
+  };
+
+  const handleConfirmCashPayment = (targetOrder: Order) => {
+    const confirmed = window.confirm(
+      `Xác nhận bạn đã thu đủ ${(targetOrder.finalTotal || 0).toLocaleString('vi-VN')}đ tiền mặt từ khách hàng?`
+    );
+    if (!confirmed) return;
+
+    const updated: Order = {
+      ...targetOrder,
+      paymentStatus: 'PAID',
+      payment: {
+        id: targetOrder.payment?.id || `pay-${Date.now()}`,
+        paymentMethod: 'COD',
+        paymentStatus: 'SUCCESS',
+        amount: targetOrder.finalTotal,
+        currency: 'VND',
+        transactionRef: 'COD-CASH-CONFIRMED',
+        paidAt: new Date().toISOString(),
+      },
+    };
+
+    onUpdateOrderDetails?.(targetOrder.id, {
+      paymentStatus: 'PAID',
+      payment: updated.payment,
+    });
+    try {
+      const savedAll = localStorage.getItem('dinego_all_orders');
+      if (savedAll) {
+        const list: Order[] = JSON.parse(savedAll);
+        const next = list.map((o) => (o.id === targetOrder.id ? updated : o));
+        localStorage.setItem('dinego_all_orders', JSON.stringify(next));
+      }
+      const savedCust = localStorage.getItem('dinego_customer_orders');
+      if (savedCust) {
+        const list: Order[] = JSON.parse(savedCust);
+        const next = list.map((o) => (o.id === targetOrder.id ? updated : o));
+        localStorage.setItem('dinego_customer_orders', JSON.stringify(next));
+      }
+    } catch (e) {
+      console.error('Failed to sync cash payment:', e);
+    }
+
+    window.dispatchEvent(
+      new CustomEvent('dinego_order_payment_updated', {
+        detail: { orderId: targetOrder.id, updatedOrder: updated },
+      })
+    );
+    alert(`✓ Đã xác nhận thu đủ ${(targetOrder.finalTotal || 0).toLocaleString('vi-VN')}đ tiền mặt!`);
+  };
+
+  useEffect(() => {
+    const handlePaymentUpdated = (e: any) => {
+      const { updatedOrder } = e.detail || {};
+      if (updatedOrder && activeOrder && updatedOrder.id === activeOrder.id) {
+        onUpdateOrderDetails?.(updatedOrder.id, {
+          paymentStatus: updatedOrder.paymentStatus,
+          payment: updatedOrder.payment,
+        });
+      }
+    };
+    window.addEventListener('dinego_order_payment_updated', handlePaymentUpdated);
+    return () => {
+      window.removeEventListener('dinego_order_payment_updated', handlePaymentUpdated);
+    };
+  }, [activeOrder?.id]);
   const [shiftTickMs, setShiftTickMs] = useState<number>(() => Date.now());
   const activeShift = driverShifts.find((s) => s.status === 'ACTIVE') || null;
   const [withdrawnNotice, setWithdrawnNotice] = useState(false);
@@ -610,6 +693,46 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
   const [routeSource, setRouteSource] = useState<'osrm' | 'fallback'>('osrm');
   const [gpsStatusNotice, setGpsStatusNotice] = useState('');
   const [isAutoMoving, setIsAutoMoving] = useState(false);
+
+  // --- Delivery Dispute & Operational Mechanism States (Images 1-6) ---
+  const [waitTimerActive, setWaitTimerActive] = useState(false);
+  const [waitTimerSeconds, setWaitTimerSeconds] = useState(600); // 10 minutes SLA countdown
+  const [customerCallLogs, setCustomerCallLogs] = useState<string[]>([]);
+  const [storeWaitSeconds, setStoreWaitSeconds] = useState(0);
+  const [claimedStoreWaitBonus, setClaimedStoreWaitBonus] = useState(false);
+  const [isDivertModalOpen, setIsDivertModalOpen] = useState(false);
+  const [divertNewAddress, setDivertNewAddress] = useState('');
+  const [divertExtraKm, setDivertExtraKm] = useState(2);
+  const [divertSuccessNotice, setDivertSuccessNotice] = useState('');
+
+  // 10-Minute SLA Wait Timer Effect
+  useEffect(() => {
+    if (!waitTimerActive || waitTimerSeconds <= 0) return;
+    const interval = setInterval(() => {
+      setWaitTimerSeconds((prev) => {
+        if (prev <= 1) {
+          setWaitTimerActive(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [waitTimerActive, waitTimerSeconds]);
+
+  // Store Delay Timer Effect (counts elapsed time at store until merchant hands over food)
+  useEffect(() => {
+    const isAtStoreWaiting =
+      tracking.status === 'ARRIVED_AT_STORE' &&
+      !activeOrder?.merchantConfirmedPickup &&
+      activeOrder?.status !== 'DELIVERING' &&
+      activeOrder?.status !== 'COMPLETED';
+    if (!isAtStoreWaiting) return;
+    const interval = setInterval(() => {
+      setStoreWaitSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [tracking.status, activeOrder?.merchantConfirmedPickup, activeOrder?.status]);
 
   const routeCursorRef = useRef<number>(0);
   const prevActiveOrderIdRef = useRef<string | null>(activeOrder?.id || null);
@@ -1183,6 +1306,17 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
         alert('Chưa thể hoàn tất: Khách hàng chưa bấm "Xác nhận đã nhận được hàng". Vui lòng yêu cầu khách xác nhận trên ứng dụng hoặc gửi Tố cáo bom hàng nếu khách không nhận.');
         return;
       }
+      const isPaid =
+        activeOrder.paymentStatus === 'PAID' ||
+        activeOrder.payment?.paymentStatus === 'SUCCESS' ||
+        activeOrder.paymentMethod === 'MOMO_QR' ||
+        activeOrder.paymentMethod === 'MOMO';
+      if (!isPaid) {
+        alert(
+          `Chưa thể hoàn tất: Đơn hàng chưa được thanh toán! Vui lòng bấm "Thu tiền mặt" hoặc mở "VietQR" để khách quét mã thanh toán số tiền ${activeOrder.finalTotal.toLocaleString('vi-VN')}đ trước khi bàn giao món.`
+        );
+        return;
+      }
       const updated: TrackingState = {
         ...cur,
         status: 'DELIVERED',
@@ -1198,11 +1332,72 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
     }
   };
 
+  const handleToggleWaitTimer = () => {
+    if (!waitTimerActive && waitTimerSeconds === 0) {
+      setWaitTimerSeconds(600);
+    }
+    setWaitTimerActive((prev) => !prev);
+  };
+
+  const handleFastForwardWaitTimer = () => {
+    setWaitTimerSeconds(0);
+    setWaitTimerActive(false);
+  };
+
+  const handleRecordCustomerCall = () => {
+    const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setCustomerCallLogs((prev) => [...prev, timeStr]);
+    setDisputeCallCount((prev) => Math.max(prev + 1, customerCallLogs.length + 1));
+  };
+
+  const handleClaimStoreWaitBonus = () => {
+    if (!activeOrder || claimedStoreWaitBonus) return;
+    onUpdateOrderDetails?.(activeOrder.id, {
+      waitFeeBonus: 10000,
+      waitFeeMerchantPenalty: true,
+    });
+    setClaimedStoreWaitBonus(true);
+    alert('Đã ghi nhận hỗ trợ cước chờ +10.000đ vào thu nhập của bạn (Khấu trừ vào phí nhà hàng do làm chậm >15p).');
+  };
+
+  const handleDriverCancelStoreDelay = () => {
+    if (!activeOrder) return;
+    if (window.confirm('Quán ngâm đơn >20 phút. Bạn có chắc chắn muốn hủy đơn không bị phạt tỷ lệ nhận/hủy? Hệ thống sẽ điều phối tài xế khác khi món ăn sẵn sàng.')) {
+      onUpdateOrderStatus?.(activeOrder.id, 'CANCELLED');
+    }
+  };
+
+  const handleConfirmDivertFee = () => {
+    if (!activeOrder || !divertNewAddress.trim()) return;
+    const extraKm = Math.max(1, Number(divertExtraKm) || 1);
+    const surcharge = extraKm * 10000;
+    onUpdateOrderDetails?.(activeOrder.id, {
+      divertedAddress: divertNewAddress.trim(),
+      extraDistanceKm: extraKm,
+      extraDistanceFee: surcharge,
+      deliveryAddress: `${activeOrder.deliveryAddress} ➔ Đổi sang: ${divertNewAddress.trim()} (+${extraKm}km, +${surcharge.toLocaleString('vi-VN')}đ)`,
+    });
+    setIsDivertModalOpen(false);
+    setDivertSuccessNotice(`Đã ghi nhận khách đồng ý phụ phí +${surcharge.toLocaleString('vi-VN')}đ (+${extraKm}km) đổi địa chỉ.`);
+  };
+
+  const handleRejectDivertAndDispute = () => {
+    setIsDivertModalOpen(false);
+    setDisputeReason('ADDRESS_TOO_FAR');
+    setDisputeDesc(`Khách tự ý yêu cầu đổi địa chỉ sang ${divertNewAddress.trim()} (xa thêm +${divertExtraKm}km) nhưng từ chối thanh toán phụ phí phát sinh 10.000đ/km theo quy định.`);
+    setIsDisputeModalOpen(true);
+  };
+
   const handleOpenDisputeModal = () => {
     setDisputeReason('NO_ANSWER');
-    setDisputeCallCount(3);
-    setDisputeWaitMins(10);
-    setDisputeDesc('');
+    setDisputeCallCount(Math.max(customerCallLogs.length, 3));
+    const waitedMins = Math.max(10, Math.ceil((600 - waitTimerSeconds) / 60));
+    setDisputeWaitMins(waitedMins);
+    setDisputeDesc(
+      customerCallLogs.length > 0
+        ? `Đã đứng tại điểm giao, thực hiện ${customerCallLogs.length} cuộc gọi liên lạc (${customerCallLogs.join(', ')}). Khách không nghe máy hoặc từ chối nhận.`
+        : ''
+    );
     setDisputeEvidenceImages([]);
     setDisputeError('');
     setIsDisputeModalOpen(true);
@@ -1261,6 +1456,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
 
     const cur = latestTrackingRef.current;
     const now = new Date();
+    const isCOD = activeOrder.payment?.paymentMethod === 'COD';
     const report: DeliveryDisputeReport = {
       id: `disp-${now.getTime()}`,
       reportCode: `BOM-${String(now.getTime()).slice(-6)}`,
@@ -1283,6 +1479,11 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
       callAttemptsCount: Math.max(0, disputeCallCount),
       waitMinutes: Math.max(0, disputeWaitMins),
       evidenceImages: disputeEvidenceImages,
+      callLogTimestamps: customerCallLogs.length > 0 ? customerCallLogs : [now.toLocaleTimeString('vi-VN')],
+      waitSecondsElapsed: 600 - waitTimerSeconds,
+      riskFundPayout: isCOD,
+      merchantKeepPayout: !isCOD,
+      customerCodBlocked: true,
       gpsSnapshot: {
         lat: cur.currentLat,
         lng: cur.currentLng,
@@ -2143,6 +2344,25 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                               >
                                 <Phone size={11} /> {activeOrder.recipientPhone}
                               </a>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenOrderChat('CUSTOMER_DRIVER')}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  fontSize: '0.74rem',
+                                  fontWeight: 700,
+                                  color: '#0284C7',
+                                  background: '#E0F2FE',
+                                  border: '1px solid #BAE6FD',
+                                  padding: '2px 9px',
+                                  borderRadius: 999,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <MessageSquare size={11} /> Nhắn tin với Khách
+                              </button>
                             </div>
                             <div style={{ fontSize: '0.82rem', color: '#475569', marginTop: 2 }}>
                               {tracking.customerAddress}
@@ -2389,7 +2609,12 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                         const isWithin100m =
                           tracking.distanceKm <= 0.1 || tracking.status === 'ARRIVED_AT_DESTINATION';
                         const hasCustomerConfirmed = Boolean(activeOrder.customerConfirmedReceipt);
-                        const canFinishDelivery = hasPickedUpFood && isWithin100m && hasCustomerConfirmed;
+                        const isPaid =
+                          activeOrder.paymentStatus === 'PAID' ||
+                          activeOrder.payment?.paymentStatus === 'SUCCESS' ||
+                          activeOrder.paymentMethod === 'MOMO_QR' ||
+                          activeOrder.paymentMethod === 'MOMO';
+                        const canFinishDelivery = hasPickedUpFood && isWithin100m && hasCustomerConfirmed && isPaid;
 
                         return (
                           <>
@@ -2439,6 +2664,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                                 </div>
                               </div>
                             ) : (
+                              <>
                               <div
                                 style={{
                                   marginBottom: 12,
@@ -2478,7 +2704,107 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                                       : '2. Đang chờ khách hàng bấm "Xác nhận đã nhận được hàng" trên app khách'}
                                   </span>
                                 </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: isPaid ? '#15803D' : '#DC2626', fontWeight: 700 }}>
+                                  {isPaid ? <CheckCircle2 size={14} color="#16A34A" /> : <Lock size={14} color="#DC2626" />}
+                                  <span>
+                                    {isPaid
+                                      ? `3. Đã thanh toán đầy đủ (${activeOrder.paymentMethod === 'COD' ? 'Đã thu tiền mặt' : activeOrder.paymentMethod === 'VIETQR_ON_DELIVERY' ? 'Đã nhận chuyển khoản VietQR' : 'Đã trả trước Online'})`
+                                      : `3. Chưa thanh toán: Cần thu ${activeOrder.finalTotal.toLocaleString('vi-VN')}đ (Tiền mặt hoặc Quét mã VietQR)`}
+                                  </span>
+                                </div>
                               </div>
+
+                              {/* Payment Status Banner & Quick Action for Driver */}
+                              <div
+                                style={{
+                                  marginBottom: 12,
+                                  padding: '12px 14px',
+                                  borderRadius: 10,
+                                  background: isPaid ? '#F0FDF4' : '#FEF2F2',
+                                  border: `1.5px solid ${isPaid ? '#86EFAC' : '#FCA5A5'}`,
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  gap: 10,
+                                  flexWrap: 'wrap',
+                                }}
+                              >
+                                <div>
+                                  <div
+                                    style={{
+                                      fontWeight: 800,
+                                      fontSize: '0.86rem',
+                                      color: isPaid ? '#15803D' : '#DC2626',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 6,
+                                    }}
+                                  >
+                                    {isPaid ? (
+                                      <>
+                                        <CheckCircle2 size={16} color="#16A34A" />
+                                        <span>ĐÃ THANH TOÁN (0đ CẦN THU)</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <AlertCircle size={16} color="#DC2626" />
+                                        <span>CHƯA THANH TOÁN • CẦN THU ${activeOrder.finalTotal.toLocaleString('vi-VN')}đ</span>
+                                      </>
+                                    )}
+                                  </div>
+                                  <div style={{ fontSize: '0.75rem', color: isPaid ? '#166534' : '#991B1B', marginTop: 2 }}>
+                                    {isPaid
+                                      ? 'Đơn đã quyết toán online qua Sàn. Tuyệt đối KHÔNG thu thêm tiền của khách.'
+                                      : 'Đồng kiểm: Cho khách xem tem bao bì rồi thu tiền mặt hoặc mở VietQR cho khách quét.'}
+                                  </div>
+                                </div>
+
+                                {!isPaid && (
+                                  <div style={{ display: 'inline-flex', gap: 6 }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleConfirmCashPayment(activeOrder)}
+                                      style={{
+                                        padding: '6px 11px',
+                                        borderRadius: 7,
+                                        background: '#059669',
+                                        color: '#FFFFFF',
+                                        fontSize: '0.74rem',
+                                        fontWeight: 700,
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 4,
+                                      }}
+                                    >
+                                      <Banknote size={13} />
+                                      <span>Thu tiền mặt</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setVietQrPaymentOrder(activeOrder)}
+                                      style={{
+                                        padding: '6px 11px',
+                                        borderRadius: 7,
+                                        background: '#0284C7',
+                                        color: '#FFFFFF',
+                                        fontSize: '0.74rem',
+                                        fontWeight: 700,
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 4,
+                                      }}
+                                    >
+                                      <QrCode size={13} />
+                                      <span>Mở VietQR</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                              </>
                             )}
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -2612,6 +2938,213 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                                 <span>4. Hoàn tất giao hàng</span>
                               </button>
                             </div>
+
+                            {/* Operational Case 6: Store Delay (>15-20 mins) & Wait Fee */}
+                            {tracking.status === 'ARRIVED_AT_STORE' && !hasMerchantConfirmedPickup && (
+                              <div
+                                style={{
+                                  marginTop: 12,
+                                  padding: 12,
+                                  borderRadius: 10,
+                                  background: '#FFFBEB',
+                                  border: '1.5px solid #FDE68A',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 8,
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, color: '#B45309', fontSize: '0.82rem' }}>
+                                    <Clock size={15} />
+                                    <span>SLA Thời gian chờ tại quán:</span>
+                                  </div>
+                                  <span style={{ fontWeight: 800, color: '#92400E', fontSize: '0.88rem', fontVariantNumeric: 'tabular-nums' }}>
+                                    {Math.floor(storeWaitSeconds / 60)} phút {storeWaitSeconds % 60}s
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: '0.75rem', color: '#78350F', lineHeight: 1.4 }}>
+                                  Quán cần bàn giao món trong vòng 15 phút. Nếu ngâm đơn &gt;15p, bạn được nhận phụ phí cước chờ (+10.000đ). Nếu &gt;20p, bạn có quyền hủy đơn miễn phí.
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 2 }}>
+                                  <button
+                                    type="button"
+                                    disabled={claimedStoreWaitBonus}
+                                    onClick={handleClaimStoreWaitBonus}
+                                    style={{
+                                      flex: 1,
+                                      padding: '7px 10px',
+                                      borderRadius: 7,
+                                      background: claimedStoreWaitBonus ? '#E2E8F0' : '#F59E0B',
+                                      color: claimedStoreWaitBonus ? '#64748B' : '#FFFFFF',
+                                      border: 'none',
+                                      fontWeight: 700,
+                                      fontSize: '0.74rem',
+                                      cursor: claimedStoreWaitBonus ? 'default' : 'pointer',
+                                    }}
+                                  >
+                                    {claimedStoreWaitBonus ? '✓ Đã nhận cước chờ (+10.000đ)' : '+ Nhận cước chờ (+10.000đ do quán trễ)'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={handleDriverCancelStoreDelay}
+                                    style={{
+                                      padding: '7px 10px',
+                                      borderRadius: 7,
+                                      background: '#FFFFFF',
+                                      border: '1px solid #DC2626',
+                                      color: '#DC2626',
+                                      fontWeight: 700,
+                                      fontSize: '0.74rem',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    Hủy đơn miễn phí (&gt;20p ngâm)
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Operational Case 2: Divert Address / Surcharge (>1km) */}
+                            {tracking.status === 'DELIVERING' && (
+                              <button
+                                type="button"
+                                onClick={() => setIsDivertModalOpen(true)}
+                                style={{
+                                  marginTop: 10,
+                                  width: '100%',
+                                  padding: '8px 12px',
+                                  borderRadius: 8,
+                                  background: '#F0FDF4',
+                                  border: '1px solid #BBF7D0',
+                                  color: '#15803D',
+                                  fontWeight: 700,
+                                  fontSize: '0.8rem',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: 6,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <Navigation size={14} />
+                                <span>Khách yêu cầu đổi địa chỉ giao khác? (Tính phụ phí +10k/km)</span>
+                              </button>
+                            )}
+
+                            {divertSuccessNotice && (
+                              <div style={{ marginTop: 8, padding: '8px 12px', borderRadius: 8, background: '#F0FDF4', color: '#166534', fontSize: '0.78rem', fontWeight: 600 }}>
+                                {divertSuccessNotice}
+                              </div>
+                            )}
+
+                            {/* Operational Case 1: 10-Minute SLA Wait Timer & Call Log Verification */}
+                            {(tracking.status === 'ARRIVED_AT_DESTINATION' || isWithin100m) && (
+                              <div
+                                style={{
+                                  marginTop: 12,
+                                  padding: 14,
+                                  borderRadius: 10,
+                                  background: '#F8FAFC',
+                                  border: '1.5px solid #CBD5E1',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 10,
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <Clock size={15} color="#0284C7" />
+                                    <span>Quy chuẩn SLA chờ khách nhận hàng (10 phút)</span>
+                                  </span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span
+                                      style={{
+                                        fontWeight: 900,
+                                        fontSize: '0.95rem',
+                                        color: waitTimerSeconds === 0 ? '#DC2626' : '#0284C7',
+                                        fontVariantNumeric: 'tabular-nums',
+                                      }}
+                                    >
+                                      {Math.floor(waitTimerSeconds / 60)}:{String(waitTimerSeconds % 60).padStart(2, '0')}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={handleToggleWaitTimer}
+                                      style={{
+                                        padding: '4px 8px',
+                                        borderRadius: 6,
+                                        background: waitTimerActive ? '#FEF2F2' : '#E0F2FE',
+                                        color: waitTimerActive ? '#DC2626' : '#0369A1',
+                                        border: 'none',
+                                        fontSize: '0.72rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      {waitTimerActive ? 'Tạm dừng' : waitTimerSeconds === 0 ? 'Đặt lại' : 'Bắt đầu chờ'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={handleFastForwardWaitTimer}
+                                      title="Thử nghiệm nhanh: đếm hết 10 phút"
+                                      style={{
+                                        padding: '4px 6px',
+                                        borderRadius: 6,
+                                        background: '#F1F5F9',
+                                        color: '#64748B',
+                                        border: '1px solid #CBD5E1',
+                                        fontSize: '0.7rem',
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      Hết giờ
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Checklist Verification */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.75rem' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: tracking.distanceKm <= 0.05 ? '#15803D' : '#D97706', fontWeight: 600 }}>
+                                    <span>{tracking.distanceKm <= 0.05 ? '✓' : '•'} Đứng trong bán kính 50m (GPS hiện tại: {(tracking.distanceKm * 1000).toFixed(0)}m)</span>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: waitTimerSeconds === 0 ? '#15803D' : '#64748B', fontWeight: 600 }}>
+                                    <span>{waitTimerSeconds === 0 ? '✓' : '•'} Đồng hồ đếm ngược đủ 10 phút {waitTimerSeconds === 0 ? '(Đã thỏa điều kiện)' : '(Đang chạy)'}</span>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: customerCallLogs.length >= 3 ? '#15803D' : '#B45309', fontWeight: 600 }}>
+                                    <span>{customerCallLogs.length >= 3 ? '✓' : '•'} Tối thiểu 3 cuộc gọi cách nhau &gt;= 2p ({customerCallLogs.length}/3 cuộc)</span>
+                                  </div>
+                                </div>
+
+                                {/* Call Log Button & List */}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                  <button
+                                    type="button"
+                                    onClick={handleRecordCustomerCall}
+                                    style={{
+                                      padding: '6px 12px',
+                                      borderRadius: 6,
+                                      background: '#0F172A',
+                                      color: '#FFFFFF',
+                                      border: 'none',
+                                      fontWeight: 700,
+                                      fontSize: '0.75rem',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 5,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <Phone size={13} />
+                                    <span>Ghi nhận 1 cuộc gọi cho khách (+1)</span>
+                                  </button>
+                                  {customerCallLogs.length > 0 && (
+                                    <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                                      Lịch sử gọi: {customerCallLogs.join(', ')}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
 
                             {/* Bom Hang / Dispute Evidence Trigger */}
                             <button
@@ -4654,6 +5187,175 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
             </div>
           </div>
         )}
+
+        {/* Divert Modal (Image 2: Khách tự ý đổi địa chỉ xa hơn khi shipper đã nhận món) */}
+        {isDivertModalOpen && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(15, 23, 42, 0.65)',
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 16,
+            }}
+          >
+            <div
+              style={{
+                background: '#FFFFFF',
+                borderRadius: 14,
+                width: '100%',
+                maxWidth: 480,
+                boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  padding: '16px 20px',
+                  background: '#0F172A',
+                  color: '#FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Navigation size={18} color="#38BDF8" />
+                  <span style={{ fontWeight: 800, fontSize: '0.95rem' }}>
+                    Quy Trình Khách Đổi Địa Chỉ Giao Hàng
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsDivertModalOpen(false)}
+                  style={{ background: 'transparent', border: 'none', color: '#94A3B8', cursor: 'pointer' }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    background: '#F0FDF4',
+                    border: '1px solid #BBF7D0',
+                    fontSize: '0.78rem',
+                    color: '#15803D',
+                    lineHeight: 1.4,
+                  }}
+                >
+                  <strong>Chính sách DineGo:</strong>
+                  <br />• <strong>Khoảng cách &lt; 1km:</strong> Shipper linh động hỗ trợ giao, khách tip thêm tùy tâm.
+                  <br />• <strong>Khoảng cách &gt; 1km:</strong> Phụ phí <strong>10.000đ/km phát sinh</strong>. Shipper có quyền từ chối nếu khách không chấp nhận trả phí.
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                    Địa chỉ mới khách yêu cầu giao tới:
+                  </label>
+                  <input
+                    type="text"
+                    value={divertNewAddress}
+                    onChange={(e) => setDivertNewAddress(e.target.value)}
+                    placeholder="VD: Số 45 Lê Lợi, Phường Bến Nghé, Quận 1..."
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.84rem' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                    Khoảng cách phát sinh thêm (km):
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <input
+                      type="number"
+                      min={1}
+                      max={30}
+                      step={0.5}
+                      value={divertExtraKm}
+                      onChange={(e) => setDivertExtraKm(Math.max(1, Number(e.target.value) || 1))}
+                      style={{ width: 100, padding: '9px 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.84rem' }}
+                    />
+                    <span style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0F172A' }}>
+                      = Phụ phí: <span style={{ color: '#059669' }}>{(divertExtraKm * 10000).toLocaleString('vi-VN')}đ</span> (10.000đ/km)
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 10 }}>
+                  <button
+                    type="button"
+                    disabled={!divertNewAddress.trim()}
+                    onClick={handleConfirmDivertFee}
+                    style={{
+                      width: '100%',
+                      padding: '11px 14px',
+                      borderRadius: 8,
+                      background: divertNewAddress.trim() ? '#059669' : '#CBD5E1',
+                      color: '#FFFFFF',
+                      fontWeight: 800,
+                      fontSize: '0.84rem',
+                      cursor: divertNewAddress.trim() ? 'pointer' : 'not-allowed',
+                      border: 'none',
+                    }}
+                  >
+                    ✓ Khách đồng ý trả phụ phí (+{(divertExtraKm * 10000).toLocaleString('vi-VN')}đ)
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={!divertNewAddress.trim()}
+                    onClick={handleRejectDivertAndDispute}
+                    style={{
+                      width: '100%',
+                      padding: '11px 14px',
+                      borderRadius: 8,
+                      background: '#FEF2F2',
+                      color: '#DC2626',
+                      border: '1.5px solid #FECACA',
+                      fontWeight: 800,
+                      fontSize: '0.84rem',
+                      cursor: divertNewAddress.trim() ? 'pointer' : 'not-allowed',
+                    }}
+                  >
+                    ✕ Khách từ chối trả phí ➔ Từ chối giao &amp; Tố cáo bom hàng
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Real-time Order Chat Modal for Driver Console */}
+        <OrderChatModal
+          isOpen={isOrderChatOpen}
+          onClose={() => setIsOrderChatOpen(false)}
+          order={activeOrder || null}
+          currentUserRole="DRIVER"
+          currentUserId={currentDriver.id}
+          currentUserName={currentDriver.fullName}
+          defaultChannel={orderChatDefaultChannel}
+          assignedDriverName={currentDriver.fullName}
+        />
+
+        {/* Dynamic VietQR Payment Modal for Driver */}
+        <VietQrPaymentModal
+          isOpen={Boolean(vietQrPaymentOrder)}
+          onClose={() => setVietQrPaymentOrder(null)}
+          order={vietQrPaymentOrder}
+          viewerRole="DRIVER"
+          onPaymentSuccess={(updated) => {
+            onUpdateOrderDetails?.(updated.id, {
+              paymentStatus: updated.paymentStatus,
+              payment: updated.payment,
+            });
+          }}
+        />
       </div>
     );
   }
@@ -4877,33 +5579,154 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                   Biển số: <strong>{tracking.licensePlate}</strong> • Đánh giá {tracking.driverRating} ★
                 </div>
               </div>
-              <a
-                href={`tel:${tracking.driverPhone}`}
-                style={{
-                  padding: '8px 14px',
-                  borderRadius: 8,
-                  background: '#F0FDF4',
-                  color: '#00B14F',
-                  fontWeight: 700,
-                  fontSize: '0.82rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                <Phone size={14} /> {tracking.driverPhone}
-              </a>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => handleOpenOrderChat('CUSTOMER_DRIVER')}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    background: '#F0FDF4',
+                    border: '1px solid #BBF7D0',
+                    color: '#15803D',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <MessageSquare size={13} /> Nhắn tin
+                </button>
+                <a
+                  href={`tel:${tracking.driverPhone}`}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: 8,
+                    background: '#F0FDF4',
+                    color: '#00B14F',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <Phone size={14} /> {tracking.driverPhone}
+                </a>
+              </div>
             </div>
 
-            <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 12, fontSize: '0.84rem', color: '#334155' }}>
-              <div style={{ marginBottom: 6 }}>
-                <strong>Nhà hàng:</strong> {tracking.restaurantName}
-              </div>
+            <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 12, fontSize: '0.84rem', color: '#334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
               <div>
-                <strong>Giao đến:</strong> {tracking.customerAddress}
+                <div style={{ marginBottom: 6 }}>
+                  <strong>Nhà hàng:</strong> {tracking.restaurantName}
+                </div>
+                <div>
+                  <strong>Giao đến:</strong> {tracking.customerAddress}
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => handleOpenOrderChat('CUSTOMER_MERCHANT')}
+                style={{
+                  padding: '7px 12px',
+                  borderRadius: 8,
+                  background: '#EFF6FF',
+                  border: '1px solid #BAE6FD',
+                  color: '#0284C7',
+                  fontWeight: 700,
+                  fontSize: '0.78rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                <Store size={13} /> Chat với Quán
+              </button>
             </div>
           </div>
+
+          {/* Customer On-Delivery Payment Alert Banner */}
+          {activeOrder && activeOrder.status !== 'COMPLETED' && activeOrder.status !== 'CANCELLED' && (() => {
+            const isCustPaid =
+              activeOrder.paymentStatus === 'PAID' ||
+              activeOrder.payment?.paymentStatus === 'SUCCESS' ||
+              activeOrder.paymentMethod === 'MOMO_QR' ||
+              activeOrder.paymentMethod === 'MOMO';
+            return (
+              <div
+                style={{
+                  marginBottom: 16,
+                  padding: '14px 16px',
+                  borderRadius: 12,
+                  background: isCustPaid ? '#F0FDF4' : '#EFF6FF',
+                  border: `1.5px solid ${isCustPaid ? '#86EFAC' : '#93C5FD'}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontWeight: 800,
+                      fontSize: '0.92rem',
+                      color: isCustPaid ? '#15803D' : '#1E40AF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    {isCustPaid ? (
+                      <>
+                        <CheckCircle2 size={18} color="#16A34A" />
+                        <span>Đã thanh toán an toàn qua Sàn (0đ cần thu)</span>
+                      </>
+                    ) : (
+                      <>
+                        <QrCode size={18} color="#0284C7" />
+                        <span>Thanh toán khi nhận món • Cần trả: ${activeOrder.finalTotal.toLocaleString('vi-VN')}đ</span>
+                      </>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: isCustPaid ? '#166534' : '#1E3A8A', marginTop: 2 }}>
+                    {isCustPaid
+                      ? 'Đơn hàng đã được thanh toán đầy đủ. Quý khách vui lòng nhận món và không cần đưa thêm tiền.'
+                      : 'Đồng kiểm: Bạn được kiểm tra bao bì, tem dán rồi trả tiền mặt cho tài xế hoặc quét mã VietQR.'}
+                  </div>
+                </div>
+
+                {!isCustPaid && (
+                  <button
+                    type="button"
+                    onClick={() => setVietQrPaymentOrder(activeOrder)}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: 8,
+                      background: '#0284C7',
+                      color: '#FFFFFF',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <QrCode size={15} />
+                    <span>Mở mã VietQR chuyển khoản</span>
+                  </button>
+                )}
+              </div>
+            );
+          })()}
 
           {activeOrder && activeOrder.status !== 'COMPLETED' && activeOrder.status !== 'CANCELLED' && (
             <div
@@ -5008,6 +5831,64 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
           )}
         </div>
       </div>
+
+      {/* Floating Chat Button for Customer */}
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 28,
+          right: 28,
+          zIndex: 40,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => handleOpenOrderChat('CUSTOMER_MERCHANT')}
+          style={{
+            padding: '12px 20px',
+            borderRadius: 999,
+            background: 'linear-gradient(135deg, #00B14F 0%, #059669 100%)',
+            color: '#FFFFFF',
+            fontWeight: 800,
+            fontSize: '0.88rem',
+            border: 'none',
+            boxShadow: '0 10px 25px -5px rgba(0, 177, 79, 0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            cursor: 'pointer',
+          }}
+        >
+          <MessageSquare size={18} />
+          <span>Nhắn tin đơn hàng</span>
+        </button>
+      </div>
+
+      {/* Real-time Order Chat Modal for Customer */}
+      <OrderChatModal
+        isOpen={isOrderChatOpen}
+        onClose={() => setIsOrderChatOpen(false)}
+        order={activeOrder}
+        currentUserRole="CUSTOMER"
+        currentUserId={currentUser?.id || 'guest-customer'}
+        currentUserName={currentUser?.fullName || activeOrder.recipientName || 'Khách hàng'}
+        defaultChannel={orderChatDefaultChannel}
+        assignedDriverName={tracking.driverName}
+      />
+
+      {/* Dynamic VietQR Payment Modal for Customer */}
+      <VietQrPaymentModal
+        isOpen={Boolean(vietQrPaymentOrder)}
+        onClose={() => setVietQrPaymentOrder(null)}
+        order={vietQrPaymentOrder}
+        viewerRole="CUSTOMER"
+        onPaymentSuccess={(updated) => {
+          onUpdateOrderDetails?.(updated.id, {
+            paymentStatus: updated.paymentStatus,
+            payment: updated.payment,
+          });
+        }}
+      />
     </div>
   );
 };

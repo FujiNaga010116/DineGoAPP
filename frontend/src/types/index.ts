@@ -13,7 +13,7 @@ export type OrderStatus =
   | 'COMPLETED'
   | 'CANCELLED';
 
-export type PaymentMethod = 'MOMO' | 'MOMO_QR' | 'MOMO_ATM' | 'COD';
+export type PaymentMethod = 'MOMO' | 'MOMO_QR' | 'MOMO_ATM' | 'COD' | 'VIETQR_ON_DELIVERY';
 
 export type PaymentStatus =
   | 'PENDING'
@@ -48,6 +48,10 @@ export interface User {
   addressLng?: number;
   dateOfBirth?: string;
   gender?: 'Nam' | 'Nữ' | 'Khác';
+  codBlocked?: boolean;
+  isBlacklisted?: boolean;
+  blacklistReason?: string;
+  walletBalance?: number;
   savedAddresses?: SavedAddress[];
   bankName?: string;
   bankAccountNumber?: string;
@@ -231,7 +235,8 @@ export type DeliveryDisputeReason =
   | 'NO_ANSWER'
   | 'REFUSED_ORDER'
   | 'WRONG_ADDRESS'
-  | 'UNABLE_COLLECT';
+  | 'UNABLE_COLLECT'
+  | 'ADDRESS_TOO_FAR';
 
 export interface DeliveryDisputeReport {
   id: string;
@@ -255,6 +260,11 @@ export interface DeliveryDisputeReport {
   callAttemptsCount: number;
   waitMinutes: number;
   evidenceImages: string[];
+  callLogTimestamps?: string[];
+  waitSecondsElapsed?: number;
+  riskFundPayout?: boolean;
+  merchantKeepPayout?: boolean;
+  customerCodBlocked?: boolean;
   gpsSnapshot?: {
     lat: number;
     lng: number;
@@ -318,6 +328,12 @@ export interface Order {
   customerConfirmedReceipt?: boolean;
   customerConfirmedAt?: string | null;
   deliveryDispute?: DeliveryDisputeReport | null;
+  waitFeeBonus?: number;
+  waitFeeMerchantPenalty?: boolean;
+  merchantCancellationCompensation?: number;
+  extraDistanceKm?: number;
+  extraDistanceFee?: number;
+  divertedAddress?: string;
   createdAt: string;
   merchant: {
     id: string;
@@ -329,5 +345,23 @@ export interface Order {
     longitude?: number;
   };
   items: OrderItem[];
+  paymentMethod?: PaymentMethod | string;
+  paymentStatus?: 'PAID' | 'UNPAID' | 'REFUNDED';
   payment?: PaymentSummary | null;
+}
+
+export type OrderChatChannel = 'CUSTOMER_MERCHANT' | 'CUSTOMER_DRIVER';
+export type OrderChatSenderRole = 'CUSTOMER' | 'MERCHANT' | 'DRIVER' | 'SYSTEM';
+
+export interface OrderChatMessage {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  channel: OrderChatChannel;
+  senderRole: OrderChatSenderRole;
+  senderId: string;
+  senderName: string;
+  message: string;
+  timestamp: string;
+  isRead?: boolean;
 }

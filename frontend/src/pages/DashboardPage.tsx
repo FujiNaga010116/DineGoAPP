@@ -41,6 +41,7 @@ import {
   Phone,
 } from 'lucide-react';
 import type { Role, User, Order, OrderStatus, MenuItem, Merchant, DriverProfile, DeliveryDisputeReport } from '../types';
+import { OrderChatModal } from '../components/common/OrderChatModal';
 import type { NavTab } from '../components/common/Header';
 import { adminApi } from '../api/client';
 import {
@@ -256,6 +257,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [storeOpen, setStoreOpen] = useState<boolean>(currentMerchant?.isOpen ?? true);
   const [kitchenStatusFilter, setKitchenStatusFilter] = useState<'ACTIVE' | 'COMPLETED' | 'ALL'>('ACTIVE');
   const [orderSearch, setOrderSearch] = useState('');
+  const [merchantChatOrder, setMerchantChatOrder] = useState<Order | null>(null);
   const [printingOrder, setPrintingOrder] = useState<Order | null>(null);
   const [merchantWithdrawSuccess, setMerchantWithdrawSuccess] = useState(false);
   const [merchantWithdrawAmountInput, setMerchantWithdrawAmountInput] = useState('');
@@ -2829,6 +2831,28 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                     </span>
                                   </td>
                                   <td style={{ padding: '12px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                    <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => setMerchantChatOrder(o)}
+                                        title="Nhắn tin trực tiếp với khách hàng / tài xế của đơn này"
+                                        style={{
+                                          padding: '4px 9px',
+                                          borderRadius: 6,
+                                          border: '1px solid #BAE6FD',
+                                          background: '#F0FDF4',
+                                          color: '#059669',
+                                          fontSize: '0.73rem',
+                                          fontWeight: 700,
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 4,
+                                        }}
+                                      >
+                                        <MessageSquare size={12} />
+                                        <span>Nhắn tin</span>
+                                      </button>
                                     {isActiveOrder ? (
                                       <div style={{ display: 'inline-flex', gap: 6 }}>
                                         <button
@@ -2883,6 +2907,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                     ) : (
                                       <span style={{ fontSize: '0.74rem', color: '#94A3B8' }}>Đã chốt sổ</span>
                                     )}
+                                    </div>
                                   </td>
                                 </tr>
                               );
@@ -4016,6 +4041,28 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                 <td style={{ padding: '14px 18px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                   {cmp.status === 'OPEN' ? (
                                     <div style={{ display: 'inline-flex', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                      {String(cmp.issueType).includes('DRIVER_ATTITUDE') && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            alert('Đã gửi Mã Voucher Thiện Chí 50.000đ tới khách hàng và lập biên bản kỷ luật thái độ tài xế.');
+                                            handleResolveComplaint(cmp.id, 'REFUND_PLATFORM');
+                                          }}
+                                          title="CSKH xin lỗi, tặng voucher thiện chí 50k & phạt chế tài thái độ tài xế"
+                                          style={{
+                                            padding: '5px 9px',
+                                            borderRadius: 6,
+                                            background: '#FEF3C7',
+                                            border: '1px solid #F59E0B',
+                                            color: '#B45309',
+                                            fontSize: '0.73rem',
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                          }}
+                                        >
+                                          🎁 Voucher 50k
+                                        </button>
+                                      )}
                                       <button
                                         type="button"
                                         onClick={() => handleResolveComplaint(cmp.id, 'REFUND_MERCHANT')}
@@ -4188,6 +4235,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                       <Clock size={12} /> Chờ: <strong>{disp.waitMinutes} phút</strong>
                                     </span>
                                   </div>
+                                  {disp.callLogTimestamps && disp.callLogTimestamps.length > 0 && (
+                                    <div style={{ marginTop: 4, fontSize: '0.74rem', color: '#64748B' }}>
+                                      Lịch sử gọi: <strong>{disp.callLogTimestamps.join(', ')}</strong>
+                                    </div>
+                                  )}
                                   {disp.gpsSnapshot && (
                                     <div style={{ marginTop: 4, fontSize: '0.75rem', color: '#0F766E', fontWeight: 600 }}>
                                       GPS: {disp.gpsSnapshot.lat.toFixed(5)}, {disp.gpsSnapshot.lng.toFixed(5)} (cách điểm giao {(disp.gpsSnapshot.distanceToCustomerKm * 1000).toFixed(0)}m)
@@ -4231,6 +4283,31 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                       />
                                     </button>
                                   ))}
+                                </div>
+                              </div>
+
+                              {/* Operational Flow & Sanction Policy Notice (Images 1, 2, 3) */}
+                              <div
+                                style={{
+                                  background: disp.paymentMethod === 'COD' ? '#FEF2F2' : '#F0FDF4',
+                                  border: `1px solid ${disp.paymentMethod === 'COD' ? '#FECACA' : '#BBF7D0'}`,
+                                  borderRadius: 8,
+                                  padding: '10px 12px',
+                                  fontSize: '0.78rem',
+                                  color: disp.paymentMethod === 'COD' ? '#991B1B' : '#166534',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 4,
+                                }}
+                              >
+                                <div>
+                                  <strong>Hướng giải quyết dòng tiền ({disp.paymentMethod}): </strong>
+                                  {disp.paymentMethod === 'COD'
+                                    ? 'Đơn COD: Quỹ bồi hoàn rủi ro sàn (Risk Fund) chi trả tiền món cho Quán và chi trả cước giao cho Shipper.'
+                                    : 'Đơn trả trước (MoMo/Thẻ): Không hoàn tiền cho khách. Quán giữ 100% tiền món, Shipper nhận 100% cước ship & được quyền xử lý phần ăn.'}
+                                </div>
+                                <div style={{ fontWeight: 600 }}>
+                                  🛡️ <strong>Chế tài khách hàng khi duyệt:</strong> Khóa vĩnh viễn tính năng COD, chỉ cho phép đặt trả trước MoMo. {disp.orderId.includes('catering') || disp.reason === 'REFUSED_ORDER' ? 'Ghi nhận số điện thoại vào Blacklist toàn sàn do bom đơn tiệc/từ chối nhận không lý do.' : ''}
                                 </div>
                               </div>
 
@@ -7452,23 +7529,45 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                             </span>
                           </div>
 
-                          <button
-                            onClick={() => setPrintingOrder(order)}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              padding: '6px 12px',
-                              borderRadius: 6,
-                              border: '1px solid #CBD5E1',
-                              background: '#FFFFFF',
-                              color: '#334155',
-                              fontSize: '0.78rem',
-                              fontWeight: 600,
-                            }}
-                          >
-                            <Printer size={14} /> Xem phiếu bếp
-                          </button>
+                          <div style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => setMerchantChatOrder(order)}
+                              title="Nhắn tin với khách hàng / tài xế của đơn này"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '6px 12px',
+                                borderRadius: 6,
+                                border: '1px solid #BAE6FD',
+                                background: '#F0FDF4',
+                                color: '#059669',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <MessageSquare size={14} /> Nhắn tin với Khách
+                            </button>
+                            <button
+                              onClick={() => setPrintingOrder(order)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '6px 12px',
+                                borderRadius: 6,
+                                border: '1px solid #CBD5E1',
+                                background: '#FFFFFF',
+                                color: '#334155',
+                                fontSize: '0.78rem',
+                                fontWeight: 600,
+                              }}
+                            >
+                              <Printer size={14} /> Xem phiếu bếp
+                            </button>
+                          </div>
                         </div>
 
                         <div
@@ -10095,6 +10194,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       <CateringFinalBillModal
         bill={activeFeastBillModal}
         onClose={() => setActiveFeastBillModal(null)}
+      />
+
+      <OrderChatModal
+        isOpen={Boolean(merchantChatOrder)}
+        onClose={() => setMerchantChatOrder(null)}
+        order={merchantChatOrder}
+        currentUserRole="MERCHANT"
+        currentUserId={currentMerchant?.id || 'merchant-store'}
+        currentUserName={currentMerchant?.name || 'Nhà hàng'}
+        defaultChannel="CUSTOMER_MERCHANT"
+        assignedDriverName={merchantChatOrder?.assignedDriverName || undefined}
       />
     </div>
   );

@@ -3,7 +3,7 @@
 // Address Card, Delivery Estimation, Food Summary, Vouchers, MoMo / COD Gateway
 // ==============================================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   ArrowLeft,
   MapPin,
@@ -22,12 +22,15 @@ import {
   Minus,
   Lock,
   LogIn,
+  AlertTriangle,
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import {
+  calculateHaversineKm,
   getDefaultVerifiedAddress,
   hasVerifiedCustomerAddress,
 } from '../utils/routing';
+import { MOCK_MERCHANTS } from '../api/client';
 import {
   ADMIN_VOUCHERS_KEY,
   fetchRemoteAdminVouchers,
@@ -85,6 +88,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   const [showMomoModal, setShowMomoModal] = useState<Order | null>(null);
 
   useEffect(() => {
+    if (currentUser?.codBlocked && paymentMethod === 'COD') {
+      setPaymentMethod('MOMO_QR');
+    }
+  }, [currentUser?.codBlocked, paymentMethod]);
+
+  useEffect(() => {
     const savedList = currentUser?.savedAddresses || [];
     const currentVerifiedChoice = savedList.find(
       (a) =>
@@ -111,6 +120,40 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       setRecipientPhone(currentUser?.phoneNumber || '');
     }
   }, [currentUser, selectedAddressId]);
+
+  // Merchant lookup and Delivery Radius Limit (Max 15km)
+  const matchedMerchant = useMemo(() => {
+    return (
+      merchants?.find((m) => m.id === cart.merchantId) ||
+      merchants?.find((m) => m.name === cart.merchantName) ||
+      MOCK_MERCHANTS.find((m) => m.id === cart.merchantId)
+    );
+  }, [merchants, cart.merchantId, cart.merchantName]);
+
+  const MAX_DELIVERY_RADIUS_KM = 15;
+
+  const calculatedDistanceKm = useMemo(() => {
+    if (
+      typeof deliveryLat === 'number' &&
+      typeof deliveryLng === 'number' &&
+      typeof matchedMerchant?.latitude === 'number' &&
+      typeof matchedMerchant?.longitude === 'number'
+    ) {
+      return calculateHaversineKm(
+        { lat: deliveryLat, lng: deliveryLng },
+        { lat: matchedMerchant.latitude, lng: matchedMerchant.longitude },
+      );
+    }
+    return null;
+  }, [deliveryLat, deliveryLng, matchedMerchant?.latitude, matchedMerchant?.longitude]);
+
+  const isOverDeliveryRadius = Boolean(
+    calculatedDistanceKm !== null && calculatedDistanceKm > MAX_DELIVERY_RADIUS_KM,
+  );
+
+  const estimatedDeliveryMinutes = calculatedDistanceKm
+    ? Math.max(15, Math.round(15 + calculatedDistanceKm * 3.2))
+    : 25;
 
   const handleSelectSavedAddress = (addr: SavedAddress) => {
     const isVerified = Boolean(
@@ -215,9 +258,16 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       return;
     }
 
-    const matchedMerchant =
-      merchants?.find((m) => m.id === cart.merchantId) ||
-      merchants?.find((m) => m.name === cart.merchantName);
+    if (currentUser.isBlacklisted) {
+      alert(`Tài khoản của bạn đang bị khóa (Danh sách đen Blacklist)${currentUser.blacklistReason ? `: ${currentUser.blacklistReason}` : ''}. Không thể thực hiện đặt đơn mới.`);
+      return;
+    }
+
+    if (isOverDeliveryRadius) {
+      alert(`Đơn hàng không thể đặt vì khoảng cách ${calculatedDistanceKm?.toFixed(1)} km vượt quá bán kính giao hàng tối đa ${MAX_DELIVERY_RADIUS_KM} km của DineGo nhằm bảo đảm chất lượng và độ nóng sốt của món ăn. Vui lòng chọn địa chỉ nhận hàng gần hơn hoặc chọn các quán gần bạn.`);
+      return;
+    }
+
     if (matchedMerchant && (matchedMerchant.isActive === false || matchedMerchant.kycStatus === 'REJECTED')) {
       alert(`Nhà hàng "${matchedMerchant.name}" hiện đang tạm ngưng hoạt động bởi Quản trị viên sàn.`);
       return;
@@ -290,14 +340,21 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
           toppingPrice: t.price,
         })),
       })),
+      paymentMethod,
+      paymentStatus: (paymentMethod === 'MOMO_QR' || paymentMethod === 'MOMO') ? 'PAID' : 'UNPAID',
       payment: {
         id: `pay-${Date.now()}`,
         paymentMethod,
-        paymentStatus: paymentMethod === 'COD' ? 'SUCCESS' : 'PENDING',
+        paymentStatus: (paymentMethod === 'MOMO_QR' || paymentMethod === 'MOMO') ? 'PENDING' : 'PENDING',
         amount: cart.finalTotal,
         currency: 'VND',
-        transactionRef: paymentMethod === 'COD' ? 'COD-CASH' : null,
-        paidAt: paymentMethod === 'COD' ? new Date().toISOString() : null,
+        transactionRef:
+          paymentMethod === 'COD'
+            ? 'COD-CASH'
+            : paymentMethod === 'VIETQR_ON_DELIVERY'
+            ? 'VIETQR-DELIVERY'
+            : null,
+        paidAt: null,
       },
     };
 
@@ -566,16 +623,21 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
-                  color: 'var(--primary)',
+                  color: isOverDeliveryRadius ? '#E11D48' : 'var(--primary)',
                   fontSize: '0.82rem',
                   fontWeight: 700,
-                  background: 'rgba(0, 177, 79, 0.08)',
-                  padding: '4px 10px',
+                  background: isOverDeliveryRadius ? '#FFF1F2' : 'rgba(0, 177, 79, 0.08)',
+                  border: isOverDeliveryRadius ? '1px solid #FECDD3' : undefined,
+                  padding: '5px 12px',
                   borderRadius: 8,
                 }}
               >
-                <Clock size={14} />
-                <span>Giao dự kiến: 20 - 30 phút</span>
+                {isOverDeliveryRadius ? <AlertTriangle size={15} color="#E11D48" /> : <Clock size={15} />}
+                <span>
+                  {isOverDeliveryRadius
+                    ? `Vượt bán kính (${calculatedDistanceKm?.toFixed(1)} km > 15 km)`
+                    : `Giao dự kiến: ${estimatedDeliveryMinutes} - ${estimatedDeliveryMinutes + 10} phút (${calculatedDistanceKm ? calculatedDistanceKm.toFixed(1) + ' km' : 'Khoảng 2.5 km'})`}
+                </span>
               </div>
             </div>
 
@@ -1289,18 +1351,29 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 </span>
               </div>
 
-              {/* COD */}
+              {/* VietQR on Delivery (Đồng kiểm món) */}
               <div
-                onClick={() => setPaymentMethod('COD')}
+                onClick={() => {
+                  if (currentUser?.codBlocked) {
+                    alert('Tính năng thanh toán khi nhận hàng đã bị khóa do tài khoản từng vi phạm bom hàng. Vui lòng thanh toán trực tuyến qua MoMo.');
+                    return;
+                  }
+                  if (cart.finalTotal > 1000000) {
+                    alert('Đơn hàng trên 1.000.000đ yêu cầu thanh toán trực tuyến qua MoMo để đảm bảo quyền lợi đối tác nhà hàng và tài xế.');
+                    return;
+                  }
+                  setPaymentMethod('VIETQR_ON_DELIVERY');
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '14px 16px',
                   borderRadius: 14,
-                  background: paymentMethod === 'COD' ? 'rgba(0, 177, 79, 0.06)' : 'var(--bg-main)',
-                  border: `2px solid ${paymentMethod === 'COD' ? 'var(--primary)' : 'var(--border)'}`,
-                  cursor: 'pointer',
+                  background: paymentMethod === 'VIETQR_ON_DELIVERY' ? 'rgba(2, 132, 199, 0.06)' : 'var(--bg-main)',
+                  border: `2px solid ${paymentMethod === 'VIETQR_ON_DELIVERY' ? '#0284C7' : 'var(--border)'}`,
+                  cursor: currentUser?.codBlocked ? 'not-allowed' : 'pointer',
+                  opacity: currentUser?.codBlocked ? 0.65 : 1,
                   transition: 'all 0.2s ease',
                 }}
               >
@@ -1310,23 +1383,124 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                       width: 40,
                       height: 40,
                       borderRadius: 12,
-                      background: '#10B981',
+                      background: 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)',
+                      color: '#fff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 900,
+                      fontSize: '1.15rem',
+                      boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)',
+                    }}
+                  >
+                    <QrCode size={22} color="#FFFFFF" />
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>Quét VietQR khi nhận hàng (Đồng kiểm)</span>
+                      <span
+                        style={{
+                          background: '#0284C7',
+                          color: '#fff',
+                          padding: '2px 8px',
+                          borderRadius: 6,
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                        }}
+                      >
+                        Mới • An tâm 100%
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      Kiểm tra tem niêm phong ngoại quan rồi mới quét mã chuyển khoản cho sàn
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* COD */}
+              <div
+                onClick={() => {
+                  if (currentUser?.codBlocked) {
+                    alert('Tính năng thanh toán tiền mặt (COD) đã bị khóa do tài khoản từng vi phạm bom hàng / không nhận hàng. Vui lòng thanh toán trực tuyến qua MoMo.');
+                    return;
+                  }
+                  setPaymentMethod('COD');
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '14px 16px',
+                  borderRadius: 14,
+                  background: currentUser?.codBlocked
+                    ? '#F1F5F9'
+                    : paymentMethod === 'COD'
+                    ? 'rgba(0, 177, 79, 0.06)'
+                    : 'var(--bg-main)',
+                  border: `2px solid ${
+                    currentUser?.codBlocked
+                      ? '#CBD5E1'
+                      : paymentMethod === 'COD'
+                      ? 'var(--primary)'
+                      : 'var(--border)'
+                  }`,
+                  cursor: currentUser?.codBlocked ? 'not-allowed' : 'pointer',
+                  opacity: currentUser?.codBlocked ? 0.65 : 1,
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 12,
+                      background: currentUser?.codBlocked ? '#94A3B8' : '#10B981',
                       color: '#fff',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}
                   >
-                    <Banknote size={22} />
+                    {currentUser?.codBlocked ? <Lock size={20} /> : <Banknote size={22} />}
                   </div>
                   <div>
-                    <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '0.95rem' }}>
-                      Tiền mặt khi nhận hàng (COD)
+                    <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>Tiền mặt khi nhận hàng (COD)</span>
+                      {currentUser?.codBlocked && (
+                        <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: 999, background: '#FEE2E2', color: '#DC2626', fontWeight: 800 }}>
+                          ĐÃ KHÓA COD
+                        </span>
+                      )}
                     </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      Thanh toán trực tiếp cho tài xế giao hàng
+                    <div style={{ fontSize: '0.8rem', color: currentUser?.codBlocked ? '#DC2626' : 'var(--text-muted)' }}>
+                      {currentUser?.codBlocked
+                        ? 'Tài khoản từng vi phạm bom hàng, chỉ được đặt đơn trả trước qua MoMo'
+                        : 'Thanh toán trực tiếp cho tài xế giao hàng'}
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Disclaimer Box */}
+              <div
+                style={{
+                  background: '#F0F9FF',
+                  border: '1px solid #BAE6FD',
+                  borderRadius: 12,
+                  padding: '12px 14px',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  fontSize: '0.78rem',
+                  color: '#0369A1',
+                  lineHeight: 1.5,
+                }}
+              >
+                <ShieldCheck size={18} color="#0284C7" style={{ flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <strong style={{ color: '#0C4A6E' }}>Chính sách Đồng kiểm & Luồng tiền bảo vệ:</strong> Quý khách được quyền kiểm tra ngoại quan bao bì và tem niêm phong trước khi thanh toán. Tiền chuyển khoản được giữ an toàn tại tài khoản sàn DineGo và chỉ quyết toán cho Quán & Tài xế khi đơn hoàn tất hợp lệ.
                 </div>
               </div>
             </div>
@@ -1385,11 +1559,57 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
               </div>
             </div>
 
+            {/* Delivery Radius Limit Notice */}
+            {isOverDeliveryRadius && (
+              <div
+                style={{
+                  background: '#FFF1F2',
+                  border: '1px solid #FECDD3',
+                  borderRadius: 12,
+                  padding: 14,
+                  marginBottom: 16,
+                  color: '#9F1239',
+                  display: 'flex',
+                  gap: 12,
+                  alignItems: 'flex-start',
+                }}
+              >
+                <AlertTriangle size={20} color="#E11D48" style={{ flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: '0.92rem' }}>
+                    Không thể đặt đơn: Vượt quá bán kính giao hàng
+                  </div>
+                  <div style={{ fontSize: '0.82rem', marginTop: 4, lineHeight: 1.45 }}>
+                    Khoảng cách từ nhà hàng tới địa chỉ của bạn là <strong>{calculatedDistanceKm?.toFixed(1)} km</strong> (vượt quá bán kính giao hàng tối đa <strong>15 km</strong> của DineGo Express). Để bảo đảm độ nóng sốt và hương vị chuẩn ngon của món ăn khi tới nơi, vui lòng chọn địa chỉ nhận gần hơn hoặc đặt các quán quanh khu vực của bạn.
+                  </div>
+                  {onOpenAddressSetup && (
+                    <button
+                      type="button"
+                      onClick={onOpenAddressSetup}
+                      style={{
+                        marginTop: 10,
+                        background: '#E11D48',
+                        color: '#FFF',
+                        border: 'none',
+                        padding: '6px 14px',
+                        borderRadius: 6,
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Đổi địa chỉ nhận hàng gần hơn
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             <button
               onClick={handlePlaceOrder}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isOverDeliveryRadius}
               className={
-                paymentMethod === 'MOMO_QR' && currentUser && hasVerifiedAddress
+                paymentMethod === 'MOMO_QR' && currentUser && hasVerifiedAddress && !isOverDeliveryRadius
                   ? 'btn-momo'
                   : 'btn btn-primary'
               }
@@ -1403,11 +1623,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 10,
-                cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                cursor: isSubmitting || isOverDeliveryRadius ? 'not-allowed' : 'pointer',
                 background: !currentUser
                   ? '#EF4444'
                   : !hasVerifiedAddress
                   ? '#D97706'
+                  : isOverDeliveryRadius
+                  ? '#94A3B8'
                   : undefined,
                 color: '#FFFFFF',
               }}
@@ -1421,6 +1643,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 <>
                   <MapPin size={18} />
                   <span>Thiết lập địa chỉ trên bản đồ để đặt món</span>
+                </>
+              ) : isOverDeliveryRadius ? (
+                <>
+                  <AlertTriangle size={18} />
+                  <span>Vượt bán kính ({calculatedDistanceKm?.toFixed(1)} km &gt; 15 km) • Không thể giao</span>
                 </>
               ) : (
                 <>

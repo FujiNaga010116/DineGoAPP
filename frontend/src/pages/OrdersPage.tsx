@@ -31,7 +31,8 @@ import {
   MessageSquare,
   Printer,
 } from 'lucide-react';
-import type { DriverProfile, Order, OrderStatus } from '../types';
+import type { DriverProfile, Order, OrderStatus, OrderChatChannel } from '../types';
+import { OrderChatModal } from '../components/common/OrderChatModal';
 import { MOCK_DRIVERS } from '../api/client';
 import {
   CateringFinalBillModal,
@@ -156,6 +157,13 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
   const [filterTab, setFilterTab] = useState<'all' | 'active' | 'completed'>('all');
   const [isAutoPlay, setIsAutoPlay] = useState<boolean>(false);
   const [autoNotice, setAutoNotice] = useState<string>('');
+  const [chatModalOrder, setChatModalOrder] = useState<Order | null>(null);
+  const [chatDefaultChannel, setChatDefaultChannel] = useState<OrderChatChannel>('CUSTOMER_MERCHANT');
+
+  const handleOpenOrderChat = (order: Order, channel: OrderChatChannel = 'CUSTOMER_MERCHANT') => {
+    setChatModalOrder(order);
+    setChatDefaultChannel(channel);
+  };
   const [allReviews, setAllReviews] = useState<any[]>(() => {
     try {
       const saved = localStorage.getItem('dinego_merchant_reviews');
@@ -577,9 +585,13 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                             ⏳ Chờ chủ quán xác nhận cọc: {order.cateringDetails.depositAmount.toLocaleString('vi-VN')}đ
                           </span>
                         )
-                      ) : isMoMoSuccess ? (
+                      ) : isMoMoSuccess || order.paymentStatus === 'PAID' ? (
                         <span style={{ color: '#059669', background: '#D1FAE5', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
-                          ✓ Đã trả qua MoMo
+                          ✓ {order.paymentMethod === 'VIETQR_ON_DELIVERY' ? 'Đã quét VietQR' : 'Đã trả qua MoMo'}
+                        </span>
+                      ) : order.paymentMethod === 'VIETQR_ON_DELIVERY' ? (
+                        <span style={{ color: '#0284C7', background: '#E0F2FE', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
+                          📱 VietQR khi nhận món
                         </span>
                       ) : (
                         <span style={{ color: '#D97706', background: '#FEF3C7', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
@@ -1053,17 +1065,17 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                   <ShieldCheck size={16} color="#0284C7" />
                   <span>Điều phối liên tác nhân (Actor Coordination):</span>
                 </div>
-                {onTrackOrder && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <button
                     type="button"
-                    onClick={() => onTrackOrder(selectedOrder.id)}
+                    onClick={() => handleOpenOrderChat(selectedOrder, 'CUSTOMER_MERCHANT')}
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: 5,
                       padding: '5px 12px',
                       borderRadius: 8,
-                      background: '#0284C7',
+                      background: '#059669',
                       color: '#FFFFFF',
                       fontSize: '0.76rem',
                       fontWeight: 700,
@@ -1071,10 +1083,32 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                       cursor: 'pointer',
                     }}
                   >
-                    <Navigation size={12} />
-                    <span>Xem bản đồ GPS</span>
+                    <MessageSquare size={13} />
+                    <span>Nhắn tin đơn hàng</span>
                   </button>
-                )}
+                  {onTrackOrder && (
+                    <button
+                      type="button"
+                      onClick={() => onTrackOrder(selectedOrder.id)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        padding: '5px 12px',
+                        borderRadius: 8,
+                        background: '#0284C7',
+                        color: '#FFFFFF',
+                        fontSize: '0.76rem',
+                        fontWeight: 700,
+                        border: 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Navigation size={12} />
+                      <span>Xem bản đồ GPS</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
@@ -1085,54 +1119,82 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                     border: '1px solid #E2E8F0',
                     borderRadius: 12,
                     padding: '12px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                    <Store size={15} color="#0284C7" />
-                    <strong style={{ fontSize: '0.84rem', color: '#0F172A' }}>
-                      {selectedOrder.merchant?.name || 'Nhà hàng'}
-                    </strong>
-                  </div>
-                  <div style={{ fontSize: '0.78rem', color: '#475569', lineHeight: 1.5 }}>
-                    <div>
-                      • Đơn hàng:{' '}
-                      {selectedOrder.status === 'PENDING' ? (
-                        <span style={{ color: '#D97706', fontWeight: 700 }}>Chờ tiếp nhận...</span>
-                      ) : (
-                        <span style={{ color: '#059669', fontWeight: 700 }}>Đã tiếp nhận</span>
-                      )}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                      <Store size={15} color="#0284C7" />
+                      <strong style={{ fontSize: '0.84rem', color: '#0F172A' }}>
+                        {selectedOrder.merchant?.name || 'Nhà hàng'}
+                      </strong>
                     </div>
-                    <div>
-                      • Khâu bếp:{' '}
-                      {['PREPARING', 'READY_FOR_PICKUP', 'DELIVERING', 'COMPLETED'].includes(selectedOrder.status) ? (
-                        selectedOrder.status === 'PREPARING' ? (
-                          <span style={{ color: '#7C3AED', fontWeight: 700 }}>Đang nấu món 🍳</span>
+                    <div style={{ fontSize: '0.78rem', color: '#475569', lineHeight: 1.5 }}>
+                      <div>
+                        • Đơn hàng:{' '}
+                        {selectedOrder.status === 'PENDING' ? (
+                          <span style={{ color: '#D97706', fontWeight: 700 }}>Chờ tiếp nhận...</span>
                         ) : (
-                          <span style={{ color: '#059669', fontWeight: 700 }}>Đã nấu xong 🍲</span>
-                        )
-                      ) : (
-                        <span style={{ color: '#94A3B8' }}>Chưa chuyển bếp</span>
-                      )}
-                    </div>
-                    <div>
-                      • Bàn giao món:{' '}
-                      {selectedOrder.merchantConfirmedPickup ? (
-                        <span style={{ color: '#059669', fontWeight: 700 }}>
-                          ✓ Đã bàn giao
-                          {selectedOrder.merchantConfirmedPickupAt
-                            ? ` (${new Date(selectedOrder.merchantConfirmedPickupAt).toLocaleTimeString('vi-VN', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })})`
-                            : ''}
-                        </span>
-                      ) : selectedOrder.status === 'READY_FOR_PICKUP' ? (
-                        <span style={{ color: '#D97706', fontWeight: 700 }}>⏳ Đợi Shipper nhận</span>
-                      ) : (
-                        <span style={{ color: '#94A3B8' }}>Chưa bàn giao</span>
-                      )}
+                          <span style={{ color: '#059669', fontWeight: 700 }}>Đã tiếp nhận</span>
+                        )}
+                      </div>
+                      <div>
+                        • Khâu bếp:{' '}
+                        {['PREPARING', 'READY_FOR_PICKUP', 'DELIVERING', 'COMPLETED'].includes(selectedOrder.status) ? (
+                          selectedOrder.status === 'PREPARING' ? (
+                            <span style={{ color: '#7C3AED', fontWeight: 700 }}>Đang nấu món 🍳</span>
+                          ) : (
+                            <span style={{ color: '#059669', fontWeight: 700 }}>Đã nấu xong 🍲</span>
+                          )
+                        ) : (
+                          <span style={{ color: '#94A3B8' }}>Chưa chuyển bếp</span>
+                        )}
+                      </div>
+                      <div>
+                        • Bàn giao món:{' '}
+                        {selectedOrder.merchantConfirmedPickup ? (
+                          <span style={{ color: '#059669', fontWeight: 700 }}>
+                            ✓ Đã bàn giao
+                            {selectedOrder.merchantConfirmedPickupAt
+                              ? ` (${new Date(selectedOrder.merchantConfirmedPickupAt).toLocaleTimeString('vi-VN', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })})`
+                              : ''}
+                          </span>
+                        ) : selectedOrder.status === 'READY_FOR_PICKUP' ? (
+                          <span style={{ color: '#D97706', fontWeight: 700 }}>⏳ Đợi Shipper nhận</span>
+                        ) : (
+                          <span style={{ color: '#94A3B8' }}>Chưa bàn giao</span>
+                        )}
+                      </div>
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenOrderChat(selectedOrder, 'CUSTOMER_MERCHANT')}
+                    style={{
+                      marginTop: 10,
+                      width: '100%',
+                      padding: '6px 10px',
+                      borderRadius: 7,
+                      background: '#EFF6FF',
+                      border: '1px solid #BFDBFE',
+                      color: '#0284C7',
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 5,
+                    }}
+                  >
+                    <Store size={13} />
+                    <span>Nhắn tin với Quán</span>
+                  </button>
                 </div>
 
                 {/* 2. Driver Actor Card */}
@@ -1142,46 +1204,75 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                     border: '1px solid #E2E8F0',
                     borderRadius: 12,
                     padding: '12px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                    <Bike size={15} color="#059669" />
-                    <strong style={{ fontSize: '0.84rem', color: '#0F172A' }}>
-                      {selectedOrder.assignedDriverName || 'Tài xế giao hàng'}
-                    </strong>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                      <Bike size={15} color="#059669" />
+                      <strong style={{ fontSize: '0.84rem', color: '#0F172A' }}>
+                        {selectedOrder.assignedDriverName || 'Tài xế giao hàng'}
+                      </strong>
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#475569', lineHeight: 1.5 }}>
+                      <div>
+                        • Tiếp nhận:{' '}
+                        {selectedOrder.assignedDriverId ? (
+                          <span style={{ color: '#059669', fontWeight: 700 }}>
+                            ✓ {selectedOrder.assignedDriverName} ({activeDriver.licensePlate})
+                          </span>
+                        ) : (
+                          <span style={{ color: '#D97706', fontWeight: 700 }}>Đang tìm tài xế...</span>
+                        )}
+                      </div>
+                      <div>
+                        • Tại nhà hàng:{' '}
+                        {selectedOrder.driverArrivedAtStore ? (
+                          <span style={{ color: '#059669', fontWeight: 700 }}>
+                            ✓ Đã có mặt tại quán
+                          </span>
+                        ) : (
+                          <span style={{ color: '#94A3B8' }}>Chưa đến quán</span>
+                        )}
+                      </div>
+                      <div>
+                        • Giao tới bạn:{' '}
+                        {selectedOrder.status === 'COMPLETED' ? (
+                          <span style={{ color: '#00B14F', fontWeight: 800 }}>✓ Giao thành công 🎉</span>
+                        ) : selectedOrder.status === 'DELIVERING' ? (
+                          <span style={{ color: '#059669', fontWeight: 700 }}>Đang di chuyển trên đường 🛵</span>
+                        ) : (
+                          <span style={{ color: '#94A3B8' }}>Chưa xuất phát</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.78rem', color: '#475569', lineHeight: 1.5 }}>
-                    <div>
-                      • Tiếp nhận:{' '}
-                      {selectedOrder.assignedDriverId ? (
-                        <span style={{ color: '#059669', fontWeight: 700 }}>
-                          ✓ {selectedOrder.assignedDriverName} ({activeDriver.licensePlate})
-                        </span>
-                      ) : (
-                        <span style={{ color: '#D97706', fontWeight: 700 }}>Đang tìm tài xế...</span>
-                      )}
-                    </div>
-                    <div>
-                      • Tại nhà hàng:{' '}
-                      {selectedOrder.driverArrivedAtStore ? (
-                        <span style={{ color: '#059669', fontWeight: 700 }}>
-                          ✓ Đã có mặt tại quán
-                        </span>
-                      ) : (
-                        <span style={{ color: '#94A3B8' }}>Chưa đến quán</span>
-                      )}
-                    </div>
-                    <div>
-                      • Giao tới bạn:{' '}
-                      {selectedOrder.status === 'COMPLETED' ? (
-                        <span style={{ color: '#00B14F', fontWeight: 800 }}>✓ Giao thành công 🎉</span>
-                      ) : selectedOrder.status === 'DELIVERING' ? (
-                        <span style={{ color: '#059669', fontWeight: 700 }}>Đang di chuyển trên đường 🛵</span>
-                      ) : (
-                        <span style={{ color: '#94A3B8' }}>Chưa xuất phát</span>
-                      )}
-                    </div>
-                  </div>
+                  <button
+                    type="button"
+                    disabled={!selectedOrder.assignedDriverId}
+                    onClick={() => handleOpenOrderChat(selectedOrder, 'CUSTOMER_DRIVER')}
+                    style={{
+                      marginTop: 10,
+                      width: '100%',
+                      padding: '6px 10px',
+                      borderRadius: 7,
+                      background: selectedOrder.assignedDriverId ? '#ECFDF5' : '#F1F5F9',
+                      border: `1px solid ${selectedOrder.assignedDriverId ? '#A7F3D0' : '#E2E8F0'}`,
+                      color: selectedOrder.assignedDriverId ? '#059669' : '#94A3B8',
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      cursor: selectedOrder.assignedDriverId ? 'pointer' : 'not-allowed',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 5,
+                    }}
+                  >
+                    <Bike size={13} />
+                    <span>Nhắn tin với Tài xế</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1893,6 +1984,17 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
       <CateringFinalBillModal
         bill={activeCateringBill}
         onClose={() => setActiveCateringBill(null)}
+      />
+
+      <OrderChatModal
+        isOpen={Boolean(chatModalOrder)}
+        onClose={() => setChatModalOrder(null)}
+        order={chatModalOrder}
+        currentUserRole="CUSTOMER"
+        currentUserId={chatModalOrder?.customerId || 'customer-self'}
+        currentUserName={chatModalOrder?.recipientName || 'Khách hàng'}
+        defaultChannel={chatDefaultChannel}
+        assignedDriverName={chatModalOrder?.assignedDriverName || undefined}
       />
     </div>
   );

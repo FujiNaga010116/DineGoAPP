@@ -27,9 +27,15 @@ export type ComplaintStatus =
 
 export type IssueType =
   | 'MISSING_ITEMS'
+  | 'FOOD_DAMAGED'
+  | 'NOT_RECEIVED'
+  | 'DRIVER_ATTITUDE'
+  | 'MERCHANT_LATE'
   | 'LATE_DELIVERY'
   | 'FOOD_QUALITY'
   | 'WRONG_ITEMS'
+  | 'HYGIENE'
+  | 'PAYMENT_ERROR'
   | 'OTHER';
 
 export interface ComplaintItem {
