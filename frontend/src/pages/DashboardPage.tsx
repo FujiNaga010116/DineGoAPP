@@ -39,10 +39,16 @@ import {
   AlertTriangle,
   Camera,
   Phone,
+  User as UserIcon,
+  Upload,
+  FileText,
+  CreditCard,
 } from 'lucide-react';
 import type { Role, User, Order, OrderStatus, MenuItem, Merchant, DriverProfile, DeliveryDisputeReport } from '../types';
 import { OrderChatModal } from '../components/common/OrderChatModal';
 import type { NavTab } from '../components/common/Header';
+import { NotificationBell } from '../components/common/NotificationBell';
+import { pushActorNotification, pushMultiActorNotifications } from '../utils/notifications';
 import { adminApi } from '../api/client';
 import {
   EVENT_THEME_OPTIONS,
@@ -264,7 +270,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [merchantWithdrawError, setMerchantWithdrawError] = useState('');
 
   // Merchant KYC & Store Settings Editable States
+  const loadStoredOwnerKycMeta = (merchantId?: string) => {
+    if (!merchantId) return null;
+    try {
+      const raw = localStorage.getItem(`dinego_merchant_kyc_meta_${merchantId}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const initialKycMeta = loadStoredOwnerKycMeta(currentMerchant?.id);
+
   const [isEditingMerchantKyc, setIsEditingMerchantKyc] = useState(true);
+  const [kycSectionFilter, setKycSectionFilter] = useState<'OWNER_LEGAL' | 'STORE_OPS' | 'BANK_PAYOUT'>('OWNER_LEGAL');
   const [merchantKycSavedBanner, setMerchantKycSavedBanner] = useState('');
   const [kycStoreName, setKycStoreName] = useState(currentMerchant?.name || '');
   const [kycCategory, setKycCategory] = useState(
@@ -275,6 +294,34 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   );
   const [kycOwnerEmail, setKycOwnerEmail] = useState(
     currentMerchant?.ownerEmail || currentUser?.email || '',
+  );
+  const [kycOwnerAvatar, setKycOwnerAvatar] = useState(
+    initialKycMeta?.ownerAvatarUrl ||
+      currentMerchant?.ownerAvatarUrl ||
+      currentUser?.avatarUrl ||
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
+  );
+  const [kycOwnerNationalId, setKycOwnerNationalId] = useState(
+    initialKycMeta?.ownerNationalId || currentMerchant?.ownerNationalId || '079095008821',
+  );
+  const [kycOwnerIdIssuedDate, setKycOwnerIdIssuedDate] = useState(
+    initialKycMeta?.ownerIdIssuedDate || currentMerchant?.ownerIdIssuedDate || '2022-05-18',
+  );
+  const [kycOwnerIdIssuedPlace, setKycOwnerIdIssuedPlace] = useState(
+    initialKycMeta?.ownerIdIssuedPlace ||
+      currentMerchant?.ownerIdIssuedPlace ||
+      'Cục Cảnh sát QLHC về TTXH',
+  );
+  const [kycBusinessType, setKycBusinessType] = useState(
+    initialKycMeta?.businessType || currentMerchant?.businessType || 'Hộ Kinh Doanh Cá Thể',
+  );
+  const [kycFoodSafetyIssuedBy, setKycFoodSafetyIssuedBy] = useState(
+    initialKycMeta?.foodSafetyIssuedBy ||
+      currentMerchant?.foodSafetyIssuedBy ||
+      'Sở An Toàn Thực Phẩm TP. Hồ Chí Minh',
+  );
+  const [kycFoodSafetyExpiryDate, setKycFoodSafetyExpiryDate] = useState(
+    initialKycMeta?.foodSafetyExpiryDate || currentMerchant?.foodSafetyExpiryDate || '2028-12-31',
   );
   const [kycPhone, setKycPhone] = useState(
     currentMerchant?.phoneNumber || currentUser?.phoneNumber || '',
@@ -315,13 +362,68 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80',
   );
 
+  const handleUploadOwnerAvatarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setKycOwnerAvatar(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleUploadStoreFrontFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setKycStoreFrontImage(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
   useEffect(() => {
     if (!currentMerchant) return;
+    const meta = loadStoredOwnerKycMeta(currentMerchant.id);
     setStoreOpen(currentMerchant.isOpen ?? true);
     setKycStoreName(currentMerchant.name || '');
     setKycCategory(currentMerchant.categories?.[0] || 'Cơm & Món Việt');
     setKycOwnerName(currentMerchant.ownerName || currentUser?.fullName || '');
     setKycOwnerEmail(currentMerchant.ownerEmail || currentUser?.email || '');
+    setKycOwnerAvatar(
+      meta?.ownerAvatarUrl ||
+        currentMerchant.ownerAvatarUrl ||
+        currentUser?.avatarUrl ||
+        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
+    );
+    setKycOwnerNationalId(
+      meta?.ownerNationalId || currentMerchant.ownerNationalId || '079095008821',
+    );
+    setKycOwnerIdIssuedDate(
+      meta?.ownerIdIssuedDate || currentMerchant.ownerIdIssuedDate || '2022-05-18',
+    );
+    setKycOwnerIdIssuedPlace(
+      meta?.ownerIdIssuedPlace ||
+        currentMerchant.ownerIdIssuedPlace ||
+        'Cục Cảnh sát QLHC về TTXH',
+    );
+    setKycBusinessType(
+      meta?.businessType || currentMerchant.businessType || 'Hộ Kinh Doanh Cá Thể',
+    );
+    setKycFoodSafetyIssuedBy(
+      meta?.foodSafetyIssuedBy ||
+        currentMerchant.foodSafetyIssuedBy ||
+        'Sở An Toàn Thực Phẩm TP. Hồ Chí Minh',
+    );
+    setKycFoodSafetyExpiryDate(
+      meta?.foodSafetyExpiryDate || currentMerchant.foodSafetyExpiryDate || '2028-12-31',
+    );
     setKycPhone(currentMerchant.phoneNumber || currentUser?.phoneNumber || '');
     setKycOpeningHours(currentMerchant.openingHours || '07:00 - 22:00');
     setKycDeliveryMin(currentMerchant.deliveryTimeMin || 20);
@@ -350,12 +452,25 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     e.preventDefault();
     if (!currentMerchant) return;
 
+    const resolvedOwnerAvatar =
+      kycOwnerAvatar.trim() ||
+      currentMerchant.ownerAvatarUrl ||
+      currentUser?.avatarUrl ||
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80';
+
     const updatedMerchant: Merchant = {
       ...currentMerchant,
       name: kycStoreName.trim() || currentMerchant.name,
       categories: [kycCategory],
       ownerName: kycOwnerName.trim() || currentMerchant.ownerName,
       ownerEmail: kycOwnerEmail.trim() || currentMerchant.ownerEmail,
+      ownerAvatarUrl: resolvedOwnerAvatar,
+      ownerNationalId: kycOwnerNationalId.trim() || '079095008821',
+      ownerIdIssuedDate: kycOwnerIdIssuedDate || '2022-05-18',
+      ownerIdIssuedPlace: kycOwnerIdIssuedPlace.trim() || 'Cục Cảnh sát QLHC về TTXH',
+      businessType: kycBusinessType,
+      foodSafetyIssuedBy: kycFoodSafetyIssuedBy.trim() || 'Sở An Toàn Thực Phẩm TP. Hồ Chí Minh',
+      foodSafetyExpiryDate: kycFoodSafetyExpiryDate || '2028-12-31',
       phoneNumber: kycPhone.trim() || currentMerchant.phoneNumber,
       openingHours: kycOpeningHours.trim() || '07:00 - 22:00',
       deliveryTimeMin: Number(kycDeliveryMin) > 0 ? Number(kycDeliveryMin) : 20,
@@ -375,6 +490,21 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       isOpen: storeOpen,
     };
 
+    try {
+      localStorage.setItem(
+        `dinego_merchant_kyc_meta_${currentMerchant.id}`,
+        JSON.stringify({
+          ownerAvatarUrl: resolvedOwnerAvatar,
+          ownerNationalId: updatedMerchant.ownerNationalId,
+          ownerIdIssuedDate: updatedMerchant.ownerIdIssuedDate,
+          ownerIdIssuedPlace: updatedMerchant.ownerIdIssuedPlace,
+          businessType: updatedMerchant.businessType,
+          foodSafetyIssuedBy: updatedMerchant.foodSafetyIssuedBy,
+          foodSafetyExpiryDate: updatedMerchant.foodSafetyExpiryDate,
+        }),
+      );
+    } catch {}
+
     const updatedUser: User | undefined = currentUser
       ? {
           ...currentUser,
@@ -385,13 +515,34 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           bankName: updatedMerchant.bankName,
           bankAccountNumber: updatedMerchant.bankAccountNumber,
           bankAccountHolder: updatedMerchant.bankAccountHolder,
-          avatarUrl: updatedMerchant.storeFrontImage || currentUser.avatarUrl,
+          avatarUrl: resolvedOwnerAvatar,
         }
       : undefined;
 
     onUpdateMerchantProfile?.(updatedMerchant, updatedUser);
+    pushMultiActorNotifications([
+      {
+        targetRole: 'MERCHANT',
+        targetMerchantId: updatedMerchant.id,
+        category: 'KYC',
+        title: `🛡️ Đã cập nhật Hồ sơ pháp lý & Avatar Chủ sở hữu`,
+        message: `Chủ quán ${updatedMerchant.ownerName} (CCCD: ${updatedMerchant.ownerNationalId}) • GPKD: ${updatedMerchant.businessLicenseNumber} đã được lưu thành công.`,
+        priority: 'normal',
+        actionTab: 'merchant-kyc',
+        senderLabel: updatedMerchant.name,
+      },
+      {
+        targetRole: 'ADMIN',
+        category: 'KYC',
+        title: `📋 Quán "${updatedMerchant.name}" vừa cập nhật Hồ sơ Pháp lý & Avatar Chủ quán`,
+        message: `Đại diện pháp lý: ${updatedMerchant.ownerName} • CCCD: ${updatedMerchant.ownerNationalId} • GPKD: ${updatedMerchant.businessLicenseNumber}.`,
+        priority: 'normal',
+        actionTab: 'admin-merchants',
+        senderLabel: updatedMerchant.name,
+      },
+    ]);
     setMerchantKycSavedBanner(
-      `Đã lưu cập nhật Hồ sơ pháp lý & Cài đặt gian hàng "${updatedMerchant.name}" thành công lúc ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}!`,
+      `Đã lưu cập nhật Hồ sơ pháp lý, Avatar nhận diện chủ sở hữu & Cài đặt gian hàng "${updatedMerchant.name}" thành công lúc ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}!`,
     );
     setTimeout(() => setMerchantKycSavedBanner(''), 5000);
   };
@@ -1735,6 +1886,15 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       code,
       `${themeLabel} • ${merchantName} (${title}, Tối đa ${newVoucherMaxUsage} lượt, HSD ${newVoucherEndDate})`,
     );
+    pushActorNotification({
+      targetRole: 'CUSTOMER',
+      category: 'VOUCHER',
+      title: `🎟️ Voucher mới: ${code} — ${merchantName}`,
+      message: `${title}. Săn mã ngay tại mục Săn Voucher!`,
+      priority: 'high',
+      actionTab: 'vouchers',
+      senderLabel: 'Ban Quản Trị DineGo',
+    });
     triggerAdminToast(`Đã phát hành mã voucher "${code}" (${merchantName}) thành công.`);
     setNewVoucherCode('');
     setShowAdminVoucherForm(false);
@@ -1825,6 +1985,26 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
     setVouchers((prev) => [created, ...prev]);
     setShopVoucherCode('');
+    pushMultiActorNotifications([
+      {
+        targetRole: 'CUSTOMER',
+        category: 'VOUCHER',
+        title: `🎟️ Quán "${merchantName}" vừa tung mã ưu đãi: ${code}`,
+        message: `${title}. Vào gian hàng lưu mã và đặt món ngay!`,
+        priority: 'high',
+        actionTab: 'vouchers',
+        senderLabel: merchantName,
+      },
+      {
+        targetRole: 'ADMIN',
+        category: 'VOUCHER',
+        title: `🏷️ Quán "${merchantName}" vừa phát hành Voucher: ${code}`,
+        message: `${title} • Tối đa ${created.maxUsage} lượt sử dụng.`,
+        priority: 'normal',
+        actionTab: 'admin-reconciliation',
+        senderLabel: merchantName,
+      },
+    ]);
     setShopVoucherBanner(
       `🎉 Đã phát hành mã "${code}" cho quán ${merchantName}! Khách hàng có thể săn và áp mã ngay tại gian hàng.`,
     );
@@ -2136,8 +2316,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           }
         : r,
     );
+    const targetReview = baseList.find((r: any) => r.id === reviewId);
     setReviews(nextReviews);
     setReplyInput({ ...replyInput, [reviewId]: '' });
+    pushActorNotification({
+      targetRole: 'CUSTOMER',
+      targetUserId: targetReview?.customerId || undefined,
+      category: 'REVIEW',
+      title: `💬 Quán "${currentMerchant?.name || 'Nhà hàng'}" vừa phản hồi đánh giá của bạn`,
+      message: `Đơn #${targetReview?.orderRef || ''}: "${text.trim()}"`,
+      priority: 'high',
+      actionTab: 'orders',
+      orderRef: targetReview?.orderRef,
+      senderLabel: currentMerchant?.name || 'Chủ quán',
+    });
     try {
       const serialized = JSON.stringify(nextReviews);
       localStorage.setItem('dinego_merchant_reviews', serialized);
@@ -2559,6 +2751,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
                 <span style={{ fontWeight: 600 }}>Cơ sở dữ liệu máy chủ: Đang kết nối</span>
               </div>
+
+              <NotificationBell
+                actorRole="ADMIN"
+                userId={currentUser?.id}
+                actorDisplayName={currentUser?.fullName || 'Ban Quản Trị Hệ Thống'}
+                onNavigate={onNavigate}
+                variant="light"
+              />
 
               <div style={{ height: 20, width: 1, background: '#E2E8F0' }} />
 
@@ -3450,37 +3650,65 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                       </div>
                                     </td>
 
-                                    {/* Column 2: Representative & Business License */}
+                                    {/* Column 2: Representative, Owner Identity Avatar & Business License */}
                                     <td style={{ padding: '12px 12px' }}>
-                                      <div
-                                        title={m.ownerName || 'Chủ Hộ Kinh Doanh'}
-                                        style={{
-                                          fontWeight: 500,
-                                          color: '#1E293B',
-                                          fontSize: '0.82rem',
-                                          maxWidth: 145,
-                                          whiteSpace: 'nowrap',
-                                          overflow: 'hidden',
-                                          textOverflow: 'ellipsis',
-                                        }}
-                                      >
-                                        {m.ownerName || 'Chủ Hộ Kinh Doanh'}
-                                      </div>
-                                      <div
-                                        title={m.businessLicenseNumber || 'VSATTP-2026-HCM'}
-                                        style={{
-                                          fontSize: '0.72rem',
-                                          color: '#64748B',
-                                          marginTop: 2,
-                                          maxWidth: 145,
-                                          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                                          whiteSpace: 'nowrap',
-                                          overflow: 'hidden',
-                                          textOverflow: 'ellipsis',
-                                        }}
-                                      >
-                                        {m.businessLicenseNumber || 'VSATTP-2026-HCM'}
-                                      </div>
+                                      {(() => {
+                                        const savedMeta = loadStoredOwnerKycMeta(m.id);
+                                        const ownerAv =
+                                          savedMeta?.ownerAvatarUrl ||
+                                          m.ownerAvatarUrl ||
+                                          'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80';
+                                        const ownerCccd =
+                                          savedMeta?.ownerNationalId || m.ownerNationalId || '079095008821';
+                                        return (
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <img
+                                              src={ownerAv}
+                                              alt={m.ownerName || 'Chủ quán'}
+                                              title="Avatar nhận diện chủ sở hữu cửa hàng"
+                                              style={{
+                                                width: 32,
+                                                height: 32,
+                                                borderRadius: '50%',
+                                                objectFit: 'cover',
+                                                border: '2px solid #D97706',
+                                                flexShrink: 0,
+                                              }}
+                                            />
+                                            <div style={{ minWidth: 0 }}>
+                                              <div
+                                                title={m.ownerName || 'Chủ Hộ Kinh Doanh'}
+                                                style={{
+                                                  fontWeight: 600,
+                                                  color: '#1E293B',
+                                                  fontSize: '0.82rem',
+                                                  maxWidth: 135,
+                                                  whiteSpace: 'nowrap',
+                                                  overflow: 'hidden',
+                                                  textOverflow: 'ellipsis',
+                                                }}
+                                              >
+                                                {m.ownerName || 'Chủ Hộ Kinh Doanh'}
+                                              </div>
+                                              <div
+                                                title={`CCCD: ${ownerCccd} • GPKD: ${m.businessLicenseNumber || 'VSATTP-2026-HCM'}`}
+                                                style={{
+                                                  fontSize: '0.71rem',
+                                                  color: '#64748B',
+                                                  marginTop: 2,
+                                                  maxWidth: 145,
+                                                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                                                  whiteSpace: 'nowrap',
+                                                  overflow: 'hidden',
+                                                  textOverflow: 'ellipsis',
+                                                }}
+                                              >
+                                                CCCD: {ownerCccd} • {m.businessLicenseNumber || 'VSATTP-2026-HCM'}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
                                     </td>
 
                                     {/* Column 3: Business Address (Single-line truncated with tooltip) */}
@@ -7546,19 +7774,59 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
           </div>
 
-          {/* Store Info Banner (1-to-1 Merchant Account) */}
-          <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 8, border: '1px solid #E2E8F0' }}>
-            <div style={{ fontSize: '0.68rem', color: '#D97706', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>
+          {/* Store Info Banner (1-to-1 Merchant Account with Owner Identity Avatar) */}
+          <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 10, border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '0.68rem', color: '#D97706', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>
               Gian hàng độc lập
             </div>
-            <div style={{ fontWeight: 800, fontSize: '0.94rem', color: '#0F172A', lineHeight: 1.3 }}>
+            <div style={{ fontWeight: 800, fontSize: '0.94rem', color: '#0F172A', lineHeight: 1.3, marginBottom: 8 }}>
               {currentMerchant?.name || 'Gian hàng của bạn'}
             </div>
-            <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 4 }}>
-              Chủ quán: <strong>{currentMerchant?.ownerName || currentUser?.fullName || 'Chưa cập nhật'}</strong>
-            </div>
-            <div style={{ fontSize: '0.72rem', color: '#94A3B8', marginTop: 1 }}>
-              TK: {currentMerchant?.ownerEmail || currentUser?.email || 'Chưa cập nhật'}
+            <div
+              onClick={() => onNavigate?.('merchant-kyc')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 9,
+                paddingTop: 8,
+                borderTop: '1px dashed #E2E8F0',
+                cursor: 'pointer',
+              }}
+              title="Bấm để xem Hồ sơ Pháp lý & Avatar nhận diện Chủ sở hữu"
+            >
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <img
+                  src={kycOwnerAvatar}
+                  alt={kycOwnerName || 'Chủ quán'}
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: '2px solid #D97706',
+                  }}
+                />
+                <span
+                  style={{
+                    position: 'absolute',
+                    bottom: -1,
+                    right: -1,
+                    width: 13,
+                    height: 13,
+                    borderRadius: '50%',
+                    background: '#00B14F',
+                    border: '2px solid #FFFFFF',
+                  }}
+                />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '0.77rem', color: '#0F172A', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {kycOwnerName || currentMerchant?.ownerName || currentUser?.fullName || 'Chủ sở hữu'}
+                </div>
+                <div style={{ fontSize: '0.69rem', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  Chủ sở hữu • CCCD: {kycOwnerNationalId}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -7759,10 +8027,41 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               <span>{storeOpen ? 'Trạng thái: Đang mở cửa nhận đơn' : 'Trạng thái: Tạm đóng cửa'}</span>
             </button>
 
+            <NotificationBell
+              actorRole="MERCHANT"
+              userId={currentUser?.id}
+              merchantId={currentMerchant?.id}
+              actorDisplayName={currentMerchant?.name || 'Cửa hàng'}
+              onNavigate={onNavigate}
+              variant="seller"
+            />
+
             <div style={{ height: 18, width: 1, background: '#E2E8F0' }} />
 
-            <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0F172A' }}>
-              {currentMerchant?.name || 'Cơm Tấm Sài Gòn 1985'}
+            <div
+              onClick={() => onNavigate?.('merchant-kyc')}
+              style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer' }}
+              title="Chủ sở hữu cửa hàng — Bấm để mở Hồ sơ Pháp lý"
+            >
+              <img
+                src={kycOwnerAvatar}
+                alt={kycOwnerName || 'Chủ quán'}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: '2px solid #D97706',
+                }}
+              />
+              <div>
+                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0F172A', lineHeight: 1.15 }}>
+                  {currentMerchant?.name || 'Cơm Tấm Sài Gòn 1985'}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600 }}>
+                  Chủ quán: {kycOwnerName || currentMerchant?.ownerName || currentUser?.fullName}
+                </div>
+              </div>
             </div>
 
             <button
@@ -9753,105 +10052,241 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
           )}
 
-          {/* MERCHANT TAB 5: STOREFRONT KYC PROFILE & SETTINGS */}
-          {currentMerchantTab === 'merchant-kyc' && (
+          {/* MERCHANT TAB 5: STOREFRONT KYC PROFILE & SETTINGS (OPTIMIZED + OWNER AVATAR) */}
+          {currentMerchantTab === 'merchant-kyc' && (() => {
+            const kycChecklist = [
+              { label: 'Avatar nhận diện chủ sở hữu', done: Boolean(kycOwnerAvatar.trim()) },
+              { label: 'Họ tên & CCCD chủ quán', done: Boolean(kycOwnerName.trim() && kycOwnerNationalId.trim()) },
+              { label: 'Giấy phép ĐKKD & Mã số thuế', done: Boolean(kycBusinessLicense.trim() && kycTaxCode.trim()) },
+              { label: 'Chứng nhận VSATTP', done: Boolean(kycFoodSafetyCert.trim()) },
+              { label: 'Địa chỉ & Ảnh mặt tiền quán', done: Boolean(kycAddress.trim() && kycStoreFrontImage.trim()) },
+              { label: 'Tài khoản ngân hàng đối soát', done: Boolean(kycBankName.trim() && kycBankAccountNumber.trim() && kycBankAccountHolder.trim()) },
+            ];
+            const completedCount = kycChecklist.filter((c) => c.done).length;
+            const completionPct = Math.round((completedCount / kycChecklist.length) * 100);
+
+            return (
             <form
               onSubmit={handleSaveMerchantKycAndSettings}
               style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
             >
-              {/* Header Banner & Edit/Save Action Bar */}
+              {/* Header Banner, Owner Quick Identity Card & Edit/Save Action Bar */}
               <div
                 style={{
                   background: '#FFFFFF',
                   border: '1px solid #E2E8F0',
-                  borderRadius: 12,
+                  borderRadius: 14,
                   padding: '20px 24px',
                   display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: 14,
+                  flexDirection: 'column',
+                  gap: 16,
+                  boxShadow: '0 2px 8px rgba(15, 23, 42, 0.03)',
                 }}
               >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                      Hồ sơ Pháp lý, Tài khoản Đối soát &amp; Cài đặt Gian hàng
-                    </h3>
-                    <span
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 14,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                      <img
+                        src={kycOwnerAvatar}
+                        alt={kycOwnerName || 'Chủ sở hữu'}
+                        style={{
+                          width: 60,
+                          height: 60,
+                          borderRadius: '50%',
+                          objectFit: 'cover',
+                          border: '3px solid #D97706',
+                          boxShadow: '0 4px 12px rgba(217, 119, 6, 0.25)',
+                        }}
+                      />
+                      <span
+                        style={{
+                          position: 'absolute',
+                          bottom: 0,
+                          right: 0,
+                          width: 20,
+                          height: 20,
+                          borderRadius: '50%',
+                          background: '#00B14F',
+                          color: '#FFFFFF',
+                          border: '2px solid #FFFFFF',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        title="Đã định danh chủ sở hữu"
+                      >
+                        <CheckCircle2 size={11} />
+                      </span>
+                    </div>
+
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 4 }}>
+                        <h3 style={{ fontSize: '1.12rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                          Hồ sơ Pháp lý, Định danh Chủ sở hữu &amp; Cài đặt Gian hàng
+                        </h3>
+                        <span
+                          style={{
+                            background:
+                              currentMerchant?.kycStatus === 'REJECTED'
+                                ? '#FEE2E2'
+                                : currentMerchant?.kycStatus === 'PENDING_APPROVAL'
+                                ? '#FEF3C7'
+                                : '#DCFCE7',
+                            color:
+                              currentMerchant?.kycStatus === 'REJECTED'
+                                ? '#DC2626'
+                                : currentMerchant?.kycStatus === 'PENDING_APPROVAL'
+                                ? '#B45309'
+                                : '#15803D',
+                            padding: '4px 12px',
+                            borderRadius: 6,
+                            fontSize: '0.75rem',
+                            fontWeight: 800,
+                          }}
+                        >
+                          {currentMerchant?.kycStatus === 'REJECTED'
+                            ? 'Hồ sơ bị từ chối'
+                            : currentMerchant?.kycStatus === 'PENDING_APPROVAL'
+                            ? 'Đang chờ thẩm định'
+                            : `Đã xác thực KYC${currentMerchant?.verifiedAt ? ` • ${currentMerchant.verifiedAt}` : ''}`}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: '0.81rem', color: '#64748B', margin: 0 }}>
+                        Chủ sở hữu đại diện: <strong style={{ color: '#0F172A' }}>{kycOwnerName}</strong> • CCCD: <strong style={{ color: '#0F172A' }}>{kycOwnerNationalId}</strong> • GPKD: <strong style={{ color: '#0F172A' }}>{kycBusinessLicense}</strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingMerchantKyc((prev) => !prev)}
                       style={{
-                        background:
-                          currentMerchant?.kycStatus === 'REJECTED'
-                            ? '#FEE2E2'
-                            : currentMerchant?.kycStatus === 'PENDING_APPROVAL'
-                            ? '#FEF3C7'
-                            : '#DCFCE7',
-                        color:
-                          currentMerchant?.kycStatus === 'REJECTED'
-                            ? '#DC2626'
-                            : currentMerchant?.kycStatus === 'PENDING_APPROVAL'
-                            ? '#B45309'
-                            : '#15803D',
-                        padding: '4px 12px',
-                        borderRadius: 6,
-                        fontSize: '0.76rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '9px 16px',
+                        borderRadius: 8,
+                        border: '1px solid #CBD5E1',
+                        background: isEditingMerchantKyc ? '#F8FAFC' : '#FFFFFF',
+                        color: '#334155',
+                        fontSize: '0.84rem',
                         fontWeight: 700,
+                        cursor: 'pointer',
                       }}
                     >
-                      {currentMerchant?.kycStatus === 'REJECTED'
-                        ? 'Hồ sơ bị từ chối'
-                        : currentMerchant?.kycStatus === 'PENDING_APPROVAL'
-                        ? 'Đang chờ thẩm định'
-                        : `Đã xác thực KYC${currentMerchant?.verifiedAt ? ` • ${currentMerchant.verifiedAt}` : ''}`}
-                    </span>
+                      <Edit3 size={15} />
+                      <span>{isEditingMerchantKyc ? 'Khóa chỉnh sửa (Chỉ xem)' : 'Bật chế độ chỉnh sửa'}</span>
+                    </button>
+
+                    <button
+                      type="submit"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 7,
+                        padding: '9px 20px',
+                        borderRadius: 8,
+                        background: '#00B14F',
+                        color: '#FFFFFF',
+                        fontSize: '0.85rem',
+                        fontWeight: 800,
+                        border: 'none',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(0, 177, 79, 0.25)',
+                      }}
+                    >
+                      <CheckCircle2 size={16} />
+                      <span>Lưu cập nhật hồ sơ</span>
+                    </button>
                   </div>
-                  <p style={{ fontSize: '0.82rem', color: '#64748B', margin: 0 }}>
-                    Quản lý và chỉnh sửa toàn bộ thông tin nhà hàng, địa điểm kinh doanh, giấy tờ pháp lý, tài khoản ngân hàng nhận doanh thu và cài đặt vận hành quán.
-                  </p>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingMerchantKyc((prev) => !prev)}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      padding: '9px 16px',
-                      borderRadius: 8,
-                      border: '1px solid #CBD5E1',
-                      background: isEditingMerchantKyc ? '#F8FAFC' : '#FFFFFF',
-                      color: '#334155',
-                      fontSize: '0.84rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <Edit3 size={15} />
-                    <span>{isEditingMerchantKyc ? 'Khóa chỉnh sửa (Chỉ xem)' : 'Bật chế độ chỉnh sửa'}</span>
-                  </button>
+                {/* KYC Completeness Progress Bar & Quick Section Filter */}
+                <div
+                  style={{
+                    paddingTop: 14,
+                    borderTop: '1px solid #F1F5F9',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: 14,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: '0.76rem', fontWeight: 800, color: '#0F172A' }}>
+                        Mức độ hoàn thiện hồ sơ pháp lý:
+                      </span>
+                      <span
+                        style={{
+                          padding: '2px 9px',
+                          borderRadius: 999,
+                          background: completionPct === 100 ? '#DCFCE7' : '#FEF3C7',
+                          color: completionPct === 100 ? '#15803D' : '#B45309',
+                          fontSize: '0.75rem',
+                          fontWeight: 800,
+                        }}
+                      >
+                        {completionPct}% ({completedCount}/{kycChecklist.length} hạng mục)
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {kycChecklist.map((item, i) => (
+                        <span
+                          key={i}
+                          style={{
+                            padding: '2px 8px',
+                            borderRadius: 6,
+                            background: item.done ? '#F0FDF4' : '#FEF2F2',
+                            border: `1px solid ${item.done ? '#BBF7D0' : '#FECACA'}`,
+                            color: item.done ? '#15803D' : '#DC2626',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {item.done ? '✓' : '•'} {item.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
 
-                  <button
-                    type="submit"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 7,
-                      padding: '9px 20px',
-                      borderRadius: 8,
-                      background: '#00B14F',
-                      color: '#FFFFFF',
-                      fontSize: '0.85rem',
-                      fontWeight: 800,
-                      border: 'none',
-                      cursor: 'pointer',
-                      boxShadow: '0 4px 12px rgba(0, 177, 79, 0.25)',
-                    }}
-                  >
-                    <CheckCircle2 size={16} />
-                    <span>Lưu cập nhật thông tin</span>
-                  </button>
+                  {/* Filter Tabs for Fast Navigation */}
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {[
+                      { id: 'OWNER_LEGAL' as const, label: 'Định danh Chủ quán & GPKD' },
+                      { id: 'STORE_OPS' as const, label: 'Thương hiệu & Mặt tiền' },
+                      { id: 'BANK_PAYOUT' as const, label: 'Ngân hàng Đối soát' },
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setKycSectionFilter(tab.id)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: 8,
+                          border:
+                            kycSectionFilter === tab.id ? '1.5px solid #D97706' : '1px solid #CBD5E1',
+                          background: kycSectionFilter === tab.id ? '#FFFBEB' : '#F8FAFC',
+                          color: kycSectionFilter === tab.id ? '#B45309' : '#475569',
+                          fontSize: '0.75rem',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -9875,9 +10310,478 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 </div>
               )}
 
-              {/* Grid Row 1: Store Identity & Operational Settings + Storefront Image */}
+              {/* DEDICATED ROW 1: OWNER IDENTIFICATION AVATAR & LEGAL KYC CERTIFICATES */}
+              {kycSectionFilter === 'OWNER_LEGAL' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 1fr', gap: 20, alignItems: 'start' }}>
+                  {/* Card A: Định danh Chủ sở hữu Cửa hàng & Avatar Nhận diện */}
+                  <div
+                    style={{
+                      background: '#FFFFFF',
+                      border: '1.5px solid #FDE68A',
+                      borderRadius: 12,
+                      padding: 22,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 14,
+                      boxShadow: '0 4px 14px rgba(217, 119, 6, 0.05)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid #FEF3C7' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <UserIcon size={18} color="#D97706" />
+                        <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                          1. Định danh Chủ sở hữu &amp; Avatar Nhận diện (Owner KYC)
+                        </h4>
+                      </div>
+                      <span
+                        style={{
+                          padding: '2px 9px',
+                          borderRadius: 999,
+                          background: '#FFFBEB',
+                          border: '1px solid #FDE68A',
+                          color: '#B45309',
+                          fontSize: '0.7rem',
+                          fontWeight: 800,
+                        }}
+                      >
+                        Bắt buộc đối chiếu CCCD
+                      </span>
+                    </div>
+
+                    {/* Owner Portrait Avatar Preview + Upload Box */}
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'auto 1fr',
+                        gap: 16,
+                        padding: 14,
+                        borderRadius: 12,
+                        background: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)',
+                        border: '1px solid #FDE68A',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div style={{ position: 'relative', width: 92, height: 92 }}>
+                        <img
+                          src={kycOwnerAvatar}
+                          alt={kycOwnerName || 'Chủ sở hữu cửa hàng'}
+                          style={{
+                            width: 92,
+                            height: 92,
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                            border: '3px solid #D97706',
+                            background: '#FFFFFF',
+                            boxShadow: '0 6px 16px rgba(217, 119, 6, 0.25)',
+                          }}
+                        />
+                        <span
+                          style={{
+                            position: 'absolute',
+                            bottom: 2,
+                            right: 2,
+                            padding: '2px 6px',
+                            borderRadius: 999,
+                            background: '#00B14F',
+                            color: '#FFFFFF',
+                            fontSize: '0.62rem',
+                            fontWeight: 800,
+                            border: '1.5px solid #FFFFFF',
+                          }}
+                        >
+                          KYC
+                        </span>
+                      </div>
+
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#0F172A', marginBottom: 3 }}>
+                          Ảnh chân dung nhận diện Chủ sở hữu: {kycOwnerName || 'Chủ quán'}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#78350F', lineHeight: 1.4, marginBottom: 10 }}>
+                          Ảnh nhận diện chính chủ được hiển thị trên Hồ sơ pháp lý, Sidebar quản trị quán và gửi tới Admin khi thẩm định KYC.
+                        </div>
+
+                        {isEditingMerchantKyc && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                            <label
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 5,
+                                padding: '6px 11px',
+                                borderRadius: 7,
+                                background: '#D97706',
+                                color: '#FFFFFF',
+                                fontSize: '0.74rem',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <Upload size={13} />
+                              <span>Tải ảnh từ máy tính</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleUploadOwnerAvatarFile}
+                                style={{ display: 'none' }}
+                              />
+                            </label>
+
+                            {[
+                              {
+                                label: 'Mẫu Nam 1',
+                                url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
+                              },
+                              {
+                                label: 'Mẫu Nữ 1',
+                                url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=300&auto=format&fit=crop&q=80',
+                              },
+                              {
+                                label: 'Bếp trưởng',
+                                url: 'https://images.unsplash.com/photo-1583394838336-acd977736f90?w=300&auto=format&fit=crop&q=80',
+                              },
+                              {
+                                label: 'Mẫu Nữ 2',
+                                url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=300&auto=format&fit=crop&q=80',
+                              },
+                            ].map((preset, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => setKycOwnerAvatar(preset.url)}
+                                style={{
+                                  padding: '5px 9px',
+                                  borderRadius: 6,
+                                  border:
+                                    kycOwnerAvatar === preset.url
+                                      ? '1.5px solid #D97706'
+                                      : '1px solid #CBD5E1',
+                                  background: kycOwnerAvatar === preset.url ? '#FFFFFF' : 'rgba(255,255,255,0.75)',
+                                  color: kycOwnerAvatar === preset.url ? '#B45309' : '#475569',
+                                  fontSize: '0.71rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                        ĐƯỜNG DẪN ẢNH AVATAR NHẬN DIỆN CHỦ SỞ HỮU (URL / BASE64)
+                      </label>
+                      <input
+                        type="text"
+                        readOnly={!isEditingMerchantKyc}
+                        value={kycOwnerAvatar}
+                        onChange={(e) => setKycOwnerAvatar(e.target.value)}
+                        placeholder="https://images.unsplash.com/..."
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                          fontSize: '0.81rem',
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                          HỌ VÀ TÊN CHỦ SỞ HỮU / ĐẠI DIỆN PHÁP LUẬT *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          readOnly={!isEditingMerchantKyc}
+                          value={kycOwnerName}
+                          onChange={(e) => setKycOwnerName(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '9px 12px',
+                            borderRadius: 8,
+                            border: '1px solid #CBD5E1',
+                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                            fontSize: '0.86rem',
+                            fontWeight: 700,
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                          SỐ CCCD / CMND ĐỊNH DANH CÁ NHÂN *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          readOnly={!isEditingMerchantKyc}
+                          value={kycOwnerNationalId}
+                          onChange={(e) => setKycOwnerNationalId(e.target.value)}
+                          placeholder="079095008821"
+                          style={{
+                            width: '100%',
+                            padding: '9px 12px',
+                            borderRadius: 8,
+                            border: '1px solid #CBD5E1',
+                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                            fontSize: '0.86rem',
+                            fontWeight: 700,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '0.9fr 1.3fr 1.1fr', gap: 12 }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                          NGÀY CẤP CCCD
+                        </label>
+                        <input
+                          type="date"
+                          readOnly={!isEditingMerchantKyc}
+                          value={kycOwnerIdIssuedDate}
+                          onChange={(e) => setKycOwnerIdIssuedDate(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: 8,
+                            border: '1px solid #CBD5E1',
+                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                            fontSize: '0.82rem',
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                          NƠI CẤP CCCD
+                        </label>
+                        <input
+                          type="text"
+                          readOnly={!isEditingMerchantKyc}
+                          value={kycOwnerIdIssuedPlace}
+                          onChange={(e) => setKycOwnerIdIssuedPlace(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: 8,
+                            border: '1px solid #CBD5E1',
+                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                            fontSize: '0.82rem',
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                          EMAIL CHỦ SỞ HỮU *
+                        </label>
+                        <input
+                          type="email"
+                          required
+                          readOnly={!isEditingMerchantKyc}
+                          value={kycOwnerEmail}
+                          onChange={(e) => setKycOwnerEmail(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: 8,
+                            border: '1px solid #CBD5E1',
+                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                            fontSize: '0.82rem',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card B: Hồ sơ Pháp lý, Giấy phép ĐKKD & Chứng nhận VSATTP */}
+                  <div
+                    style={{
+                      background: '#FFFFFF',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: 12,
+                      padding: 22,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 14,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
+                      <ShieldCheck size={18} color="#00B14F" />
+                      <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                        2. Hồ sơ Pháp lý, Giấy phép ĐKKD &amp; Chứng nhận VSATTP
+                      </h4>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                          LOẠI HÌNH PHÁP NHÂN KINH DOANH
+                        </label>
+                        <select
+                          disabled={!isEditingMerchantKyc}
+                          value={kycBusinessType}
+                          onChange={(e) => setKycBusinessType(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '9px 12px',
+                            borderRadius: 8,
+                            border: '1px solid #CBD5E1',
+                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                            fontSize: '0.84rem',
+                            fontWeight: 600,
+                          }}
+                        >
+                          <option value="Hộ Kinh Doanh Cá Thể">Hộ Kinh Doanh Cá Thể</option>
+                          <option value="Công ty TNHH Một Thành Viên">Công ty TNHH Một Thành Viên</option>
+                          <option value="Công ty TNHH Hai Thành Viên trở lên">Công ty TNHH Hai Thành Viên trở lên</option>
+                          <option value="Công ty Cổ phần Ẩm thực (F&B)">Công ty Cổ phần Ẩm thực (F&amp;B)</option>
+                          <option value="Chuỗi Nhượng quyền Thương hiệu">Chuỗi Nhượng quyền Thương hiệu</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                          MÃ SỐ THUẾ ĐƠN VỊ KINH DOANH *
+                        </label>
+                        <input
+                          type="text"
+                          readOnly={!isEditingMerchantKyc}
+                          value={kycTaxCode}
+                          onChange={(e) => setKycTaxCode(e.target.value)}
+                          placeholder="VD: 0318992819"
+                          style={{
+                            width: '100%',
+                            padding: '9px 12px',
+                            borderRadius: 8,
+                            border: '1px solid #CBD5E1',
+                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                            fontSize: '0.86rem',
+                            fontWeight: 700,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                          SỐ GIẤY PHÉP ĐĂNG KÝ KINH DOANH *
+                        </label>
+                        <input
+                          type="text"
+                          readOnly={!isEditingMerchantKyc}
+                          value={kycBusinessLicense}
+                          onChange={(e) => setKycBusinessLicense(e.target.value)}
+                          placeholder="VD: GPKD-41A8029144"
+                          style={{
+                            width: '100%',
+                            padding: '9px 12px',
+                            borderRadius: 8,
+                            border: '1px solid #CBD5E1',
+                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                            fontSize: '0.86rem',
+                            fontWeight: 700,
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                          SỐ CHỨNG NHẬN VSATTP *
+                        </label>
+                        <input
+                          type="text"
+                          readOnly={!isEditingMerchantKyc}
+                          value={kycFoodSafetyCert}
+                          onChange={(e) => setKycFoodSafetyCert(e.target.value)}
+                          placeholder="VD: ATTP-HCM-2026-0891"
+                          style={{
+                            width: '100%',
+                            padding: '9px 12px',
+                            borderRadius: 8,
+                            border: '1px solid #CBD5E1',
+                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                            fontSize: '0.86rem',
+                            fontWeight: 700,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 0.8fr', gap: 12 }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                          CƠ QUAN CẤP CHỨNG NHẬN VSATTP
+                        </label>
+                        <input
+                          type="text"
+                          readOnly={!isEditingMerchantKyc}
+                          value={kycFoodSafetyIssuedBy}
+                          onChange={(e) => setKycFoodSafetyIssuedBy(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '9px 12px',
+                            borderRadius: 8,
+                            border: '1px solid #CBD5E1',
+                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                            fontSize: '0.84rem',
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                          HIỆU LỰC ĐẾN NGÀY
+                        </label>
+                        <input
+                          type="date"
+                          readOnly={!isEditingMerchantKyc}
+                          value={kycFoodSafetyExpiryDate}
+                          onChange={(e) => setKycFoodSafetyExpiryDate(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '9px 12px',
+                            borderRadius: 8,
+                            border: '1px solid #CBD5E1',
+                            background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
+                            fontSize: '0.84rem',
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Summary Verification Box */}
+                    <div
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: 10,
+                        background: '#F0FDF4',
+                        border: '1px solid #BBF7D0',
+                        fontSize: '0.78rem',
+                        color: '#166534',
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      <strong>✓ Đồng bộ Hồ sơ Thẩm định Admin:</strong> Thông tin định danh chủ quán ({kycOwnerName} • CCCD {kycOwnerNationalId}), Avatar chân dung và giấy phép ({kycBusinessLicense}) được đồng bộ trực tiếp sang cổng kiểm duyệt KYC của Quản trị viên sàn.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Grid Row 2: Store Identity & Operational Settings + Storefront Image */}
+              {kycSectionFilter === 'STORE_OPS' && (
               <div style={{ display: 'grid', gridTemplateColumns: '1.35fr 1fr', gap: 20, alignItems: 'start' }}>
-                {/* Section 1: Thông tin Thương hiệu & Cài đặt Vận hành */}
+                {/* Section 3: Thông tin Thương hiệu & Cài đặt Vận hành */}
                 <div
                   style={{
                     background: '#FFFFFF',
@@ -9892,7 +10796,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
                     <Store size={18} color="#D97706" />
                     <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                      1. Thông tin Nhà hàng &amp; Cài đặt Vận hành
+                      3. Thông tin Nhà hàng &amp; Cài đặt Vận hành
                     </h4>
                   </div>
 
@@ -10089,7 +10993,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   </div>
                 </div>
 
-                {/* Section 2: Hình ảnh Mặt tiền & Bảng hiệu Gian hàng */}
+                {/* Section 4: Hình ảnh Mặt tiền & Bảng hiệu Gian hàng */}
                 <div
                   style={{
                     background: '#FFFFFF',
@@ -10104,7 +11008,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
                     <Camera size={18} color="#0284C7" />
                     <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                      2. Hình ảnh Mặt tiền &amp; Ảnh đại diện Quán
+                      4. Hình ảnh Mặt tiền &amp; Ảnh đại diện Quán
                     </h4>
                   </div>
 
@@ -10211,140 +11115,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   )}
                 </div>
               </div>
+              )}
 
-              {/* Grid Row 2: Legal Documents (KYC) + Payout Bank Account */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
-                {/* Section 3: Hồ sơ Pháp lý & Định danh Chủ quán */}
-                <div
-                  style={{
-                    background: '#FFFFFF',
-                    border: '1px solid #E2E8F0',
-                    borderRadius: 12,
-                    padding: 22,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 14,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
-                    <ShieldCheck size={18} color="#00B14F" />
-                    <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                      3. Hồ sơ Pháp lý &amp; Giấy phép Kinh doanh (KYC)
-                    </h4>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                        NGƯỜI ĐẠI DIỆN PHÁP LÝ / CHỦ QUÁN *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        readOnly={!isEditingMerchantKyc}
-                        value={kycOwnerName}
-                        onChange={(e) => setKycOwnerName(e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: '9px 12px',
-                          borderRadius: 8,
-                          border: '1px solid #CBD5E1',
-                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                          fontSize: '0.86rem',
-                          fontWeight: 600,
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                        EMAIL ĐĂNG NHẬP QUẢN TRỊ QUÁN *
-                      </label>
-                      <input
-                        type="email"
-                        required
-                        readOnly={!isEditingMerchantKyc}
-                        value={kycOwnerEmail}
-                        onChange={(e) => setKycOwnerEmail(e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: '9px 12px',
-                          borderRadius: 8,
-                          border: '1px solid #CBD5E1',
-                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                          fontSize: '0.86rem',
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                        SỐ GIẤY PHÉP ĐĂNG KÝ KINH DOANH
-                      </label>
-                      <input
-                        type="text"
-                        readOnly={!isEditingMerchantKyc}
-                        value={kycBusinessLicense}
-                        onChange={(e) => setKycBusinessLicense(e.target.value)}
-                        placeholder="VD: GPKD-41A8029144"
-                        style={{
-                          width: '100%',
-                          padding: '9px 12px',
-                          borderRadius: 8,
-                          border: '1px solid #CBD5E1',
-                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                          fontSize: '0.86rem',
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                        MÃ SỐ THUẾ HỘ KINH DOANH / DOANH NGHIỆP
-                      </label>
-                      <input
-                        type="text"
-                        readOnly={!isEditingMerchantKyc}
-                        value={kycTaxCode}
-                        onChange={(e) => setKycTaxCode(e.target.value)}
-                        placeholder="VD: 0318992819"
-                        style={{
-                          width: '100%',
-                          padding: '9px 12px',
-                          borderRadius: 8,
-                          border: '1px solid #CBD5E1',
-                          background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                          fontSize: '0.86rem',
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                      SỐ CHỨNG NHẬN VỆ SINH AN TOÀN THỰC PHẨM (VSATTP)
-                    </label>
-                    <input
-                      type="text"
-                      readOnly={!isEditingMerchantKyc}
-                      value={kycFoodSafetyCert}
-                      onChange={(e) => setKycFoodSafetyCert(e.target.value)}
-                      placeholder="VD: ATTP-HCM-2026-0891"
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        borderRadius: 8,
-                        border: '1px solid #CBD5E1',
-                        background: isEditingMerchantKyc ? '#FFFFFF' : '#F8FAFC',
-                        fontSize: '0.86rem',
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Section 4: Tài khoản Ngân hàng Nhận Đối Soát Doanh Thu */}
+              {/* Grid Row 3: Payout Bank Account */}
+              {kycSectionFilter === 'BANK_PAYOUT' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 20, alignItems: 'start' }}>
+                {/* Section 5: Tài khoản Ngân hàng Nhận Đối Soát Doanh Thu */}
                 <div
                   style={{
                     background: '#FFFFFF',
@@ -10359,7 +11135,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
                     <DollarSign size={18} color="#4F46E5" />
                     <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                      4. Tài khoản Ngân hàng Nhận Đối Soát &amp; Doanh Thu
+                      5. Tài khoản Ngân hàng Nhận Đối Soát &amp; Doanh Thu
                     </h4>
                   </div>
 
@@ -10460,6 +11236,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   </div>
                 </div>
               </div>
+              )}
 
               {/* Bottom Sticky Save Bar */}
               <div
@@ -10476,7 +11253,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 }}
               >
                 <div style={{ fontSize: '0.82rem', color: '#64748B' }}>
-                  Mọi thay đổi về tên quán, địa chỉ, khung giờ mở cửa và tài khoản ngân hàng sẽ được áp dụng ngay trên toàn hệ thống DineGo.
+                  Mọi thay đổi về Avatar chủ sở hữu, hồ sơ pháp lý, tên quán, địa chỉ, khung giờ mở cửa và tài khoản ngân hàng sẽ được áp dụng ngay trên toàn hệ thống DineGo.
                 </div>
                 <button
                   type="submit"
@@ -10500,7 +11277,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 </button>
               </div>
             </form>
-          )}
+            );
+          })()}
         </div>
       </div>
 
