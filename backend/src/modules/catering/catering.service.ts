@@ -1270,6 +1270,15 @@ export class CateringService {
     });
 
     this.logAudit(booking.id, user.id, 'MERCHANT', 'UPDATE_STATUS', prevStatus, booking.status, dto.merchantNotes);
+    if (dto.status === 'APPROVED_WAITING_DEPOSIT') {
+      this.sendNotification(
+        booking.userId,
+        'Nhà hàng đã phê duyệt yêu cầu đặt tiệc!',
+        `Đơn đặt tiệc #${booking.bookingCode} đã được nhà hàng duyệt. Vui lòng thanh toán tiền đặt cọc để hoàn tất.`,
+        'BOOKING_APPROVED',
+        booking.id,
+      );
+    }
     return booking;
   }
 

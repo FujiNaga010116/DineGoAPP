@@ -49,10 +49,12 @@ import {
   Briefcase,
   CreditCard,
 } from 'lucide-react';
-import type { Role, User, Order, OrderStatus, MenuItem, Merchant, DriverProfile, DeliveryDisputeReport } from '../types';
-import { OrderChatModal } from '../components/common/OrderChatModal';
-import type { NavTab } from '../components/common/Header';
-import { adminApi } from '../api/client';
+import type { Role, User, Order, OrderStatus, MenuItem, Merchant, DriverProfile, DeliveryDisputeReport } from '../../types';
+import { OrderChatModal } from './components/OrderChatModal';
+import type { NavTab } from './components/Header';
+import { adminApi } from '../../api/client';
+import { AdminKnowledgeTab } from '../admin/tabs/AdminKnowledgeTab';
+import { AdminSettingsTab } from '../admin/tabs/AdminSettingsTab';
 import {
   EVENT_THEME_OPTIONS,
   fetchRemoteAdminVouchers,
@@ -61,12 +63,12 @@ import {
   saveAdminVouchers,
   type ManagedVoucher,
   type VoucherEventTheme,
-} from '../utils/vouchers';
+} from '../../utils/vouchers';
 import {
   CateringFinalBillModal,
   type CateringBillData,
-} from '../components/common/CateringFinalBillModal';
-import { NotificationBell } from '../components/common/NotificationBell';
+} from '../customer/components/CateringFinalBillModal';
+import { NotificationBell } from './components/NotificationBell';
 
 interface DashboardPageProps {
   currentUser: User | null;
@@ -940,6 +942,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         ? 'Admin đã giải ngân doanh thu ròng về tài khoản ngân hàng nhà hàng'
         : 'Từ chối yêu cầu rút tiền do chưa khớp biên bản đối soát';
 
+    void adminApi.processDatabaseWithdrawal(id, nextStatus, note);
     setMerchantWithdrawals((prev) =>
       prev.map((w) =>
         w.id === id ? { ...w, status: nextStatus, processedAt: nowStr, note } : w,
@@ -1454,10 +1457,37 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       hour: '2-digit',
       minute: '2-digit',
     });
+    // Persist payout settlement to SQL Server withdrawal_requests so Merchant balance & Admin Đã rút stay synced after reload
+    const pendingList = merchantWithdrawals.filter(
+      (w) => w.merchantId === target.merchantId && w.status === 'PENDING',
+    );
+    const pendingForMerchant = pendingList.reduce((s, w) => s + w.amount, 0);
+    for (const pw of pendingList) {
+      void adminApi.processDatabaseWithdrawal(
+        pw.id,
+        'APPROVED',
+        `Tất toán trong kỳ đối soát ${target.period}`,
+      );
+    }
+    const extraRemainder = Math.max(0, target.remainingPayout - pendingForMerchant);
+    const settleId = `mwd-settle-${Date.now()}`;
+    if (extraRemainder > 0) {
+      void adminApi.createDatabaseWithdrawal({
+        id: settleId,
+        actorType: 'MERCHANT',
+        actorId: target.merchantId,
+        actorName: target.merchantName,
+        bankName: target.bankName,
+        bankAccountNumber: target.bankAccountNumber,
+        bankAccountHolder: target.bankAccountHolder,
+        amount: extraRemainder,
+        status: 'APPROVED',
+        note: `Quyết toán công nợ cuối kỳ ${target.period} từ Admin`,
+        createdAt: nowStr,
+      });
+    }
+
     setMerchantWithdrawals((prev) => {
-      const pendingForMerchant = prev
-        .filter((w) => w.merchantId === target.merchantId && w.status === 'PENDING')
-        .reduce((s, w) => s + w.amount, 0);
       const updatedExisting = prev.map((w) =>
         w.merchantId === target.merchantId && w.status === 'PENDING'
           ? {
@@ -1468,11 +1498,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             }
           : w,
       );
-      const extraRemainder = Math.max(0, target.remainingPayout - pendingForMerchant);
       if (extraRemainder > 0) {
         return [
           {
-            id: `mwd-settle-${Date.now()}`,
+            id: settleId,
             merchantId: target.merchantId,
             merchantName: target.merchantName,
             bankName: target.bankName,
@@ -6102,448 +6131,26 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
             {/* ADMIN TAB: AI LOCAL CULINARY KNOWLEDGE BASE (RAG CRUD - SQL SERVER) */}
             {currentAdminTab === 'admin-knowledge' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {/* Compact Header Bar with Pop-up Modal Triggers */}
-                <div
-                  style={{
-                    background: '#FFFFFF',
-                    border: '1px solid #E2E8F0',
-                    borderRadius: 12,
-                    padding: '18px 24px',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    gap: 14,
-                  }}
-                >
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                      <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                        Tri thức &amp; Huấn luyện Trợ lý AI (Gemini + RAG)
-                      </h3>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#059669', background: '#ECFDF5', padding: '4px 10px', borderRadius: 999 }}>
-                        {knowledgeChunks.length} đoạn tri thức đang hoạt động
-                      </span>
-                    </div>
-                    <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '4px 0 0 0' }}>
-                      Quản lý System Prompt hành vi AI và dữ liệu <code>knowledge_base_vectors</code> trong SQL Server
-                    </p>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      onClick={() => setShowAiPromptModal(true)}
-                      style={{
-                        padding: '9px 16px',
-                        borderRadius: 8,
-                        border: '1px solid #CBD5E1',
-                        background: '#F8FAFC',
-                        color: '#0F172A',
-                        fontWeight: 700,
-                        fontSize: '0.82rem',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Cấu hình System Prompt AI
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowKbCreateModal(true)}
-                      style={{
-                        padding: '9px 16px',
-                        borderRadius: 8,
-                        border: 'none',
-                        background: '#00B14F',
-                        color: '#FFFFFF',
-                        fontWeight: 700,
-                        fontSize: '0.82rem',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      + Thêm tri thức RAG
-                    </button>
-                  </div>
-                </div>
-
-                {/* Knowledge Base List */}
-                <div
-                  style={{
-                    background: '#FFFFFF',
-                    border: '1px solid #E2E8F0',
-                    borderRadius: 12,
-                    padding: '18px 24px',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
-                    <h4 style={{ fontSize: '0.94rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                      Danh sách Tri thức trong SQL Server
-                    </h4>
-                    <input
-                      type="text"
-                      placeholder="Tìm theo nguồn hoặc nội dung..."
-                      value={kbSearchQuery}
-                      onChange={(e) => setKbSearchQuery(e.target.value)}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: 8,
-                        border: '1px solid #E2E8F0',
-                        background: '#F8FAFC',
-                        fontSize: '0.8rem',
-                        width: 240,
-                        outline: 'none',
-                      }}
-                    />
-                  </div>
-
-                  {knowledgeChunks.length === 0 ? (
-                    <div style={{ padding: '32px 16px', textAlign: 'center', color: '#64748B', fontSize: '0.86rem' }}>
-                      Chưa có đoạn tri thức nào trong cơ sở dữ liệu. Hãy nhấn &quot;+ Thêm tri thức RAG&quot; ở góc trên!
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {knowledgeChunks
-                        .filter((k) => {
-                          const q = kbSearchQuery.trim().toLowerCase();
-                          if (!q) return true;
-                          return (
-                            k.source.toLowerCase().includes(q) ||
-                            k.content.toLowerCase().includes(q)
-                          );
-                        })
-                        .map((k) => (
-                          <div
-                            key={k.id}
-                            style={{
-                              padding: '14px 16px',
-                              borderRadius: 10,
-                              border: '1px solid #E2E8F0',
-                              background: '#F8FAFC',
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'flex-start',
-                              gap: 14,
-                            }}
-                          >
-                            <div style={{ flex: 1 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#4F46E5', background: '#EEF2FF', padding: '2px 8px', borderRadius: 6 }}>
-                                  {k.source}
-                                </span>
-                                <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
-                                  {k.authorName} • {k.createdAt || 'Mới tạo'}
-                                </span>
-                              </div>
-                              <p style={{ margin: 0, fontSize: '0.85rem', color: '#1E293B', lineHeight: 1.5 }}>
-                                {k.content}
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteKnowledgeChunk(k.id)}
-                              style={{
-                                padding: '6px 12px',
-                                borderRadius: 6,
-                                border: '1px solid #FECACA',
-                                background: '#FFFFFF',
-                                color: '#DC2626',
-                                fontSize: '0.76rem',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                flexShrink: 0,
-                              }}
-                            >
-                              Xóa
-                            </button>
-                          </div>
-                        ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* POP-UP MODAL: AI SYSTEM PROMPT TRAINING */}
-                {showAiPromptModal && (
-                  <div
-                    style={{
-                      position: 'fixed',
-                      inset: 0,
-                      background: 'rgba(15, 23, 42, 0.55)',
-                      backdropFilter: 'blur(3px)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      zIndex: 9999,
-                      padding: 16,
-                    }}
-                    onClick={() => setShowAiPromptModal(false)}
-                  >
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      style={{
-                        width: '100%',
-                        maxWidth: 660,
-                        background: '#FFFFFF',
-                        borderRadius: 14,
-                        padding: '22px 24px',
-                        boxShadow: '0 24px 50px rgba(15, 23, 42, 0.25)',
-                        border: '1px solid #E2E8F0',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
-                        <div>
-                          <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                            Huấn luyện System Prompt Trợ lý AI (Gemini)
-                          </h3>
-                          <p style={{ fontSize: '0.79rem', color: '#64748B', margin: '4px 0 0 0' }}>
-                            Nạp trực tiếp vào Gemini mỗi khi khách hàng nhắn tin ở Chatbox góc phải dưới
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setShowAiPromptModal(false)}
-                          style={{
-                            border: 'none',
-                            background: '#F1F5F9',
-                            color: '#475569',
-                            width: 30,
-                            height: 30,
-                            borderRadius: 8,
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          ×
-                        </button>
-                      </div>
-
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setAiSystemPrompt(
-                              'Bạn là Trợ lý AI thông minh & CSKH của sàn đặt đồ ăn DineGo. Phong cách: thân thiện, ngắn gọn, chính xác, xưng hô "mình - bạn".\n' +
-                                'Quy tắc bắt buộc:\n' +
-                                '1. Chỉ gợi ý món ăn có thật trong danh sách <menu_catalog>, tuyệt đối không bịa món hoặc sai giá.\n' +
-                                '2. Nếu khách yêu cầu số lượng cụ thể (VD: "chọn 1 món thôi", "gợi ý 2 món"), trả về đúng số lượng đó trong recommendedIds.\n' +
-                                '3. Nếu khách nói "món khác", "đổi món", "không thích món này", tuyệt đối KHÔNG chọn lại các ID trong previouslyRecommendedIds.\n' +
-                                '4. Nếu khách chỉ chào hỏi hoặc hỏi đơn hàng, voucher, khiếu nại, mâm cỗ thì trả lời trực tiếp dựa trên dữ liệu và để recommendedIds = [].\n' +
-                                '5. Không tự bịa việc đã gửi email/SMS hay số tài khoản ngân hàng; nếu cần thanh toán hoặc xử lý sự cố đơn hàng, hướng dẫn khách thanh toán trực tiếp tại màn hình Đặt hàng hoặc gửi khiếu nại trong mục Đơn hàng.',
-                            )
-                          }
-                          style={{
-                            padding: '6px 12px',
-                            borderRadius: 8,
-                            border: '1px solid #CBD5E1',
-                            background: '#F8FAFC',
-                            color: '#334155',
-                            fontSize: '0.76rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Nạp mẫu Prompt chuẩn
-                        </button>
-                      </div>
-
-                      <form
-                        onSubmit={async (e) => {
-                          await handleSaveAiSystemPrompt(e);
-                          setShowAiPromptModal(false);
-                        }}
-                        style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
-                      >
-                        <textarea
-                          rows={8}
-                          value={aiSystemPrompt}
-                          onChange={(e) => setAiSystemPrompt(e.target.value)}
-                          placeholder="Nhập System Prompt hướng dẫn cách AI tư vấn món, xử lý khiếu nại, kiểm tra đơn..."
-                          style={{
-                            width: '100%',
-                            padding: '10px 12px',
-                            borderRadius: 8,
-                            border: '1px solid #CBD5E1',
-                            background: '#F8FAFC',
-                            fontSize: '0.82rem',
-                            color: '#0F172A',
-                            lineHeight: 1.5,
-                            resize: 'vertical',
-                            outline: 'none',
-                          }}
-                        />
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                          <button
-                            type="button"
-                            onClick={() => setShowAiPromptModal(false)}
-                            style={{
-                              padding: '8px 16px',
-                              borderRadius: 8,
-                              border: '1px solid #E2E8F0',
-                              background: '#FFFFFF',
-                              color: '#475569',
-                              fontWeight: 700,
-                              fontSize: '0.82rem',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            Hủy
-                          </button>
-                          <button
-                            type="submit"
-                            disabled={aiPromptSaving || !aiSystemPrompt.trim()}
-                            style={{
-                              padding: '8px 18px',
-                              borderRadius: 8,
-                              background: aiPromptSaving || !aiSystemPrompt.trim() ? '#CBD5E1' : '#00B14F',
-                              color: '#FFFFFF',
-                              fontWeight: 700,
-                              fontSize: '0.82rem',
-                              border: 'none',
-                              cursor: aiPromptSaving || !aiSystemPrompt.trim() ? 'not-allowed' : 'pointer',
-                            }}
-                          >
-                            {aiPromptSaving ? 'Đang lưu...' : 'Lưu Prompt AI'}
-                          </button>
-                        </div>
-                      </form>
-                    </div>
-                  </div>
-                )}
-
-                {/* POP-UP MODAL: CREATE RAG KNOWLEDGE CHUNK */}
-                {showKbCreateModal && (
-                  <div
-                    style={{
-                      position: 'fixed',
-                      inset: 0,
-                      background: 'rgba(15, 23, 42, 0.55)',
-                      backdropFilter: 'blur(3px)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      zIndex: 9999,
-                      padding: 16,
-                    }}
-                    onClick={() => setShowKbCreateModal(false)}
-                  >
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      style={{
-                        width: '100%',
-                        maxWidth: 580,
-                        background: '#FFFFFF',
-                        borderRadius: 14,
-                        padding: '22px 24px',
-                        boxShadow: '0 24px 50px rgba(15, 23, 42, 0.25)',
-                        border: '1px solid #E2E8F0',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
-                        <div>
-                          <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                            Thêm đoạn Tri thức AI (RAG)
-                          </h3>
-                          <p style={{ fontSize: '0.79rem', color: '#64748B', margin: '4px 0 0 0' }}>
-                            Lưu vào bảng <code>knowledge_base_vectors</code> (SQL Server) để AI tra cứu chính xác
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setShowKbCreateModal(false)}
-                          style={{
-                            border: 'none',
-                            background: '#F1F5F9',
-                            color: '#475569',
-                            width: 30,
-                            height: 30,
-                            borderRadius: 8,
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          ×
-                        </button>
-                      </div>
-
-                      <form
-                        onSubmit={async (e) => {
-                          await handleAddKnowledgeChunk(e);
-                          setShowKbCreateModal(false);
-                        }}
-                        style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
-                      >
-                        <input
-                          type="text"
-                          placeholder="Nguồn / Chủ đề tri thức (VD: Cẩm nang ẩm thực Quận 1 TP.HCM)"
-                          value={kbSourceInput}
-                          onChange={(e) => setKbSourceInput(e.target.value)}
-                          style={{
-                            padding: '10px 12px',
-                            borderRadius: 8,
-                            border: '1px solid #CBD5E1',
-                            background: '#F8FAFC',
-                            fontSize: '0.84rem',
-                            color: '#0F172A',
-                            outline: 'none',
-                          }}
-                        />
-                        <textarea
-                          rows={5}
-                          placeholder="Nhập nội dung tri thức chi tiết về món ăn, quán đặc sản, quy định đặt mâm cỗ..."
-                          value={kbContentInput}
-                          onChange={(e) => setKbContentInput(e.target.value)}
-                          style={{
-                            padding: '10px 12px',
-                            borderRadius: 8,
-                            border: '1px solid #CBD5E1',
-                            background: '#F8FAFC',
-                            fontSize: '0.84rem',
-                            color: '#0F172A',
-                            resize: 'vertical',
-                            outline: 'none',
-                          }}
-                        />
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                          <button
-                            type="button"
-                            onClick={() => setShowKbCreateModal(false)}
-                            style={{
-                              padding: '8px 16px',
-                              borderRadius: 8,
-                              border: '1px solid #E2E8F0',
-                              background: '#FFFFFF',
-                              color: '#475569',
-                              fontWeight: 700,
-                              fontSize: '0.82rem',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            Hủy
-                          </button>
-                          <button
-                            type="submit"
-                            disabled={kbSaving || !kbContentInput.trim()}
-                            style={{
-                              padding: '8px 18px',
-                              borderRadius: 8,
-                              background: kbSaving || !kbContentInput.trim() ? '#CBD5E1' : '#00B14F',
-                              color: '#FFFFFF',
-                              fontWeight: 700,
-                              fontSize: '0.82rem',
-                              border: 'none',
-                              cursor: kbSaving || !kbContentInput.trim() ? 'not-allowed' : 'pointer',
-                            }}
-                          >
-                            {kbSaving ? 'Đang lưu...' : 'Lưu đoạn tri thức'}
-                          </button>
-                        </div>
-                      </form>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <AdminKnowledgeTab
+                knowledgeChunks={knowledgeChunks}
+                kbSearchQuery={kbSearchQuery}
+                setKbSearchQuery={setKbSearchQuery}
+                kbSourceInput={kbSourceInput}
+                setKbSourceInput={setKbSourceInput}
+                kbContentInput={kbContentInput}
+                setKbContentInput={setKbContentInput}
+                kbSaving={kbSaving}
+                aiSystemPrompt={aiSystemPrompt}
+                setAiSystemPrompt={setAiSystemPrompt}
+                aiPromptSaving={aiPromptSaving}
+                showAiPromptModal={showAiPromptModal}
+                setShowAiPromptModal={setShowAiPromptModal}
+                showKbCreateModal={showKbCreateModal}
+                setShowKbCreateModal={setShowKbCreateModal}
+                handleSaveAiSystemPrompt={handleSaveAiSystemPrompt}
+                handleAddKnowledgeChunk={handleAddKnowledgeChunk}
+                handleDeleteKnowledgeChunk={handleDeleteKnowledgeChunk}
+              />
             )}
 
             {/* ADMIN TAB 6: USERS & ROLE MANAGEMENT — ARCHITECTURAL 3-COLUMN DIRECTORY */}
@@ -7074,291 +6681,26 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
             {/* ADMIN TAB 7: PLATFORM SETTINGS & AUDIT LOGS */}
             {currentAdminTab === 'admin-settings' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {/* Unified Minimalist Control Bar for Settings & Audit Logs */}
-                <div
-                  style={{
-                    background: '#FFFFFF',
-                    border: '1px solid #E2E8F0',
-                    borderRadius: 10,
-                    padding: '15px 22px',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    gap: 12,
-                  }}
-                >
-                  <div>
-                    <h3 style={{ fontSize: '0.98rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>
-                      Cấu hình Hạ tầng Hệ thống &amp; Nhật ký Kiểm toán
-                    </h3>
-                    <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '3px 0 0 0' }}>
-                      Thiết lập tỷ lệ chiết khấu sàn, bán kính điều phối GPS và tra cứu vết thao tác quản trị
-                    </p>
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'inline-flex',
-                      background: '#F1F5F9',
-                      padding: 3,
-                      borderRadius: 8,
-                      gap: 2,
-                    }}
-                  >
-                    {[
-                      { id: 'SYSTEM_CONFIG' as const, label: 'Thiết lập Tham số & Chiết khấu Sàn' },
-                      { id: 'AUDIT_LOGS' as const, label: `Nhật ký Kiểm toán (${adminAuditLogs.length})` },
-                    ].map((tab) => {
-                      const active = adminSettingsSubTab === tab.id;
-                      return (
-                        <button
-                          key={tab.id}
-                          type="button"
-                          onClick={() => setAdminSettingsSubTab(tab.id)}
-                          style={{
-                            padding: '5px 14px',
-                            borderRadius: 6,
-                            border: 'none',
-                            background: active ? '#FFFFFF' : 'transparent',
-                            color: active ? '#0F172A' : '#64748B',
-                            fontWeight: active ? 600 : 500,
-                            fontSize: '0.78rem',
-                            boxShadow: active ? '0 1px 2px rgba(15,23,42,0.06)' : 'none',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          {tab.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {adminSettingsSubTab === 'SYSTEM_CONFIG' && (
-                  <div style={{ background: '#FFFFFF', borderRadius: 12, border: '1px solid #E2E8F0', padding: 26, boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                      <div>
-                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                          Bảng Điều Khiển Can Thiệp Sâu Vào Hạ Tầng Hệ Thống Toàn Sàn
-                        </h3>
-                        <p style={{ fontSize: '0.82rem', color: '#64748B', margin: '3px 0 0 0' }}>
-                          Thiết lập tỷ lệ chiết khấu, phụ phí thời tiết xấu, bán kính thuật toán ghép cuốc GPS và chế độ bảo trì khẩn cấp
-                        </p>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24 }}>
-                      <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, padding: 20, background: '#F8FAFC' }}>
-                        <div style={{ fontWeight: 800, fontSize: '0.94rem', color: '#0F172A', marginBottom: 14 }}>
-                          1. Chính Sách Chiết Khấu & Trợ Giá Sàn
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                          <div>
-                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                              Phí nền tảng thu từ Nhà hàng (%)
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={platformCommissionRate}
-                              onChange={(e) => setPlatformCommissionRate(Math.max(0, Number(e.target.value)))}
-                              style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.88rem', background: '#FFFFFF' }}
-                            />
-                          </div>
-                          <div>
-                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                              Phụ phí thời tiết xấu / Giờ cao điểm (VNĐ)
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              step="1000"
-                              value={peakHourSurgeFee}
-                              onChange={(e) => setPeakHourSurgeFee(Math.max(0, Number(e.target.value)))}
-                              style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.88rem', background: '#FFFFFF' }}
-                            />
-                          </div>
-                          <div>
-                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                              Giá trị đơn tối thiểu được trợ giá Miễn phí ship (VNĐ)
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              step="10000"
-                              value={minOrderForFreeShipping}
-                              onChange={(e) => setMinOrderForFreeShipping(Math.max(0, Number(e.target.value)))}
-                              style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.88rem', background: '#FFFFFF' }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, padding: 20, background: '#F8FAFC' }}>
-                        <div style={{ fontWeight: 800, fontSize: '0.94rem', color: '#0F172A', marginBottom: 14 }}>
-                          2. Thuật Toán Điều Phối & An Toàn Toàn Sàn
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                          <div>
-                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
-                              Bán kính tự động ghép tài xế gần nhất (km): <strong style={{ color: '#4F46E5', fontSize: '0.95rem' }}>{autoDispatchRangeKm} km</strong>
-                            </label>
-                            <input
-                              type="range"
-                              min="1"
-                              max="10"
-                              step="0.5"
-                              value={autoDispatchRangeKm}
-                              onChange={(e) => setAutoDispatchRangeKm(Number(e.target.value))}
-                              style={{ width: '100%', accentColor: '#4F46E5', cursor: 'pointer' }}
-                            />
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#94A3B8', marginTop: 2 }}>
-                              <span>1 km (Nội phường)</span>
-                              <span>5 km (Tiêu chuẩn)</span>
-                              <span>10 km (Mở rộng)</span>
-                            </div>
-                          </div>
-
-                          <div style={{ padding: 14, borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <div>
-                                <div style={{ fontWeight: 800, fontSize: '0.86rem', color: '#991B1B' }}>
-                                  Chế độ Bảo trì khẩn cấp toàn sàn
-                                </div>
-                                <div style={{ fontSize: '0.74rem', color: '#B91C1C', marginTop: 2 }}>
-                                  Tạm khóa khách đặt đơn mới khi nâng cấp hệ thống
-                                </div>
-                              </div>
-                              <button
-                                onClick={() => setMaintenanceMode(!maintenanceMode)}
-                                style={{
-                                  padding: '7px 16px',
-                                  borderRadius: 6,
-                                  background: maintenanceMode ? '#DC2626' : '#94A3B8',
-                                  color: '#FFFFFF',
-                                  fontWeight: 700,
-                                  fontSize: '0.8rem',
-                                  border: 'none',
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                {maintenanceMode ? 'ĐANG BẬT' : 'ĐÃ TẮT'}
-                              </button>
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              void adminApi.updateSystemSettings({
-                                platformCommissionRate,
-                                peakHourSurgeFee,
-                                minOrderForFreeShipping,
-                                autoDispatchRangeKm,
-                                maintenanceMode,
-                                reason: 'Lưu cấu hình can thiệp hệ thống từ bảng điều khiển Admin',
-                              });
-                              appendAuditLog(
-                                'LƯU CẤU HÌNH HỆ THỐNG SÀN',
-                                `Hoa hồng ${platformCommissionRate}% • Bán kính ${autoDispatchRangeKm}km`,
-                                `Phụ phí ${peakHourSurgeFee.toLocaleString('vi-VN')}đ • Freeship từ ${minOrderForFreeShipping.toLocaleString('vi-VN')}đ • Bảo trì: ${maintenanceMode ? 'BẬT' : 'TẮT'}`,
-                              );
-                              setConfigSavedBanner('Đã lưu cấu hình can thiệp sâu toàn hệ thống sàn.');
-                              triggerAdminToast('Đã lưu cấu hình tham số & chiết khấu toàn hệ thống sàn.');
-                              setTimeout(() => setConfigSavedBanner(''), 3000);
-                            }}
-                            style={{
-                              marginTop: 'auto',
-                              padding: '11px',
-                              borderRadius: 8,
-                              background: '#0F172A',
-                              color: '#FFFFFF',
-                              fontWeight: 600,
-                              fontSize: '0.85rem',
-                              border: 'none',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            Lưu thiết lập can thiệp hệ thống
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {adminSettingsSubTab === 'AUDIT_LOGS' && (
-                  <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
-                    <div style={{ padding: '16px 22px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-                      <div>
-                        <h3 style={{ fontSize: '0.98rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>
-                          Nhật ký Kiểm toán Quản trị
-                        </h3>
-                        <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '2px 0 0 0' }}>
-                          Tự động lưu vết mọi thao tác duyệt quán, khóa tài khoản, phân xử khiếu nại và giải ngân
-                        </p>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <input
-                          type="text"
-                          placeholder="Tìm hành động, đối tượng..."
-                          value={adminAuditSearch}
-                          onChange={(e) => setAdminAuditSearch(e.target.value)}
-                          style={{
-                            padding: '6px 12px',
-                            borderRadius: 8,
-                            border: '1px solid #E2E8F0',
-                            background: '#F8FAFC',
-                            fontSize: '0.79rem',
-                            color: '#0F172A',
-                            width: 215,
-                            outline: 'none',
-                          }}
-                        />
-                        <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#475569', background: '#F1F5F9', padding: '5px 10px', borderRadius: 6 }}>
-                          {adminAuditLogs.length} bản ghi
-                        </span>
-                      </div>
-                    </div>
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                        <thead>
-                          <tr style={{ background: '#FAFAFA', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#64748B', fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase' }}>
-                            <th style={{ padding: '10px 20px' }}>Thời gian</th>
-                            <th style={{ padding: '10px 20px' }}>Hành động</th>
-                            <th style={{ padding: '10px 20px' }}>Đối tượng tác động</th>
-                            <th style={{ padding: '10px 20px' }}>Ghi chú</th>
-                            <th style={{ padding: '10px 20px' }}>Quản trị viên</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {adminAuditLogs
-                            .filter((log) => {
-                              const q = adminAuditSearch.trim().toLowerCase();
-                              if (!q) return true;
-                              return (
-                                log.action.toLowerCase().includes(q) ||
-                                log.targetName.toLowerCase().includes(q) ||
-                                log.reason.toLowerCase().includes(q)
-                              );
-                            })
-                            .map((log) => (
-                              <tr key={log.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                                <td style={{ padding: '11px 20px', color: '#64748B', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{log.timestamp}</td>
-                                <td style={{ padding: '11px 20px', fontWeight: 700, color: '#0F172A' }}>{log.action}</td>
-                                <td style={{ padding: '11px 20px', fontWeight: 600, color: '#1E293B' }}>{log.targetName}</td>
-                                <td style={{ padding: '11px 20px', color: '#475569' }}>{log.reason}</td>
-                                <td style={{ padding: '11px 20px', color: '#64748B' }}>{log.performedBy}</td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <AdminSettingsTab
+                adminSettingsSubTab={adminSettingsSubTab}
+                setAdminSettingsSubTab={setAdminSettingsSubTab}
+                platformCommissionRate={platformCommissionRate}
+                setPlatformCommissionRate={setPlatformCommissionRate}
+                peakHourSurgeFee={peakHourSurgeFee}
+                setPeakHourSurgeFee={setPeakHourSurgeFee}
+                minOrderForFreeShipping={minOrderForFreeShipping}
+                setMinOrderForFreeShipping={setMinOrderForFreeShipping}
+                autoDispatchRangeKm={autoDispatchRangeKm}
+                setAutoDispatchRangeKm={setAutoDispatchRangeKm}
+                maintenanceMode={maintenanceMode}
+                setMaintenanceMode={setMaintenanceMode}
+                adminAuditLogs={adminAuditLogs}
+                adminAuditSearch={adminAuditSearch}
+                setAdminAuditSearch={setAdminAuditSearch}
+                appendAuditLog={appendAuditLog}
+                setConfigSavedBanner={setConfigSavedBanner}
+                triggerAdminToast={triggerAdminToast}
+              />
             )}
           </div>
         </div>
@@ -9764,6 +9106,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                 minute: '2-digit',
                               }),
                             };
+                            void adminApi.createDatabaseWithdrawal({
+                              id: newReq.id,
+                              actorType: 'MERCHANT',
+                              actorId: newReq.merchantId,
+                              actorName: newReq.merchantName,
+                              bankName: newReq.bankName,
+                              bankAccountNumber: newReq.bankAccountNumber,
+                              bankAccountHolder: newReq.bankAccountHolder,
+                              amount: newReq.amount,
+                              status: 'PENDING',
+                              createdAt: newReq.createdAt,
+                            });
                             setMerchantWithdrawals((prev) => [newReq, ...prev]);
                             setMerchantWithdrawAmountInput('');
                             setMerchantWithdrawError('');

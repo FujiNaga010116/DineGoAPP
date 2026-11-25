@@ -6,7 +6,7 @@
 
 import React, { useState } from 'react';
 import { MapPin, X } from 'lucide-react';
-import type { SavedAddress, User } from '../../types';
+import type { SavedAddress, User } from '../../../types';
 import { AddressMapPicker, type AddressPickerValue } from './AddressMapPicker';
 
 interface AddressSetupModalProps {
