@@ -213,7 +213,7 @@ describe('CateringService (Sprint 3 — U023 đến U033)', () => {
 
       // Confirm deposit payment
       const confirmed = await service.confirmDepositPayment(booking.id, 'MOMO_TRANS_9999');
-      expect(confirmed.status).toBe('DEPOSIT_PAID');
+      expect(confirmed.status).toBe('CONFIRMED');
       expect(confirmed.depositPaidAt).toBeDefined();
 
       // Settle remaining balance (U030)
