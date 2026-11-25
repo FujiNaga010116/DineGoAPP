@@ -1986,42 +1986,6 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
               );
             })}
           </nav>
-
-          {/* Driver Sidebar Footer — Logout Only (Sticky at bottom) */}
-          <div
-            style={{
-              padding: 16,
-              borderTop: '1px solid #1E293B',
-              marginTop: 'auto',
-              position: 'sticky',
-              bottom: 0,
-              background: '#0F172A',
-              zIndex: 10,
-            }}
-          >
-            {onLogout && (
-              <button
-                onClick={onLogout}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: 8,
-                  background: '#1E293B',
-                  border: '1px solid #334155',
-                  color: '#F87171',
-                  fontSize: '0.84rem',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  cursor: 'pointer',
-                }}
-              >
-                <LogOut size={15} /> Đăng xuất tài khoản
-              </button>
-            )}
-          </div>
         </aside>
 
         {/* Right Main Operational Area */}

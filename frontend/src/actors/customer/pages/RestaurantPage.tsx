@@ -31,6 +31,7 @@ import {
   ADMIN_VOUCHERS_KEY,
   claimVoucherForAccount,
   fetchRemoteAdminVouchers,
+  isWithinGoldenHours,
   loadAdminVouchers,
   loadUserClaimedCodes,
   type ManagedVoucher,
@@ -96,6 +97,7 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
   const isOverRadius = merchantDistanceKm > 15;
 
   const [allVouchers, setAllVouchers] = useState<ManagedVoucher[]>(() => loadAdminVouchers());
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
   const [restaurantReviews, setRestaurantReviews] = useState<any[]>(() => {
     try {
       const raw = localStorage.getItem('dinego_merchant_reviews');
@@ -152,6 +154,15 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
     } catch {}
     return null;
   });
+
+  useEffect(() => {
+    const hasGolden = allVouchers.some(
+      (v) => v.eventTheme === 'FLASH_SALE' && v.goldenStartTime && v.goldenEndTime,
+    );
+    if (!hasGolden) return;
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [allVouchers]);
 
   useEffect(() => {
     let active = true;
@@ -865,6 +876,28 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
                     <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: 2 }}>
                       Đơn tối thiểu {Number(v.minOrder).toLocaleString('vi-VN')}đ • Còn {remaining} lượt
                     </div>
+                    {(() => {
+                      const golden = isWithinGoldenHours(v, nowMs);
+                      if (!golden.label) return null;
+                      return (
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            marginTop: 5,
+                            padding: '2px 8px',
+                            borderRadius: 999,
+                            background: golden.active ? '#FFEDD5' : '#FEF3C7',
+                            color: golden.active ? '#C2410C' : '#B45309',
+                            fontSize: '0.7rem',
+                            fontWeight: 800,
+                          }}
+                        >
+                          ⚡ {golden.label} • {golden.countdownText}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {isAppliedNow ? (
@@ -885,30 +918,47 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
                     >
                       ✓ Đang áp dụng
                     </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleSelectStoreVoucher(v)}
-                      style={{
-                        padding: '8px 14px',
-                        borderRadius: 10,
-                        background: isPreselected
-                          ? '#FEF3C7'
-                          : isShopVoucher
-                          ? '#D97706'
-                          : 'var(--primary)',
-                        color: isPreselected ? '#B45309' : '#FFFFFF',
-                        border: isPreselected ? '1px solid #F59E0B' : 'none',
-                        fontSize: '0.78rem',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        boxShadow: isPreselected ? 'none' : '0 4px 10px rgba(217, 119, 6, 0.2)',
-                      }}
-                    >
-                      {isPreselected ? '⏳ Đã chọn mã' : 'Lưu & Áp mã'}
-                    </button>
-                  )}
+                  ) : (() => {
+                    const golden = isWithinGoldenHours(v, nowMs);
+                    return (
+                      <button
+                        type="button"
+                        disabled={!golden.active}
+                        onClick={() => handleSelectStoreVoucher(v)}
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: 10,
+                          background: !golden.active
+                            ? '#E2E8F0'
+                            : isPreselected
+                            ? '#FEF3C7'
+                            : isShopVoucher
+                            ? '#D97706'
+                            : 'var(--primary)',
+                          color: !golden.active
+                            ? '#64748B'
+                            : isPreselected
+                            ? '#B45309'
+                            : '#FFFFFF',
+                          border: isPreselected && golden.active ? '1px solid #F59E0B' : 'none',
+                          fontSize: '0.78rem',
+                          fontWeight: 800,
+                          cursor: !golden.active ? 'not-allowed' : 'pointer',
+                          whiteSpace: 'nowrap',
+                          boxShadow:
+                            !golden.active || isPreselected
+                              ? 'none'
+                              : '0 4px 10px rgba(217, 119, 6, 0.2)',
+                        }}
+                      >
+                        {!golden.active
+                          ? golden.countdownText || `Mở lúc ${v.goldenStartTime}`
+                          : isPreselected
+                          ? '⏳ Đã chọn mã'
+                          : 'Lưu & Áp mã'}
+                      </button>
+                    );
+                  })()}
                 </div>
               );
             })}

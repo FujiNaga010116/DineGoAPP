@@ -476,29 +476,44 @@ export class PromotionService {
     if (!this.liveVouchers) {
       try {
         const dbPromos = await this.prisma.promotion.findMany({
-          where: { isActive: true },
+          include: { merchant: { select: { name: true } } },
           orderBy: { createdAt: 'desc' },
         });
         if (dbPromos.length > 0) {
-          this.liveVouchers = dbPromos.map((p) => ({
-            id: p.id,
-            code: p.code,
-            title: p.name,
-            discountType: p.discountType,
-            discountValue: Number(p.discountValue),
-            maxDiscountAmount: p.maxDiscountAmount ? Number(p.maxDiscountAmount) : undefined,
-            minOrder: Number(p.minOrderValue),
-            usageCount: p.currentUsage,
-            claimedCount: p.currentUsage,
-            maxUsage: p.maxUsage || 100,
-            endDate: p.endDate ? p.endDate.toISOString().split('T')[0] : '2026-12-31',
-            isActive: p.isActive,
-            merchantId: p.merchantId || 'ALL',
-            merchantName: p.scope === 'GLOBAL' ? 'Toàn sàn DineGo' : 'Cửa hàng liên kết',
-            eventTheme: 'ALL_PLATFORM',
-            eventTag: 'Ưu đãi toàn sàn',
-            isFlashHunt: true,
-          }));
+          this.liveVouchers = dbPromos.map((p) => {
+            let meta: Record<string, unknown> = {};
+            if (p.description && p.description.startsWith('META:')) {
+              try {
+                meta = JSON.parse(p.description.slice(5)) as Record<string, unknown>;
+              } catch {}
+            }
+            return {
+              id: p.id,
+              code: p.code,
+              title: p.name,
+              discountType: p.discountType,
+              discountValue: Number(p.discountValue),
+              maxDiscountAmount: p.maxDiscountAmount ? Number(p.maxDiscountAmount) : undefined,
+              minOrder: Number(p.minOrderValue),
+              usageCount: p.currentUsage,
+              claimedCount: p.currentUsage,
+              maxUsage: p.maxUsage || 100,
+              endDate: p.endDate ? p.endDate.toISOString().split('T')[0] : '2026-12-31',
+              isActive: p.isActive,
+              merchantId: p.merchantId || 'ALL',
+              merchantName:
+                p.scope === 'GLOBAL'
+                  ? 'Toàn sàn DineGo'
+                  : p.merchant?.name || 'Cửa hàng liên kết',
+              eventTheme: typeof meta.eventTheme === 'string' ? meta.eventTheme : 'ALL_PLATFORM',
+              eventTag: typeof meta.eventTag === 'string' ? meta.eventTag : 'Ưu đãi toàn sàn',
+              isFlashHunt: meta.isFlashHunt !== false,
+              goldenStartTime:
+                typeof meta.goldenStartTime === 'string' ? meta.goldenStartTime : undefined,
+              goldenEndTime:
+                typeof meta.goldenEndTime === 'string' ? meta.goldenEndTime : undefined,
+            };
+          });
         }
       } catch (err) {
         this.logger.error('Error fetching live vouchers from DB', err);
@@ -546,11 +561,19 @@ export class PromotionService {
             resolvedMerchantId = matchedMerchant?.id || null;
           }
           const scope = resolvedMerchantId ? 'MERCHANT' : 'GLOBAL';
+          const metaDescription = `META:${JSON.stringify({
+            eventTheme: v.eventTheme || 'ALL_PLATFORM',
+            eventTag: v.eventTag || 'Ưu đãi toàn sàn',
+            isFlashHunt: v.isFlashHunt !== false,
+            goldenStartTime: v.goldenStartTime || undefined,
+            goldenEndTime: v.goldenEndTime || undefined,
+          })}`;
 
           await this.prisma.promotion.upsert({
             where: { code },
             update: {
               name,
+              description: metaDescription,
               discountType,
               discountValue,
               minOrderValue: minOrder,
@@ -565,6 +588,7 @@ export class PromotionService {
             create: {
               code,
               name,
+              description: metaDescription,
               discountType,
               discountValue,
               minOrderValue: minOrder,

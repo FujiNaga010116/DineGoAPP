@@ -31,6 +31,8 @@ export interface ManagedVoucher {
   merchantId?: string; // 'ALL' or specific merchant id
   merchantName?: string;
   isFlashHunt?: boolean;
+  goldenStartTime?: string; // e.g. '11:00'
+  goldenEndTime?: string; // e.g. '13:00'
 }
 
 export const ADMIN_VOUCHERS_KEY = 'dinego_admin_vouchers';
@@ -83,6 +85,76 @@ export const EVENT_THEME_OPTIONS: {
 
 export const getEventThemeStyle = (theme?: VoucherEventTheme) =>
   EVENT_THEME_OPTIONS.find((t) => t.value === theme) || EVENT_THEME_OPTIONS[5];
+
+export const GOLDEN_HOUR_24H_OPTIONS: string[] = (() => {
+  const list: string[] = [];
+  for (let h = 0; h < 24; h += 1) {
+    const hh = String(h).padStart(2, '0');
+    list.push(`${hh}:00`, `${hh}:30`);
+  }
+  list.push('23:59');
+  return list;
+})();
+
+export const parseTimeToMinutes = (hhmm?: string | null): number | null => {
+  if (!hhmm) return null;
+  const parts = String(hhmm).trim().split(':');
+  if (parts.length < 2) return null;
+  const h = Number(parts[0]);
+  const m = Number(parts[1]);
+  if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || h > 23 || m < 0 || m > 59) {
+    return null;
+  }
+  return h * 60 + m;
+};
+
+export const isValidGoldenRange = (start?: string, end?: string): boolean => {
+  const s = parseTimeToMinutes(start);
+  const e = parseTimeToMinutes(end);
+  return s !== null && e !== null && e > s;
+};
+
+const formatCountdownHms = (totalSeconds: number): string => {
+  const safe = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(safe / 3600);
+  const m = Math.floor((safe % 3600) / 60);
+  const s = safe % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+};
+
+export const isWithinGoldenHours = (
+  v: Pick<ManagedVoucher, 'eventTheme' | 'goldenStartTime' | 'goldenEndTime'>,
+  nowMs: number = Date.now(),
+): { active: boolean; label: string | null; countdownText: string | null } => {
+  if (v.eventTheme !== 'FLASH_SALE' || !v.goldenStartTime || !v.goldenEndTime) {
+    return { active: true, label: null, countdownText: null };
+  }
+  const startMin = parseTimeToMinutes(v.goldenStartTime);
+  const endMin = parseTimeToMinutes(v.goldenEndTime);
+  if (startMin === null || endMin === null || endMin <= startMin) {
+    return { active: true, label: null, countdownText: null };
+  }
+
+  const now = new Date(nowMs);
+  const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+  const startSec = startMin * 60;
+  const endSec = endMin * 60 + (v.goldenEndTime === '23:59' ? 59 : 0);
+
+  const active = nowSec >= startSec && nowSec <= endSec;
+  const remainingSec = active
+    ? endSec - nowSec
+    : nowSec < startSec
+    ? startSec - nowSec
+    : 86400 - nowSec + startSec;
+
+  return {
+    active,
+    label: `${v.goldenStartTime} - ${v.goldenEndTime}`,
+    countdownText: active
+      ? `Còn ${formatCountdownHms(remainingSec)}`
+      : `Mở sau ${formatCountdownHms(remainingSec)}`,
+  };
+};
 
 // Legacy demo IDs that should be stripped so only real Merchant/Admin created vouchers exist
 const LEGACY_SEED_VOUCHER_IDS = new Set([

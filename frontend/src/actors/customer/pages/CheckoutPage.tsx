@@ -34,6 +34,7 @@ import { MOCK_MERCHANTS } from '../../../api/client';
 import {
   ADMIN_VOUCHERS_KEY,
   fetchRemoteAdminVouchers,
+  isWithinGoldenHours,
   loadAdminVouchers,
   loadUserClaimedCodes,
   saveAdminVouchers,
@@ -206,6 +207,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   const availableAdminVouchers = liveVouchers.filter(
     (v) =>
       v.isActive !== false &&
+      isWithinGoldenHours(v).active &&
       Number(v.usageCount || 0) < Number(v.maxUsage || 999999) &&
       (!v.merchantId || v.merchantId === 'ALL' || !cart.merchantId || v.merchantId === cart.merchantId),
   );

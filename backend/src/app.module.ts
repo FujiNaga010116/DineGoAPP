@@ -13,6 +13,7 @@ import { FeedbackModule } from './modules/feedback/feedback.module.js';
 import { GroupOrderModule } from './modules/group-order/group-order.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { MerchantModule } from './modules/merchant/merchant.module.js';
+import { NotificationModule } from './modules/notification/notification.module.js';
 import { OrderModule } from './modules/order/order.module.js';
 import { PaymentModule } from './modules/payment/payment.module.js';
 import { PromotionModule } from './modules/promotion/promotion.module.js';
@@ -39,6 +40,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     TrackingModule,
     DashboardModule,
     FeedbackModule,
+    NotificationModule,
     HealthModule,
   ],
   controllers: [AppController],

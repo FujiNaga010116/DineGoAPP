@@ -25,6 +25,8 @@ import type { NavTab } from './Header';
 import {
   loadAllActorNotifications,
   filterNotificationsForActor,
+  isNotificationReadForUser,
+  mergeServerNotifications,
   markNotificationAsRead,
   markAllNotificationsReadForActor,
   clearReadNotificationsForActor,
@@ -36,6 +38,7 @@ import {
   type NotificationCategory,
   type NotificationTargetRole,
 } from '../../../utils/notifications';
+import { notificationApi } from '../../../api/notification.api';
 
 interface NotificationBellProps {
   actorRole: Role;
@@ -95,11 +98,47 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const lastToastIdRef = useRef<string | null>(null);
+  const mountedAtRef = useRef<number>(Date.now());
 
   const actorContext = useMemo(
     () => ({ role: actorRole, userId, merchantId, driverId }),
     [actorRole, userId, merchantId, driverId],
   );
+
+  // Sync notifications from Backend API (cross-device) + poll every 6s while visible
+  useEffect(() => {
+    let cancelled = false;
+    const syncFromServer = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
+      const serverItems = await notificationApi.list({
+        role: actorRole,
+        merchantId,
+        driverId,
+      });
+      if (cancelled || !serverItems) return;
+      const merged = mergeServerNotifications(serverItems);
+      setAllNotifs(merged);
+      const newestUnread = serverItems.find(
+        (n) => !n.isRead && n.timestampMs > mountedAtRef.current,
+      );
+      if (newestUnread && newestUnread.id !== lastToastIdRef.current) {
+        lastToastIdRef.current = newestUnread.id;
+        setLiveToast(newestUnread);
+      }
+    };
+
+    void syncFromServer();
+    const interval = setInterval(() => {
+      void syncFromServer();
+    }, 6000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [actorRole, userId, merchantId, driverId]);
 
   useEffect(() => {
     const checkAndShowLiveToast = (latest?: ActorNotification) => {
@@ -179,21 +218,22 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   );
 
   const unreadCount = useMemo(
-    () => actorNotifications.filter((n) => !n.isRead).length,
-    [actorNotifications],
+    () => actorNotifications.filter((n) => !isNotificationReadForUser(n, userId)).length,
+    [actorNotifications, userId],
   );
 
   const displayedNotifications = useMemo(() => {
     return actorNotifications.filter((n) => {
-      if (filterMode === 'UNREAD' && n.isRead) return false;
+      if (filterMode === 'UNREAD' && isNotificationReadForUser(n, userId)) return false;
       if (selectedCategory !== 'ALL' && n.category !== selectedCategory) return false;
       return true;
     });
-  }, [actorNotifications, filterMode, selectedCategory]);
+  }, [actorNotifications, filterMode, selectedCategory, userId]);
 
   const handleClickNotification = (notif: ActorNotification) => {
-    const updated = markNotificationAsRead(notif.id);
+    const updated = markNotificationAsRead(notif.id, userId);
     setAllNotifs(updated);
+    void notificationApi.markAsRead(notif.id);
     if (notif.actionTab && onNavigate) {
       onNavigate(notif.actionTab);
       setIsOpen(false);
@@ -203,11 +243,13 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   const handleMarkAllRead = () => {
     const updated = markAllNotificationsReadForActor(actorContext);
     setAllNotifs(updated);
+    void notificationApi.markAllAsRead({ role: actorRole, merchantId, driverId });
   };
 
   const handleClearRead = () => {
     const updated = clearReadNotificationsForActor(actorContext);
     setAllNotifs(updated);
+    void notificationApi.clearRead({ role: actorRole, merchantId, driverId });
   };
 
   const handleSendBroadcast = (e: React.FormEvent) => {
@@ -251,7 +293,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   };
 
   const roleMeta = ROLE_BADGE_META[actorRole];
-  const hasReadItems = actorNotifications.some((n) => n.isRead);
+  const hasReadItems = actorNotifications.some((n) => isNotificationReadForUser(n, userId));
+  const canBroadcast = actorRole === 'ADMIN';
 
   return (
     <div ref={containerRef} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
@@ -498,28 +541,30 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                 </button>
               )}
 
-              <button
-                type="button"
-                onClick={() => setShowComposer((prev) => !prev)}
-                title={showComposer ? 'Đóng khung gửi' : 'Gửi thông báo nhanh'}
-                style={{
-                  padding: 6,
-                  borderRadius: 8,
-                  border: 'none',
-                  background: showComposer ? roleMeta.bg : 'transparent',
-                  color: showComposer ? roleMeta.color : '#64748B',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                }}
-              >
-                <Send size={14} />
-              </button>
+              {canBroadcast && (
+                <button
+                  type="button"
+                  onClick={() => setShowComposer((prev) => !prev)}
+                  title={showComposer ? 'Đóng khung gửi' : 'Gửi thông báo nhanh'}
+                  style={{
+                    padding: 6,
+                    borderRadius: 8,
+                    border: 'none',
+                    background: showComposer ? roleMeta.bg : 'transparent',
+                    color: showComposer ? roleMeta.color : '#64748B',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Send size={14} />
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Optional Quick Notification Composer */}
-          {showComposer && (
+          {/* Optional Quick Notification Composer (Admin only) */}
+          {canBroadcast && showComposer && (
             <form
               onSubmit={handleSendBroadcast}
               style={{
@@ -765,6 +810,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
               displayedNotifications.map((notif) => {
                 const catMeta = CATEGORY_META[notif.category] || CATEGORY_META.SYSTEM;
                 const isHovered = hoveredId === notif.id;
+                const isRead = isNotificationReadForUser(notif, userId);
                 return (
                   <div
                     key={notif.id}
@@ -776,7 +822,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                       borderBottom: '1px solid #F1F5F9',
                       background: isHovered
                         ? '#F8FAFC'
-                        : notif.isRead
+                        : isRead
                         ? '#FFFFFF'
                         : '#F8FAFF',
                       cursor: 'pointer',
@@ -816,7 +862,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                         <span
                           style={{
                             fontSize: '0.82rem',
-                            fontWeight: notif.isRead ? 600 : 700,
+                            fontWeight: isRead ? 600 : 700,
                             color: '#0F172A',
                             lineHeight: 1.35,
                           }}
@@ -824,7 +870,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                           {notif.title}
                         </span>
 
-                        {!notif.isRead && (
+                        {!isRead && (
                           <span
                             style={{
                               width: 7,

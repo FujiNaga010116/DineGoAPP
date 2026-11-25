@@ -53,13 +53,17 @@ import type { Role, User, Order, OrderStatus, MenuItem, Merchant, DriverProfile,
 import { OrderChatModal } from './components/OrderChatModal';
 import type { NavTab } from './components/Header';
 import { adminApi } from '../../api/client';
+import { AdminOverviewTab } from '../admin/tabs/AdminOverviewTab';
 import { AdminKnowledgeTab } from '../admin/tabs/AdminKnowledgeTab';
 import { AdminSettingsTab } from '../admin/tabs/AdminSettingsTab';
 import {
   EVENT_THEME_OPTIONS,
+  GOLDEN_HOUR_24H_OPTIONS,
   fetchRemoteAdminVouchers,
   getEventThemeStyle,
+  isValidGoldenRange,
   loadAdminVouchers,
+  parseTimeToMinutes,
   saveAdminVouchers,
   type ManagedVoucher,
   type VoucherEventTheme,
@@ -1591,6 +1595,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [newVoucherEventTag, setNewVoucherEventTag] = useState('Sự Kiện Flash Sale Giờ Vàng');
   const [newVoucherMerchantId, setNewVoucherMerchantId] = useState<string>('ALL');
   const [newVoucherFlashHunt, setNewVoucherFlashHunt] = useState(true);
+  const [newVoucherGoldenStart, setNewVoucherGoldenStart] = useState('11:00');
+  const [newVoucherGoldenEnd, setNewVoucherGoldenEnd] = useState('13:00');
   const [editingAdminVoucherId, setEditingAdminVoucherId] = useState<string | null>(null);
   const [adminVoucherScopeFilter, setAdminVoucherScopeFilter] = useState<'ALL' | 'PLATFORM' | 'MERCHANT'>('ALL');
   const [adminVoucherMerchantFilter, setAdminVoucherMerchantFilter] = useState<string>('ALL');
@@ -1607,6 +1613,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [shopVoucherEventTheme, setShopVoucherEventTheme] = useState<VoucherEventTheme>('FLASH_SALE');
   const [shopVoucherEventTag, setShopVoucherEventTag] = useState('Ưu Đãi Độc Quyền Của Quán');
   const [shopVoucherFlashHunt, setShopVoucherFlashHunt] = useState(true);
+  const [shopVoucherGoldenStart, setShopVoucherGoldenStart] = useState('11:00');
+  const [shopVoucherGoldenEnd, setShopVoucherGoldenEnd] = useState('13:00');
   const [editingShopVoucherId, setEditingShopVoucherId] = useState<string | null>(null);
   const [shopVoucherBanner, setShopVoucherBanner] = useState('');
 
@@ -1614,10 +1622,26 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     (v) => currentMerchant?.id && v.merchantId === currentMerchant.id,
   );
 
+  const buildFlashSaleCode = (startTime: string, endTime: string) => {
+    const s = (startTime || '11:00').replace(':', '').slice(0, 2);
+    const e = (endTime || '13:00').replace(':', '').slice(0, 2);
+    const suffix = Math.random().toString(36).slice(2, 5).toUpperCase();
+    return `FLASH${s}${e}${suffix}`;
+  };
+
   const handleAddVoucher = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newVoucherCode.trim()) return;
-    const code = newVoucherCode.trim().toUpperCase();
+    if (
+      newVoucherEventTheme === 'FLASH_SALE' &&
+      !isValidGoldenRange(newVoucherGoldenStart, newVoucherGoldenEnd)
+    ) {
+      triggerAdminToast('Giờ kết thúc Flash Sale phải lớn hơn giờ bắt đầu.');
+      return;
+    }
+    if (!newVoucherCode.trim() && newVoucherEventTheme !== 'FLASH_SALE') return;
+    const code = newVoucherCode.trim()
+      ? newVoucherCode.trim().toUpperCase()
+      : buildFlashSaleCode(newVoucherGoldenStart, newVoucherGoldenEnd);
     const targetMerchant =
       newVoucherMerchantId === 'ALL'
         ? null
@@ -1654,6 +1678,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 merchantId: targetMerchant ? targetMerchant.id : 'ALL',
                 merchantName,
                 isFlashHunt: newVoucherFlashHunt,
+                goldenStartTime:
+                  newVoucherEventTheme === 'FLASH_SALE' ? newVoucherGoldenStart : undefined,
+                goldenEndTime:
+                  newVoucherEventTheme === 'FLASH_SALE' ? newVoucherGoldenEnd : undefined,
               }
             : v,
         ),
@@ -1687,6 +1715,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       merchantId: targetMerchant ? targetMerchant.id : 'ALL',
       merchantName,
       isFlashHunt: newVoucherFlashHunt,
+      goldenStartTime:
+        newVoucherEventTheme === 'FLASH_SALE' ? newVoucherGoldenStart : undefined,
+      goldenEndTime:
+        newVoucherEventTheme === 'FLASH_SALE' ? newVoucherGoldenEnd : undefined,
     };
 
     setVouchers((prev) => [created, ...prev]);
@@ -1714,12 +1746,25 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     setNewVoucherEventTag(v.eventTag || 'Ưu đãi sự kiện');
     setNewVoucherMerchantId(v.merchantId || 'ALL');
     setNewVoucherFlashHunt(v.isFlashHunt !== false);
+    setNewVoucherGoldenStart(v.goldenStartTime || '11:00');
+    setNewVoucherGoldenEnd(v.goldenEndTime || '13:00');
   };
 
   const handleSaveShopVoucher = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentMerchant || !shopVoucherCode.trim()) return;
-    const code = shopVoucherCode.trim().toUpperCase();
+    if (!currentMerchant) return;
+    if (
+      shopVoucherEventTheme === 'FLASH_SALE' &&
+      !isValidGoldenRange(shopVoucherGoldenStart, shopVoucherGoldenEnd)
+    ) {
+      setShopVoucherBanner('⚠️ Giờ kết thúc Flash Sale phải sau giờ bắt đầu.');
+      setTimeout(() => setShopVoucherBanner(''), 3500);
+      return;
+    }
+    if (!shopVoucherCode.trim() && shopVoucherEventTheme !== 'FLASH_SALE') return;
+    const code = shopVoucherCode.trim()
+      ? shopVoucherCode.trim().toUpperCase()
+      : buildFlashSaleCode(shopVoucherGoldenStart, shopVoucherGoldenEnd);
     const merchantName = currentMerchant.name;
     const themeLabel = shopVoucherEventTag.trim() || 'Ưu Đãi Độc Quyền Của Quán';
     const title =
@@ -1749,6 +1794,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 merchantId: currentMerchant.id,
                 merchantName,
                 isFlashHunt: shopVoucherFlashHunt,
+                goldenStartTime:
+                  shopVoucherEventTheme === 'FLASH_SALE' ? shopVoucherGoldenStart : undefined,
+                goldenEndTime:
+                  shopVoucherEventTheme === 'FLASH_SALE' ? shopVoucherGoldenEnd : undefined,
               }
             : v,
         ),
@@ -1781,6 +1830,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       merchantId: currentMerchant.id,
       merchantName,
       isFlashHunt: shopVoucherFlashHunt,
+      goldenStartTime:
+        shopVoucherEventTheme === 'FLASH_SALE' ? shopVoucherGoldenStart : undefined,
+      goldenEndTime:
+        shopVoucherEventTheme === 'FLASH_SALE' ? shopVoucherGoldenEnd : undefined,
     };
 
     setVouchers((prev) => [created, ...prev]);
@@ -1803,6 +1856,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     setShopVoucherEventTheme(v.eventTheme || 'FLASH_SALE');
     setShopVoucherEventTag(v.eventTag || 'Ưu Đãi Độc Quyền Của Quán');
     setShopVoucherFlashHunt(v.isFlashHunt !== false);
+    setShopVoucherGoldenStart(v.goldenStartTime || '11:00');
+    setShopVoucherGoldenEnd(v.goldenEndTime || '13:00');
   };
 
   const toggleVoucherStatus = (vId: string) => {
@@ -2023,61 +2078,59 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   // ============================================================================
   if (isAdminRole) {
     return (
-      <div style={{ display: 'flex', height: '100vh', width: '100%', maxWidth: '100vw', overflow: 'hidden', background: '#F8FAFC' }}>
-        {/* Left Enterprise Fixed Sidebar */}
+      <div style={{ display: 'flex', height: '100vh', width: '100%', maxWidth: '100vw', overflow: 'hidden', background: '#F8FAFB' }}>
+        {/* Left Light Executive Sidebar */}
         <aside
           style={{
-            width: 264,
-            background: '#0B1120',
-            color: '#E2E8F0',
+            width: 260,
+            background: '#FFFFFF',
+            color: '#334155',
             display: 'flex',
             flexDirection: 'column',
             flexShrink: 0,
-            borderRight: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRight: '1px solid #E5E7EB',
             height: '100vh',
             overflowY: 'auto',
             zIndex: 40,
           }}
         >
-          {/* Sidebar Brand Header — Cohesive DineGo Brand & Modern Logo */}
+          {/* Sidebar Brand Header */}
           <div
             style={{
-              padding: '20px 20px',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-              background: 'linear-gradient(180deg, #0F172A 0%, #0B1120 100%)',
+              padding: '18px 20px',
+              borderBottom: '1px solid #F1F5F9',
+              background: '#FFFFFF',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
               <div
                 style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 10,
-                  background: 'linear-gradient(135deg, #00B14F 0%, #059669 100%)',
+                  width: 34,
+                  height: 34,
+                  borderRadius: 9,
+                  background: '#0D9488',
                   color: '#FFFFFF',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontWeight: 900,
-                  fontSize: '0.98rem',
+                  fontWeight: 800,
+                  fontSize: '0.9rem',
                   letterSpacing: -0.5,
-                  boxShadow: '0 4px 14px rgba(0, 177, 79, 0.35)',
-                  border: '1px solid rgba(255, 255, 255, 0.18)',
                   flexShrink: 0,
                 }}
               >
                 DG
               </div>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#FFFFFF', letterSpacing: -0.5, lineHeight: 1.15 }}>
-                  Dine<span style={{ color: '#00B14F' }}>Go</span>{' '}
+                <div style={{ fontSize: '1.08rem', fontWeight: 800, color: '#0F172A', letterSpacing: -0.4, lineHeight: 1.15 }}>
+                  Dine<span style={{ color: '#0D9488' }}>Go</span>{' '}
                   <span
                     style={{
-                      fontSize: '0.72rem',
+                      fontSize: '0.68rem',
                       fontWeight: 700,
-                      background: 'rgba(0, 177, 79, 0.15)',
-                      color: '#34D399',
-                      border: '1px solid rgba(0, 177, 79, 0.3)',
+                      background: '#F0FDFA',
+                      color: '#0F766E',
+                      border: '1px solid #CCFBF1',
                       padding: '2px 7px',
                       borderRadius: 6,
                       verticalAlign: 'middle',
@@ -2088,7 +2141,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     Admin
                   </span>
                 </div>
-                <div style={{ fontSize: '0.66rem', color: '#94A3B8', fontWeight: 700, letterSpacing: 0.8, marginTop: 4, textTransform: 'uppercase' }}>
+                <div style={{ fontSize: '0.64rem', color: '#94A3B8', fontWeight: 600, letterSpacing: 0.6, marginTop: 4, textTransform: 'uppercase' }}>
                   Hệ thống Quản trị Sàn
                 </div>
               </div>
@@ -2101,7 +2154,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               {
                 sectionTitle: 'Giám Sát & Đối Tác',
                 items: [
-                  { id: 'admin-overview' as NavTab, label: 'Tổng quan & Đơn hàng', icon: <BarChart3 size={17} /> },
+                  { id: 'admin-overview' as NavTab, label: 'Tổng quan', icon: <BarChart3 size={17} /> },
                   {
                     id: 'admin-merchants' as NavTab,
                     label: 'Đối tác Quán & KYC',
@@ -2180,34 +2233,30 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                         width: '100%',
                         padding: '9px 12px',
                         borderRadius: 8,
-                        background: isActive
-                          ? 'linear-gradient(90deg, rgba(0, 177, 79, 0.16) 0%, rgba(0, 177, 79, 0.04) 100%)'
-                          : 'transparent',
-                        color: isActive ? '#FFFFFF' : '#94A3B8',
+                        background: isActive ? '#F0FDFA' : 'transparent',
+                        color: isActive ? '#0F766E' : '#475569',
                         fontWeight: isActive ? 700 : 500,
                         fontSize: '0.84rem',
                         textAlign: 'left',
                         transition: 'all 0.15s ease',
-                        border: 'none',
-                        borderLeft: isActive ? '3px solid #00B14F' : '3px solid transparent',
+                        border: isActive ? '1px solid #CCFBF1' : '1px solid transparent',
                         cursor: 'pointer',
-                        boxShadow: isActive ? 'inset 0 1px 0 rgba(255, 255, 255, 0.05)' : 'none',
                       }}
                       onMouseEnter={(e) => {
                         if (!isActive) {
-                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
-                          e.currentTarget.style.color = '#F1F5F9';
+                          e.currentTarget.style.background = '#F8FAFC';
+                          e.currentTarget.style.color = '#0F172A';
                         }
                       }}
                       onMouseLeave={(e) => {
                         if (!isActive) {
                           e.currentTarget.style.background = 'transparent';
-                          e.currentTarget.style.color = '#94A3B8';
+                          e.currentTarget.style.color = '#475569';
                         }
                       }}
                     >
                       <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ color: isActive ? '#00B14F' : 'inherit', display: 'flex' }}>
+                        <span style={{ color: isActive ? '#0D9488' : '#64748B', display: 'flex' }}>
                           {item.icon}
                         </span>
                         <span>{item.label}</span>
@@ -2216,20 +2265,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                         <span
                           style={{
                             background: isActive
-                              ? '#00B14F'
+                              ? '#0D9488'
                               : 'badgeMuted' in item && item.badgeMuted
-                              ? '#1E293B'
-                              : '#EF4444',
+                              ? '#F1F5F9'
+                              : '#DC2626',
                             color: isActive
                               ? '#FFFFFF'
                               : 'badgeMuted' in item && item.badgeMuted
-                              ? '#94A3B8'
+                              ? '#64748B'
                               : '#FFFFFF',
                             padding: '1px 7px',
-                            borderRadius: 10,
+                            borderRadius: 6,
                             fontSize: '0.68rem',
                             fontWeight: 700,
-                            border: 'badgeMuted' in item && item.badgeMuted ? '1px solid #334155' : 'none',
+                            border: 'badgeMuted' in item && item.badgeMuted ? '1px solid #E2E8F0' : 'none',
                           }}
                         >
                           {item.badge}
@@ -2242,77 +2291,22 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             ))}
           </div>
 
-          {/* Sticky Sidebar Footer — Always Visible Session & Logout */}
+          {/* Minimal Sidebar Footer (Single Logout is in Top Header) */}
           <div
             style={{
-              padding: 14,
-              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-              background: '#0B1120',
-              position: 'sticky',
-              bottom: 0,
+              padding: '14px 18px',
+              borderTop: '1px solid #F1F5F9',
+              background: '#FFFFFF',
               marginTop: 'auto',
-              zIndex: 10,
+              fontSize: '0.73rem',
+              color: '#94A3B8',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
             }}
           >
-            <div style={{ marginBottom: 10, padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.74rem', color: '#94A3B8' }}>Phiên quản trị viên</span>
-              <span
-                style={{
-                  fontSize: '0.68rem',
-                  color: '#34D399',
-                  fontWeight: 700,
-                  background: 'rgba(16, 185, 129, 0.12)',
-                  padding: '2px 8px',
-                  borderRadius: 12,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  border: '1px solid rgba(16, 185, 129, 0.25)',
-                }}
-              >
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    background: '#10B981',
-                    boxShadow: '0 0 6px #10B981',
-                  }}
-                />
-                ONLINE
-              </span>
-            </div>
-            <button
-              onClick={() => onLogout?.()}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                borderRadius: 8,
-                background: 'rgba(239, 68, 68, 0.08)',
-                border: '1px solid rgba(239, 68, 68, 0.22)',
-                color: '#FCA5A5',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#DC2626';
-                e.currentTarget.style.color = '#FFFFFF';
-                e.currentTarget.style.borderColor = '#DC2626';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)';
-                e.currentTarget.style.color = '#FCA5A5';
-                e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.22)';
-              }}
-            >
-              <LogOut size={15} /> Đăng xuất Quản trị sàn
-            </button>
+            <span>DineGo Backoffice</span>
+            <span style={{ color: '#0D9488', fontWeight: 700 }}>Admin</span>
           </div>
         </aside>
 
@@ -2412,30 +2406,30 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
               <div
                 style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 8,
-                  background: 'linear-gradient(135deg, #00B14F 0%, #059669 100%)',
-                  color: '#FFFFFF',
+                  width: 34,
+                  height: 34,
+                  borderRadius: 9,
+                  background: '#F0FDFA',
+                  border: '1px solid #CCFBF1',
+                  color: '#0F766E',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0,
-                  boxShadow: '0 2px 6px rgba(0, 177, 79, 0.25)',
                 }}
               >
-                {currentAdminTab === 'admin-overview' && <BarChart3 size={18} />}
-                {currentAdminTab === 'admin-merchants' && <Store size={18} />}
-                {currentAdminTab === 'admin-drivers' && <Bike size={18} />}
-                {currentAdminTab === 'admin-users' && <UsersIcon size={18} />}
-                {currentAdminTab === 'admin-complaints' && <AlertTriangle size={18} />}
-                {currentAdminTab === 'admin-reconciliation' && <DollarSign size={18} />}
-                {currentAdminTab === 'admin-vouchers' && <Ticket size={18} />}
-                {currentAdminTab === 'admin-knowledge' && <FileText size={18} />}
-                {currentAdminTab === 'admin-settings' && <Sliders size={18} />}
+                {currentAdminTab === 'admin-overview' && <BarChart3 size={17} />}
+                {currentAdminTab === 'admin-merchants' && <Store size={17} />}
+                {currentAdminTab === 'admin-drivers' && <Bike size={17} />}
+                {currentAdminTab === 'admin-users' && <UsersIcon size={17} />}
+                {currentAdminTab === 'admin-complaints' && <AlertTriangle size={17} />}
+                {currentAdminTab === 'admin-reconciliation' && <DollarSign size={17} />}
+                {currentAdminTab === 'admin-vouchers' && <Ticket size={17} />}
+                {currentAdminTab === 'admin-knowledge' && <FileText size={17} />}
+                {currentAdminTab === 'admin-settings' && <Sliders size={17} />}
               </div>
-              <h1 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: -0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {currentAdminTab === 'admin-overview' && 'Tổng quan vận hành & Giám sát giao dịch toàn sàn'}
+              <h1 style={{ fontSize: '1.04rem', fontWeight: 700, color: '#0F172A', margin: 0, letterSpacing: -0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {currentAdminTab === 'admin-overview' && 'Tổng quan hệ thống'}
                 {currentAdminTab === 'admin-merchants' && 'Quản lý Đối tác Nhà hàng & Hồ sơ Pháp lý'}
                 {currentAdminTab === 'admin-drivers' && 'Quản lý Đội ngũ Tài xế Giao hàng (DineGo Express)'}
                 {currentAdminTab === 'admin-users' && 'Quản lý Danh sách Người dùng & Can thiệp Phân quyền'}
@@ -2448,11 +2442,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#475569', background: '#F1F5F9', border: '1px solid #E2E8F0', padding: '5px 12px', borderRadius: 20 }}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#10B981', display: 'inline-block', boxShadow: '0 0 6px #10B981' }} />
-                <span style={{ fontWeight: 600 }}>Hệ thống trực tuyến</span>
-              </div>
-
               {/* Universal Notification Bell for Admin Backoffice */}
               <NotificationBell
                 actorRole="ADMIN"
@@ -2462,36 +2451,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 variant="light"
               />
 
-              <div style={{ height: 20, width: 1, background: '#E2E8F0' }} />
+              <div style={{ height: 20, width: 1, background: '#E5E7EB' }} />
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                <div
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #00B14F 0%, #059669 100%)',
-                    color: '#FFFFFF',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: 800,
-                    fontSize: '0.8rem',
-                    boxShadow: '0 2px 8px rgba(0, 177, 79, 0.35)',
-                    flexShrink: 0,
-                  }}
-                >
-                  AD
-                </div>
-                <div style={{ textAlign: 'left', lineHeight: 1.15 }}>
-                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {currentUser?.fullName || 'Ban Quản Trị'}
-                  </div>
-                  <div style={{ fontSize: '0.67rem', color: '#00B14F', fontWeight: 600 }}>DINEGO ADMIN</div>
-                </div>
-              </div>
-
-              {/* Direct Header Logout Button — 100% Never Missed */}
+              {/* Single Clean Header Logout Button */}
               <button
                 onClick={() => onLogout?.()}
                 title="Đăng xuất khỏi hệ thống quản trị"
@@ -2499,27 +2461,27 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
-                  padding: '7px 13px',
+                  padding: '6px 12px',
                   borderRadius: 8,
-                  background: '#FEF2F2',
-                  border: '1px solid #FECACA',
-                  color: '#DC2626',
+                  background: '#FFFFFF',
+                  border: '1px solid #E5E7EB',
+                  color: '#475569',
                   fontSize: '0.8rem',
-                  fontWeight: 700,
+                  fontWeight: 600,
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
-                  marginLeft: 4,
+                  marginLeft: 2,
                   flexShrink: 0,
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#DC2626';
-                  e.currentTarget.style.color = '#FFFFFF';
-                  e.currentTarget.style.borderColor = '#DC2626';
-                }}
-                onMouseLeave={(e) => {
                   e.currentTarget.style.background = '#FEF2F2';
                   e.currentTarget.style.color = '#DC2626';
                   e.currentTarget.style.borderColor = '#FECACA';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#FFFFFF';
+                  e.currentTarget.style.color = '#475569';
+                  e.currentTarget.style.borderColor = '#E5E7EB';
                 }}
               >
                 <LogOut size={13} />
@@ -2533,566 +2495,21 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
             {/* ADMIN TAB 1: OVERVIEW */}
             {currentAdminTab === 'admin-overview' && (
-              <div>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-                    gap: 16,
-                    marginBottom: 20,
-                    fontVariantNumeric: 'tabular-nums',
-                  }}
-                >
-                  <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '18px 20px' }}>
-                    <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>
-                      TỔNG GIÁ TRỊ GIAO DỊCH (GMV)
-                    </div>
-                    <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0F172A' }}>
-                      {adminSystem.totalGmv.toLocaleString('vi-VN')} đ
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: 6 }}>
-                      Từ {validOrders.length} đơn đồ ăn &amp; {approvedFeasts.length} hợp đồng tiệc
-                    </div>
-                  </div>
-
-                  <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '18px 20px' }}>
-                    <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>
-                      LỢI NHUẬN RÒNG PHÍ SÀN ({platformCommissionRate}%)
-                    </div>
-                    <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#15803D' }}>
-                      {adminSystem.platformRevenue.toLocaleString('vi-VN')} đ
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: 6 }}>
-                      Thu gộp {adminSystem.platformGrossFee.toLocaleString('vi-VN')}đ • Bảo trợ sàn {adminSystem.platformOutflow.toLocaleString('vi-VN')}đ
-                    </div>
-                  </div>
-
-                  <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '18px 20px' }}>
-                    <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>
-                      TỔNG ĐƠN &amp; HỢP ĐỒNG TIỆC
-                    </div>
-                    <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0F172A' }}>
-                      {adminSystem.totalOrders} đơn • {feastBookings.length} tiệc
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#0284C7', marginTop: 6, fontWeight: 600 }}>
-                      Hoàn tất: {adminSystem.completedOrders} đơn giao • {approvedFeasts.length} tiệc đã duyệt
-                    </div>
-                  </div>
-
-                  <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '18px 20px' }}>
-                    <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>
-                      HỆ SINH THÁI ĐỐI TÁC
-                    </div>
-                    <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0F172A' }}>
-                      {allMerchants.length} quán • {driversList.length} tài xế
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: 6 }}>
-                      {driversList.filter((d) => d.status === 'ACTIVE').length} tài xế hoạt động • {allUsersList.filter((u) => !u.roles.includes('ADMIN')).length} tài khoản
-                    </div>
-                  </div>
-                </div>
-
-                {/* Unified Control Bar for Overview */}
-                <div
-                  style={{
-                    background: '#FFFFFF',
-                    border: '1px solid #E2E8F0',
-                    borderRadius: 10,
-                    padding: '14px 20px',
-                    marginBottom: 18,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    gap: 12,
-                  }}
-                >
-                  <div>
-                    <h3 style={{ fontSize: '0.96rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>
-                      Phân tích Vận hành &amp; Sổ cái Giao dịch
-                    </h3>
-                    <p style={{ fontSize: '0.77rem', color: '#64748B', margin: '2px 0 0 0' }}>
-                      Theo dõi tỷ trọng dòng tiền giữa Đặt đồ ăn giao ngay và Hợp đồng đặt tiệc sự kiện
-                    </p>
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'inline-flex',
-                      background: '#F1F5F9',
-                      padding: 3,
-                      borderRadius: 8,
-                      gap: 2,
-                    }}
-                  >
-                    {[
-                      { id: 'ANALYTICS' as const, label: 'Biểu đồ GMV & Top Đối tác' },
-                      { id: 'ORDERS' as const, label: `Sổ cái đơn hàng (${orders.length})` },
-                    ].map((tab) => {
-                      const active = adminOverviewSubTab === tab.id;
-                      return (
-                        <button
-                          key={tab.id}
-                          type="button"
-                          onClick={() => setAdminOverviewSubTab(tab.id)}
-                          style={{
-                            padding: '5px 14px',
-                            borderRadius: 6,
-                            border: 'none',
-                            background: active ? '#FFFFFF' : 'transparent',
-                            color: active ? '#0F172A' : '#64748B',
-                            fontWeight: active ? 600 : 500,
-                            fontSize: '0.78rem',
-                            boxShadow: active ? '0 1px 2px rgba(15,23,42,0.06)' : 'none',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          {tab.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* U044: Biểu đồ tỷ trọng đơn theo luồng & Top Nhà hàng Doanh thu cao nhất */}
-                {adminOverviewSubTab === 'ANALYTICS' && (
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-                      gap: 18,
-                    }}
-                  >
-                    {/* Phân bổ GMV & Đơn hàng theo Luồng Nghiệp vụ */}
-                    <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, minWidth: 0 }}>
-                      <h3 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: '0 0 4px 0' }}>
-                        Phân bổ GMV &amp; Số lượng đơn theo Luồng Nghiệp vụ
-                      </h3>
-                      <p style={{ fontSize: '0.77rem', color: '#64748B', margin: '0 0 18px 0' }}>
-                        Dữ liệu thực tế từ cơ sở dữ liệu SQL Server: Luồng 1 (Đặt đồ ăn) và Luồng 2 (Đặt mâm cỗ sự kiện)
-                      </p>
-
-                      {(() => {
-                        const totalBoth = Math.max(foodDeliveryGmv + cateringFeastGmv, 1);
-                        const foodPct = totalGmvReal > 0 ? Math.round((foodDeliveryGmv / totalBoth) * 1000) / 10 : 0;
-                        const feastPct = totalGmvReal > 0 ? Math.round((cateringFeastGmv / totalBoth) * 1000) / 10 : 0;
-                        return (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                            <div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6, fontSize: '0.81rem', fontWeight: 700, marginBottom: 6 }}>
-                                <span style={{ color: '#0F172A' }}>Luồng 1: Đặt đồ ăn giao ngay &amp; Group Order</span>
-                                <span style={{ color: '#4F46E5' }}>
-                                  {foodDeliveryGmv.toLocaleString('vi-VN')} đ ({foodPct}% • {validOrders.length} đơn)
-                                </span>
-                              </div>
-                              <div style={{ height: 10, background: '#F1F5F9', borderRadius: 999, overflow: 'hidden' }}>
-                                <div style={{ width: `${foodPct}%`, height: '100%', background: '#4F46E5', borderRadius: 999 }} />
-                              </div>
-                            </div>
-
-                            <div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6, fontSize: '0.81rem', fontWeight: 700, marginBottom: 6 }}>
-                                <span style={{ color: '#0F172A' }}>Luồng 2: Đặt mâm cỗ sự kiện &amp; Cọc 2 đợt</span>
-                                <span style={{ color: '#00B14F' }}>
-                                  {cateringFeastGmv.toLocaleString('vi-VN')} đ ({feastPct}% • {approvedFeasts.length} hợp đồng)
-                                </span>
-                              </div>
-                              <div style={{ height: 10, background: '#F1F5F9', borderRadius: 999, overflow: 'hidden' }}>
-                                <div style={{ width: `${feastPct}%`, height: '100%', background: '#00B14F', borderRadius: 999 }} />
-                              </div>
-                            </div>
-
-                            {/* Mini Bar Chart Doanh thu 7 ngày gần nhất từ đơn thực tế */}
-                            <div style={{ marginTop: 8, paddingTop: 14, borderTop: '1px solid #F1F5F9' }}>
-                              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 10 }}>
-                                BIỂU ĐỒ GMV THỰC TẾ 7 NGÀY GẦN NHẤT (VNĐ)
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 86, minWidth: 0 }}>
-                                {sevenDayGmvChart.map((b) => (
-                                  <div key={b.dateKey} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                                    <span style={{ fontSize: '0.64rem', fontWeight: 700, color: '#4F46E5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
-                                      {b.gmv >= 1000000
-                                        ? `${(b.gmv / 1000000).toFixed(1)}M`
-                                        : b.gmv > 0
-                                        ? `${Math.round(b.gmv / 1000)}k`
-                                        : '0đ'}
-                                    </span>
-                                    <div
-                                      style={{
-                                        width: '100%',
-                                        height: `${Math.round(b.pct * 0.52)}px`,
-                                        background: b.gmv > 0 ? 'linear-gradient(180deg, #4F46E5 0%, #818CF8 100%)' : '#E2E8F0',
-                                        borderRadius: '4px 4px 0 0',
-                                      }}
-                                    />
-                                    <span style={{ fontSize: '0.65rem', color: '#64748B', fontWeight: 600, whiteSpace: 'nowrap' }}>{b.label}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Bảng Xếp hạng Top Nhà hàng Doanh thu cao nhất (Tính thực từ orders) */}
-                    <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, minWidth: 0 }}>
-                      <h3 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0F172A', margin: '0 0 4px 0' }}>
-                        Top Đối tác Nhà hàng Doanh thu cao nhất (Top 6)
-                      </h3>
-                      <p style={{ fontSize: '0.77rem', color: '#64748B', margin: '0 0 14px 0' }}>
-                        Tổng hợp trực tiếp từ các đơn hàng &amp; hợp đồng tiệc trong cơ sở dữ liệu
-                      </p>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {topMerchantsReal.slice(0, 6).map((tm, idx) => (
-                          <div
-                            key={tm.id}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              gap: 10,
-                              padding: '9px 12px',
-                              borderRadius: 8,
-                              background: idx === 0 ? '#EEF2FF' : '#F8FAFC',
-                              border: idx === 0 ? '1px solid #C7D2FE' : '1px solid #E2E8F0',
-                              minWidth: 0,
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
-                              <span
-                                style={{
-                                  width: 24,
-                                  height: 24,
-                                  borderRadius: '50%',
-                                  background: idx === 0 ? '#4F46E5' : '#CBD5E1',
-                                  color: idx === 0 ? '#FFFFFF' : '#1E293B',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontSize: '0.73rem',
-                                  fontWeight: 800,
-                                  flexShrink: 0,
-                                }}
-                              >
-                                {idx + 1}
-                              </span>
-                              <div style={{ minWidth: 0, flex: 1 }}>
-                                <div
-                                  title={tm.name}
-                                  style={{
-                                    fontWeight: 700,
-                                    fontSize: '0.84rem',
-                                    color: '#0F172A',
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                  }}
-                                >
-                                  {tm.name}
-                                </div>
-                                <div style={{ fontSize: '0.73rem', color: '#64748B', whiteSpace: 'nowrap' }}>
-                                  {tm.ordersCount} giao dịch • ★ {tm.rating}
-                                </div>
-                              </div>
-                            </div>
-                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                              <div style={{ fontWeight: 800, fontSize: '0.86rem', color: '#00B14F', whiteSpace: 'nowrap' }}>
-                                {tm.gmv.toLocaleString('vi-VN')} đ
-                              </div>
-                              <div style={{ fontSize: '0.69rem', color: '#64748B', whiteSpace: 'nowrap' }}>
-                                Phí sàn ({platformCommissionRate}%): {tm.platformFee.toLocaleString('vi-VN')} đ
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Live Platform Orders Ledger */}
-                {adminOverviewSubTab === 'ORDERS' && (
-                  <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
-                    <div style={{ padding: '16px 22px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-                      <div>
-                        <h3 style={{ fontSize: '0.98rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>
-                          Sổ cái giao dịch đơn hàng toàn sàn
-                        </h3>
-                        <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '3px 0 0 0' }}>
-                          Giám sát dòng tiền từng đơn giữa Khách hàng, Nhà hàng, Tài xế và can thiệp trạng thái khi cần
-                        </p>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                        <div style={{ display: 'inline-flex', background: '#F1F5F9', padding: 3, borderRadius: 8, gap: 2 }}>
-                          {[
-                            { id: 'ALL' as const, label: `Tất cả (${orders.length})` },
-                            {
-                              id: 'ACTIVE' as const,
-                              label: `Đang xử lý (${orders.filter((o) => o.status !== 'COMPLETED' && o.status !== 'CANCELLED').length})`,
-                            },
-                            {
-                              id: 'COMPLETED' as const,
-                              label: `Hoàn tất (${orders.filter((o) => o.status === 'COMPLETED').length})`,
-                            },
-                            {
-                              id: 'CANCELLED' as const,
-                              label: `Đã hủy (${orders.filter((o) => o.status === 'CANCELLED').length})`,
-                            },
-                          ].map((f) => {
-                            const active = adminOrderStatusFilter === f.id;
-                            return (
-                              <button
-                                key={f.id}
-                                type="button"
-                                onClick={() => setAdminOrderStatusFilter(f.id)}
-                                style={{
-                                  padding: '5px 11px',
-                                  borderRadius: 6,
-                                  border: 'none',
-                                  background: active ? '#FFFFFF' : 'transparent',
-                                  color: active ? '#0F172A' : '#64748B',
-                                  fontSize: '0.76rem',
-                                  fontWeight: active ? 600 : 500,
-                                  boxShadow: active ? '0 1px 2px rgba(15,23,42,0.06)' : 'none',
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                {f.label}
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        <input
-                          type="text"
-                          placeholder="Tìm mã đơn, tên khách, quán..."
-                          value={adminOrderSearch}
-                          onChange={(e) => setAdminOrderSearch(e.target.value)}
-                          style={{
-                            padding: '6px 12px',
-                            borderRadius: 8,
-                            border: '1px solid #E2E8F0',
-                            background: '#F8FAFC',
-                            fontSize: '0.79rem',
-                            color: '#0F172A',
-                            width: 220,
-                            outline: 'none',
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', fontVariantNumeric: 'tabular-nums' }}>
-                        <thead>
-                          <tr style={{ background: '#FAFAFA', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#64748B', fontSize: '0.71rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            <th style={{ padding: '11px 16px' }}>Mã đơn</th>
-                            <th style={{ padding: '11px 14px' }}>Nhà hàng</th>
-                            <th style={{ padding: '11px 14px' }}>Khách nhận &amp; Tài xế</th>
-                            <th style={{ padding: '11px 14px' }}>Tiền món &amp; Phí ship</th>
-                            <th style={{ padding: '11px 14px' }}>Tổng thu &amp; Phân bổ</th>
-                            <th style={{ padding: '11px 14px' }}>Trạng thái</th>
-                            <th style={{ padding: '11px 16px', textAlign: 'right' }}>Can thiệp</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {orders
-                            .filter((o) => {
-                              if (adminOrderStatusFilter === 'COMPLETED' && o.status !== 'COMPLETED') return false;
-                              if (adminOrderStatusFilter === 'CANCELLED' && o.status !== 'CANCELLED') return false;
-                              if (
-                                adminOrderStatusFilter === 'ACTIVE' &&
-                                (o.status === 'COMPLETED' || o.status === 'CANCELLED')
-                              ) {
-                                return false;
-                              }
-                              const q = adminOrderSearch.trim().toLowerCase();
-                              if (!q) return true;
-                              return (
-                                o.orderNumber.toLowerCase().includes(q) ||
-                                (o.merchant?.name || '').toLowerCase().includes(q) ||
-                                (o.recipientName || '').toLowerCase().includes(q) ||
-                                (o.recipientPhone || '').toLowerCase().includes(q) ||
-                                (o.assignedDriverName || '').toLowerCase().includes(q)
-                              );
-                            })
-                            .map((o) => {
-                              const platformCut = Math.round(o.subtotal * commissionRateDecimal);
-                              const merchantCut = Math.max(0, o.subtotal - platformCut);
-                              const statusMeta: Record<OrderStatus, { label: string; bg: string; color: string; dot: string }> = {
-                                PENDING: { label: 'Chờ quán nhận', bg: '#FFFBEB', color: '#B45309', dot: '#D97706' },
-                                CONFIRMED: { label: 'Đã tiếp nhận', bg: '#EFF6FF', color: '#1D4ED8', dot: '#2563EB' },
-                                PREPARING: { label: 'Đang chế biến', bg: '#F5F3FF', color: '#6D28D9', dot: '#7C3AED' },
-                                READY_FOR_PICKUP: { label: 'Chờ lấy món', bg: '#FFFBEB', color: '#B45309', dot: '#D97706' },
-                                DELIVERING: { label: 'Đang giao hàng', bg: '#EFF6FF', color: '#0369A1', dot: '#0284C7' },
-                                COMPLETED: { label: 'Đã hoàn tất', bg: '#F0FDF4', color: '#15803D', dot: '#16A34A' },
-                                CANCELLED: { label: 'Đã hủy đơn', bg: '#FEF2F2', color: '#DC2626', dot: '#EF4444' },
-                              };
-                              const st = statusMeta[o.status] || statusMeta.PENDING;
-                              const isActiveOrder = o.status !== 'COMPLETED' && o.status !== 'CANCELLED';
-
-                              return (
-                                <tr key={o.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                                  <td style={{ padding: '12px 16px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap' }}>
-                                    <div>#{o.orderNumber}</div>
-                                    <div style={{ fontSize: '0.71rem', color: '#64748B', fontWeight: 500 }}>
-                                      {o.payment?.paymentMethod === 'COD' ? 'Tiền mặt (COD)' : 'Ví MoMo QR'}
-                                    </div>
-                                  </td>
-                                  <td style={{ padding: '12px 14px', fontWeight: 600, color: '#1E293B' }}>
-                                    <div
-                                      title={o.merchant?.name}
-                                      style={{
-                                        maxWidth: 185,
-                                        whiteSpace: 'nowrap',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                      }}
-                                    >
-                                      {o.merchant?.name}
-                                    </div>
-                                  </td>
-                                  <td style={{ padding: '12px 14px', color: '#475569' }}>
-                                    <div
-                                      style={{
-                                        fontWeight: 500,
-                                        color: '#0F172A',
-                                        maxWidth: 195,
-                                        whiteSpace: 'nowrap',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                      }}
-                                    >
-                                      {o.recipientName} ({o.recipientPhone})
-                                    </div>
-                                    <div style={{ fontSize: '0.72rem', color: '#64748B', whiteSpace: 'nowrap' }}>
-                                      Shipper: {o.assignedDriverName || 'Chưa ghép tài xế'}
-                                    </div>
-                                  </td>
-                                  <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
-                                    <div style={{ fontWeight: 600, color: '#334155' }}>
-                                      Món: {o.subtotal.toLocaleString('vi-VN')}đ
-                                    </div>
-                                    <div style={{ fontSize: '0.71rem', color: '#0284C7', fontWeight: 500 }}>
-                                      Ship: {o.deliveryFee.toLocaleString('vi-VN')}đ (TX: {Math.round(o.deliveryFee * 0.85).toLocaleString('vi-VN')}đ)
-                                    </div>
-                                  </td>
-                                  <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
-                                    <div style={{ fontWeight: 700, color: '#0F172A' }}>
-                                      Thu: {o.finalTotal.toLocaleString('vi-VN')}đ
-                                    </div>
-                                    <div style={{ fontSize: '0.71rem', color: '#15803D', fontWeight: 600 }}>
-                                      Quán: {merchantCut.toLocaleString('vi-VN')}đ • Sàn: {platformCut.toLocaleString('vi-VN')}đ
-                                    </div>
-                                  </td>
-                                  <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
-                                    <span
-                                      style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: 6,
-                                        padding: '3px 9px',
-                                        borderRadius: 999,
-                                        fontSize: '0.72rem',
-                                        fontWeight: 600,
-                                        background: st.bg,
-                                        color: st.color,
-                                      }}
-                                    >
-                                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.dot }} />
-                                      {st.label}
-                                    </span>
-                                  </td>
-                                  <td style={{ padding: '12px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                    <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                                      <button
-                                        type="button"
-                                        onClick={() => setMerchantChatOrder(o)}
-                                        title="Nhắn tin trực tiếp với khách hàng / tài xế của đơn này"
-                                        style={{
-                                          padding: '4px 9px',
-                                          borderRadius: 6,
-                                          border: '1px solid #BAE6FD',
-                                          background: '#F0FDF4',
-                                          color: '#059669',
-                                          fontSize: '0.73rem',
-                                          fontWeight: 700,
-                                          cursor: 'pointer',
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: 4,
-                                        }}
-                                      >
-                                        <MessageSquare size={12} />
-                                        <span>Nhắn tin</span>
-                                      </button>
-                                    {isActiveOrder ? (
-                                      <div style={{ display: 'inline-flex', gap: 6 }}>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            onUpdateOrderStatus?.(o.id, 'COMPLETED');
-                                            appendAuditLog(
-                                              'CAN THIỆP HOÀN TẤT ĐƠN HÀNG',
-                                              `#${o.orderNumber} (${o.merchant?.name})`,
-                                              'Admin xác nhận hoàn tất đơn hàng trên sổ cái vận hành',
-                                            );
-                                            triggerAdminToast(`Đã chuyển trạng thái đơn #${o.orderNumber} sang Đã hoàn tất.`);
-                                          }}
-                                          style={{
-                                            padding: '4px 9px',
-                                            borderRadius: 6,
-                                            border: '1px solid #0F172A',
-                                            background: '#0F172A',
-                                            color: '#FFFFFF',
-                                            fontSize: '0.73rem',
-                                            fontWeight: 600,
-                                            cursor: 'pointer',
-                                          }}
-                                        >
-                                          Hoàn tất
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            onUpdateOrderStatus?.(o.id, 'CANCELLED');
-                                            appendAuditLog(
-                                              'CAN THIỆP HỦY ĐƠN HÀNG',
-                                              `#${o.orderNumber} (${o.merchant?.name})`,
-                                              'Admin hủy đơn hàng theo yêu cầu vận hành',
-                                            );
-                                            triggerAdminToast(`Đã hủy đơn hàng #${o.orderNumber}.`);
-                                          }}
-                                          style={{
-                                            padding: '4px 9px',
-                                            borderRadius: 6,
-                                            border: '1px solid #E2E8F0',
-                                            background: '#FFFFFF',
-                                            color: '#DC2626',
-                                            fontSize: '0.73rem',
-                                            fontWeight: 600,
-                                            cursor: 'pointer',
-                                          }}
-                                        >
-                                          Hủy
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <span style={{ fontSize: '0.74rem', color: '#94A3B8' }}>Đã chốt sổ</span>
-                                    )}
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <AdminOverviewTab
+                adminSystem={adminSystem}
+                platformCommissionRate={platformCommissionRate}
+                validOrders={validOrders}
+                orders={orders}
+                approvedFeasts={approvedFeasts}
+                feastBookings={feastBookings}
+                allMerchants={allMerchants}
+                driversList={driversList}
+                allUsersList={allUsersList}
+                foodDeliveryGmv={foodDeliveryGmv}
+                cateringFeastGmv={cateringFeastGmv}
+                totalGmvReal={totalGmvReal}
+                sevenDayGmvChart={sevenDayGmvChart}
+              />
             )}
 
             {/* ADMIN TAB 2: MERCHANTS & KYC MODERATION */}
@@ -5758,11 +5175,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                           </div>
                           <div>
                             <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                              Mã khuyến mãi
+                              {newVoucherEventTheme === 'FLASH_SALE'
+                                ? 'Mã khuyến mãi (tự tạo nếu để trống)'
+                                : 'Mã khuyến mãi'}
                             </label>
                             <input
                               type="text"
-                              placeholder="VD: NOEL50K"
+                              placeholder={
+                                newVoucherEventTheme === 'FLASH_SALE'
+                                  ? 'Tự động tạo mã Giờ Vàng (hoặc tự nhập)'
+                                  : 'VD: NOEL50K'
+                              }
                               value={newVoucherCode}
                               onChange={(e) => setNewVoucherCode(e.target.value.toUpperCase())}
                               style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.84rem', fontWeight: 700 }}
@@ -5850,6 +5273,110 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                               style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.84rem' }}
                             />
                           </div>
+                          {newVoucherEventTheme === 'FLASH_SALE' && (
+                            <div
+                              style={{
+                                gridColumn: '1 / -1',
+                                padding: '10px 12px',
+                                borderRadius: 8,
+                                background: '#FFF7ED',
+                                border: '1px solid #FED7AA',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 8,
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                                <span style={{ fontSize: '0.76rem', fontWeight: 800, color: '#C2410C' }}>
+                                  ⚡ Khung giờ vàng Flash Sale (hàng ngày)
+                                </span>
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                  {[
+                                    { label: 'Trưa 11:00 - 13:00', s: '11:00', e: '13:00' },
+                                    { label: 'Tối 18:00 - 21:00', s: '18:00', e: '21:00' },
+                                    { label: 'Cả ngày', s: '00:00', e: '23:59' },
+                                  ].map((preset) => (
+                                    <button
+                                      key={preset.label}
+                                      type="button"
+                                      onClick={() => {
+                                        setNewVoucherGoldenStart(preset.s);
+                                        setNewVoucherGoldenEnd(preset.e);
+                                      }}
+                                      style={{
+                                        padding: '3px 8px',
+                                        borderRadius: 999,
+                                        border: '1px solid #FDBA74',
+                                        background:
+                                          newVoucherGoldenStart === preset.s && newVoucherGoldenEnd === preset.e
+                                            ? '#EA580C'
+                                            : '#FFFFFF',
+                                        color:
+                                          newVoucherGoldenStart === preset.s && newVoucherGoldenEnd === preset.e
+                                            ? '#FFFFFF'
+                                            : '#9A3412',
+                                        fontSize: '0.71rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      {preset.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                <div>
+                                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#9A3412', marginBottom: 4 }}>
+                                    Từ giờ (24h)
+                                  </label>
+                                  <select
+                                    value={newVoucherGoldenStart}
+                                    onChange={(e) => {
+                                      const nextStart = e.target.value;
+                                      setNewVoucherGoldenStart(nextStart);
+                                      const sMin = parseTimeToMinutes(nextStart) ?? 0;
+                                      const eMin = parseTimeToMinutes(newVoucherGoldenEnd) ?? 0;
+                                      if (eMin <= sMin) {
+                                        const fallback =
+                                          GOLDEN_HOUR_24H_OPTIONS.find(
+                                            (opt) => (parseTimeToMinutes(opt) ?? 0) > sMin,
+                                          ) || '23:59';
+                                        setNewVoucherGoldenEnd(fallback);
+                                      }
+                                    }}
+                                    style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #FDBA74', fontSize: '0.84rem', background: '#FFFFFF' }}
+                                  >
+                                    {GOLDEN_HOUR_24H_OPTIONS.slice(0, -1).map((t) => (
+                                      <option key={t} value={t}>
+                                        {t}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#9A3412', marginBottom: 4 }}>
+                                    Đến giờ (24h)
+                                  </label>
+                                  <select
+                                    value={newVoucherGoldenEnd}
+                                    onChange={(e) => setNewVoucherGoldenEnd(e.target.value)}
+                                    style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #FDBA74', fontSize: '0.84rem', background: '#FFFFFF' }}
+                                  >
+                                    {GOLDEN_HOUR_24H_OPTIONS.filter(
+                                      (t) =>
+                                        (parseTimeToMinutes(t) ?? 0) >
+                                        (parseTimeToMinutes(newVoucherGoldenStart) ?? 0),
+                                    ).map((t) => (
+                                      <option key={t} value={t}>
+                                        {t}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                           <div style={{ display: 'flex', alignItems: 'center' }}>
                             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', fontWeight: 700, color: '#0F172A', cursor: 'pointer' }}>
                               <input
@@ -7113,21 +6640,21 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
 
         {/* Sidebar Bottom Actions */}
-        <div
-          style={{
-            padding: 14,
-            borderTop: '1px solid #E2E8F0',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
-            marginTop: 'auto',
-            position: 'sticky',
-            bottom: 0,
-            background: '#FFFFFF',
-            zIndex: 10,
-          }}
-        >
-          {onOpenMerchantRegisterModal && (
+        {onOpenMerchantRegisterModal && (
+          <div
+            style={{
+              padding: 14,
+              borderTop: '1px solid #E2E8F0',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+              marginTop: 'auto',
+              position: 'sticky',
+              bottom: 0,
+              background: '#FFFFFF',
+              zIndex: 10,
+            }}
+          >
             <button
               onClick={onOpenMerchantRegisterModal}
               style={{
@@ -7144,27 +6671,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             >
               + Đăng ký mở chi nhánh mới
             </button>
-          )}
-          <button
-            onClick={() => onLogout?.()}
-            style={{
-              width: '100%',
-              padding: '9px 12px',
-              borderRadius: 8,
-              background: '#FEF2F2',
-              border: '1px solid #FECACA',
-              color: '#DC2626',
-              fontSize: '0.84rem',
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-            }}
-          >
-            <LogOut size={15} /> Đăng xuất Kênh Người Bán
-          </button>
-        </div>
+          </div>
+        )}
       </aside>
 
       {/* Right Main Seller Workspace */}
@@ -8255,12 +7763,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 >
                   <div>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                      Mã Voucher của Quán *
+                      {shopVoucherEventTheme === 'FLASH_SALE'
+                        ? 'Mã Voucher của Quán (tự tạo nếu để trống)'
+                        : 'Mã Voucher của Quán *'}
                     </label>
                     <input
                       type="text"
-                      required
-                      placeholder="VD: COMTAM25K"
+                      required={shopVoucherEventTheme !== 'FLASH_SALE'}
+                      placeholder={
+                        shopVoucherEventTheme === 'FLASH_SALE'
+                          ? 'Tự động tạo mã Giờ Vàng (hoặc tự nhập)'
+                          : 'VD: COMTAM25K'
+                      }
                       value={shopVoucherCode}
                       onChange={(e) => setShopVoucherCode(e.target.value.toUpperCase())}
                       style={{
@@ -8446,6 +7960,111 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       }}
                     />
                   </div>
+
+                  {shopVoucherEventTheme === 'FLASH_SALE' && (
+                    <div
+                      style={{
+                        gridColumn: '1 / -1',
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        background: '#FFF7ED',
+                        border: '1px solid #FED7AA',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 8,
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                        <span style={{ fontSize: '0.76rem', fontWeight: 800, color: '#C2410C' }}>
+                          ⚡ Khung giờ vàng Flash Sale
+                        </span>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {[
+                            { label: 'Trưa 11:00 - 13:00', s: '11:00', e: '13:00' },
+                            { label: 'Tối 18:00 - 21:00', s: '18:00', e: '21:00' },
+                            { label: 'Cả ngày', s: '00:00', e: '23:59' },
+                          ].map((preset) => (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => {
+                                setShopVoucherGoldenStart(preset.s);
+                                setShopVoucherGoldenEnd(preset.e);
+                              }}
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: 999,
+                                border: '1px solid #FDBA74',
+                                background:
+                                  shopVoucherGoldenStart === preset.s && shopVoucherGoldenEnd === preset.e
+                                    ? '#EA580C'
+                                    : '#FFFFFF',
+                                color:
+                                  shopVoucherGoldenStart === preset.s && shopVoucherGoldenEnd === preset.e
+                                    ? '#FFFFFF'
+                                    : '#9A3412',
+                                fontSize: '0.71rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#9A3412', marginBottom: 4 }}>
+                            Từ giờ (24h)
+                          </label>
+                          <select
+                            value={shopVoucherGoldenStart}
+                            onChange={(e) => {
+                              const nextStart = e.target.value;
+                              setShopVoucherGoldenStart(nextStart);
+                              const sMin = parseTimeToMinutes(nextStart) ?? 0;
+                              const eMin = parseTimeToMinutes(shopVoucherGoldenEnd) ?? 0;
+                              if (eMin <= sMin) {
+                                const fallback =
+                                  GOLDEN_HOUR_24H_OPTIONS.find(
+                                    (opt) => (parseTimeToMinutes(opt) ?? 0) > sMin,
+                                  ) || '23:59';
+                                setShopVoucherGoldenEnd(fallback);
+                              }
+                            }}
+                            style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #FDBA74', fontSize: '0.84rem', background: '#FFFFFF' }}
+                          >
+                            {GOLDEN_HOUR_24H_OPTIONS.slice(0, -1).map((t) => (
+                              <option key={t} value={t}>
+                                {t}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#9A3412', marginBottom: 4 }}>
+                            Đến giờ (24h)
+                          </label>
+                          <select
+                            value={shopVoucherGoldenEnd}
+                            onChange={(e) => setShopVoucherGoldenEnd(e.target.value)}
+                            style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #FDBA74', fontSize: '0.84rem', background: '#FFFFFF' }}
+                          >
+                            {GOLDEN_HOUR_24H_OPTIONS.filter(
+                              (t) =>
+                                (parseTimeToMinutes(t) ?? 0) >
+                                (parseTimeToMinutes(shopVoucherGoldenStart) ?? 0),
+                            ).map((t) => (
+                              <option key={t} value={t}>
+                                {t}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', fontWeight: 700, color: '#334155', cursor: 'pointer', paddingBottom: 8 }}>
                     <input

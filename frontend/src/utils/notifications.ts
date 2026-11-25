@@ -6,6 +6,7 @@
 
 import type { Role } from '../types';
 import type { NavTab } from '../actors/common/components/Header';
+import { notificationApi } from '../api/notification.api';
 
 export type NotificationTargetRole = Role | 'ALL';
 
@@ -32,6 +33,8 @@ export interface ActorNotification {
   createdAt: string;
   timestampMs: number;
   isRead: boolean;
+  readByUserIds?: string[];
+  clearedByUserIds?: string[];
   priority?: 'normal' | 'high' | 'urgent';
   actionTab?: NavTab;
   orderRef?: string;
@@ -326,6 +329,7 @@ export function pushActorNotification(
 
   const next = [newNotif, ...current];
   saveAllActorNotifications(next, newNotif);
+  void notificationApi.createBatch([newNotif]);
   return newNotif;
 }
 
@@ -356,7 +360,42 @@ export function pushMultiActorNotifications(
 
   const next = [...createdList, ...current];
   saveAllActorNotifications(next, createdList[0]);
+  void notificationApi.createBatch(createdList);
   return createdList;
+}
+
+export function isNotificationReadForUser(
+  notif: ActorNotification,
+  userId?: string,
+): boolean {
+  if (userId && Array.isArray(notif.readByUserIds)) {
+    return notif.readByUserIds.includes(userId);
+  }
+  return Boolean(notif.isRead);
+}
+
+export function mergeServerNotifications(
+  serverItems: ActorNotification[],
+): ActorNotification[] {
+  const current = loadAllActorNotifications();
+  const byId = new Map<string, ActorNotification>();
+  for (const item of current) {
+    byId.set(item.id, item);
+  }
+  for (const s of serverItems) {
+    const existing = byId.get(s.id);
+    byId.set(s.id, {
+      ...existing,
+      ...s,
+      isRead: Boolean(s.isRead),
+      readByUserIds: undefined,
+    });
+  }
+  const merged = Array.from(byId.values())
+    .sort((a, b) => (b.timestampMs || 0) - (a.timestampMs || 0))
+    .slice(0, 120);
+  saveAllActorNotifications(merged);
+  return merged;
 }
 
 export function filterNotificationsForActor(
@@ -369,25 +408,42 @@ export function filterNotificationsForActor(
   },
 ): ActorNotification[] {
   return all.filter((n) => {
+    if (context.userId && n.clearedByUserIds?.includes(context.userId)) {
+      return false;
+    }
     if (n.targetRole !== 'ALL' && n.targetRole !== context.role) {
       return false;
     }
-    if (context.role === 'MERCHANT' && n.targetMerchantId && context.merchantId) {
-      return n.targetMerchantId === context.merchantId;
+    if (n.targetMerchantId) {
+      return context.role === 'MERCHANT' && n.targetMerchantId === context.merchantId;
     }
-    if (context.role === 'DRIVER' && n.targetDriverId && context.driverId) {
-      return n.targetDriverId === context.driverId;
+    if (n.targetDriverId) {
+      return context.role === 'DRIVER' && n.targetDriverId === context.driverId;
     }
-    if (context.role === 'CUSTOMER' && n.targetUserId && context.userId) {
+    if (n.targetUserId) {
       return n.targetUserId === context.userId;
     }
     return true;
   });
 }
 
-export function markNotificationAsRead(notifId: string): ActorNotification[] {
+export function markNotificationAsRead(
+  notifId: string,
+  userId?: string,
+): ActorNotification[] {
   const current = loadAllActorNotifications();
-  const next = current.map((n) => (n.id === notifId ? { ...n, isRead: true } : n));
+  const next = current.map((n) => {
+    if (n.id !== notifId) return n;
+    const isScoped = Boolean(n.targetUserId || n.targetMerchantId || n.targetDriverId);
+    const prevReaders = Array.isArray(n.readByUserIds) ? n.readByUserIds : [];
+    const nextReaders =
+      userId && !prevReaders.includes(userId) ? [...prevReaders, userId] : prevReaders;
+    return {
+      ...n,
+      isRead: isScoped || !userId ? true : n.isRead,
+      readByUserIds: userId ? nextReaders : n.readByUserIds,
+    };
+  });
   saveAllActorNotifications(next);
   return next;
 }
@@ -400,7 +456,20 @@ export function markAllNotificationsReadForActor(context: {
 }): ActorNotification[] {
   const current = loadAllActorNotifications();
   const matchedIds = new Set(filterNotificationsForActor(current, context).map((n) => n.id));
-  const next = current.map((n) => (matchedIds.has(n.id) ? { ...n, isRead: true } : n));
+  const next = current.map((n) => {
+    if (!matchedIds.has(n.id)) return n;
+    const isScoped = Boolean(n.targetUserId || n.targetMerchantId || n.targetDriverId);
+    const prevReaders = Array.isArray(n.readByUserIds) ? n.readByUserIds : [];
+    const nextReaders =
+      context.userId && !prevReaders.includes(context.userId)
+        ? [...prevReaders, context.userId]
+        : prevReaders;
+    return {
+      ...n,
+      isRead: isScoped || !context.userId ? true : n.isRead,
+      readByUserIds: context.userId ? nextReaders : n.readByUserIds,
+    };
+  });
   saveAllActorNotifications(next);
   return next;
 }
@@ -413,7 +482,21 @@ export function clearReadNotificationsForActor(context: {
 }): ActorNotification[] {
   const current = loadAllActorNotifications();
   const matchedIds = new Set(filterNotificationsForActor(current, context).map((n) => n.id));
-  const next = current.filter((n) => !(matchedIds.has(n.id) && n.isRead));
+  const next = current
+    .map((n) => {
+      if (!(matchedIds.has(n.id) && isNotificationReadForUser(n, context.userId))) {
+        return n;
+      }
+      if (context.userId) {
+        const prevCleared = Array.isArray(n.clearedByUserIds) ? n.clearedByUserIds : [];
+        if (!prevCleared.includes(context.userId)) {
+          return { ...n, clearedByUserIds: [...prevCleared, context.userId] };
+        }
+        return n;
+      }
+      return null;
+    })
+    .filter((n): n is ActorNotification => n !== null);
   saveAllActorNotifications(next);
   return next;
 }

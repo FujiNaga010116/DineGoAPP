@@ -30,6 +30,7 @@ import {
   fetchRemoteUserClaimedCodes,
   getEventThemeStyle,
   getUserClaimsKey,
+  isWithinGoldenHours,
   loadAdminVouchers,
   loadUserClaimedCodes,
   type ManagedVoucher,
@@ -62,6 +63,16 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [claimingCode, setClaimingCode] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    const hasGolden = vouchers.some(
+      (v) => v.eventTheme === 'FLASH_SALE' && v.goldenStartTime && v.goldenEndTime,
+    );
+    if (!hasGolden) return;
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [vouchers]);
   const [detailVoucher, setDetailVoucher] = useState<ManagedVoucher | null>(null);
 
   const showToast = (msg: string) => {
@@ -642,8 +653,26 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
                   {/* Quota Progress Bar */}
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#64748B', fontWeight: 700, marginBottom: 4 }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                         <Clock size={11} /> HSD: {v.endDate}
+                        {(() => {
+                          const golden = isWithinGoldenHours(v, nowMs);
+                          if (!golden.label) return null;
+                          return (
+                            <span
+                              style={{
+                                color: golden.active ? '#C2410C' : '#B45309',
+                                background: golden.active ? '#FFEDD5' : '#FEF3C7',
+                                padding: '1px 6px',
+                                borderRadius: 999,
+                                fontWeight: 800,
+                                fontSize: '0.68rem',
+                              }}
+                            >
+                              ⚡ {golden.label} • {golden.countdownText}
+                            </span>
+                          );
+                        })()}
                       </span>
                       <span style={{ color: pct >= 85 ? '#DC2626' : '#047857' }}>
                         {isSoldOut ? 'Đã hết suất' : `Đã săn ${pct}% (còn ${remaining} lượt)`}
@@ -704,7 +733,12 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
                       ) : (
                         <button
                           type="button"
-                          disabled={isSoldOut || !v.isActive || claimingCode === v.code}
+                          disabled={
+                            isSoldOut ||
+                            !v.isActive ||
+                            !isWithinGoldenHours(v, nowMs).active ||
+                            claimingCode === v.code
+                          }
                           onClick={() => void handleHuntVoucher(v)}
                           className="btn btn-primary"
                           style={{
@@ -712,11 +746,23 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
                             borderRadius: 10,
                             fontWeight: 800,
                             fontSize: '0.8rem',
-                            opacity: isSoldOut || !v.isActive ? 0.55 : 1,
-                            cursor: isSoldOut || !v.isActive ? 'not-allowed' : 'pointer',
+                            opacity:
+                              isSoldOut || !v.isActive || !isWithinGoldenHours(v, nowMs).active
+                                ? 0.55
+                                : 1,
+                            cursor:
+                              isSoldOut || !v.isActive || !isWithinGoldenHours(v, nowMs).active
+                                ? 'not-allowed'
+                                : 'pointer',
                           }}
                         >
-                          {isSoldOut ? 'Hết lượt' : claimingCode === v.code ? 'Đang săn...' : 'Săn Ngay'}
+                          {isSoldOut
+                            ? 'Hết lượt'
+                            : !isWithinGoldenHours(v, nowMs).active
+                            ? isWithinGoldenHours(v, nowMs).countdownText || `Mở lúc ${v.goldenStartTime}`
+                            : claimingCode === v.code
+                            ? 'Đang săn...'
+                            : 'Săn Ngay'}
                         </button>
                       )}
                     </div>

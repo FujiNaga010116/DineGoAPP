@@ -3,7 +3,11 @@
 // ==============================================================================
 
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { loadAdminVouchers } from '../utils/vouchers';
+import {
+  isWithinGoldenHours,
+  loadAdminVouchers,
+  type VoucherEventTheme,
+} from '../utils/vouchers';
 import type { Cart, CartItem, CartItemTopping, MenuItem } from '../types';
 
 interface CartContextType {
@@ -140,6 +144,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
     endDate?: string;
     merchantId?: string;
     merchantName?: string;
+    eventTheme?: VoucherEventTheme;
+    goldenStartTime?: string;
+    goldenEndTime?: string;
   } | null => {
     const code = rawCode.trim().toUpperCase();
     if (!code) return null;
@@ -160,6 +167,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
         endDate: foundAdmin.endDate,
         merchantId: foundAdmin.merchantId || 'ALL',
         merchantName: foundAdmin.merchantName || 'Toàn sàn DineGo',
+        eventTheme: foundAdmin.eventTheme,
+        goldenStartTime: foundAdmin.goldenStartTime,
+        goldenEndTime: foundAdmin.goldenEndTime,
       };
     }
 
@@ -207,9 +217,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
       const v = resolveVoucherByCode(effectiveVoucherCode);
       const todayStr = new Date().toISOString().split('T')[0];
       const isExpired = Boolean(v?.endDate && v.endDate < todayStr);
+      const goldenValid = v ? isWithinGoldenHours(v).active : false;
       const merchantAllowed =
         !v?.merchantId || v.merchantId === 'ALL' || !merchantId || v.merchantId === merchantId;
-      if (!v || !v.isActive || isExpired || v.usageCount >= v.maxUsage || !merchantAllowed) {
+      if (!v || !v.isActive || isExpired || !goldenValid || v.usageCount >= v.maxUsage || !merchantAllowed) {
         effectiveVoucherCode = null;
       } else if (subtotal >= v.minOrder) {
         let rawDiscount =
@@ -330,6 +341,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode; userId?: string
       return {
         success: false,
         message: `Mã "${normalized}" đã hết hạn sử dụng (${v.endDate}).`,
+      };
+    }
+
+    const golden = isWithinGoldenHours(v);
+    if (!golden.active) {
+      return {
+        success: false,
+        message: `Mã "${normalized}" chỉ áp dụng trong khung giờ vàng (${golden.label}).`,
       };
     }
 
