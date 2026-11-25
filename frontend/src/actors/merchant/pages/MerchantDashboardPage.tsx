@@ -1,1 +1,1 @@
-﻿export * from '../../../pages/DashboardPage';
+export * from '../../common/DashboardPage';

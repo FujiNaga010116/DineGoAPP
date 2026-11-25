@@ -5,7 +5,7 @@
 // ==============================================================================
 
 import type { Role } from '../types';
-import type { NavTab } from '../components/common/Header';
+import type { NavTab } from '../actors/common/components/Header';
 
 export type NotificationTargetRole = Role | 'ALL';
 

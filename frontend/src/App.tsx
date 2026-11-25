@@ -8,26 +8,26 @@
 // ==============================================================================
 
 import React, { useState, useEffect } from 'react';
-import { Header, type NavTab } from './components/common/Header';
-import { Footer } from './components/common/Footer';
-import { HomePage } from './pages/HomePage';
-import { RestaurantPage } from './pages/RestaurantPage';
-import { CheckoutPage } from './pages/CheckoutPage';
-import { OrdersPage } from './pages/OrdersPage';
-import { CateringPage } from './pages/CateringPage';
-import { GroupOrderPage } from './pages/GroupOrderPage';
-import { VoucherHuntPage } from './pages/VoucherHuntPage';
-import { AiGuidePage } from './pages/AiGuidePage';
-import { TrackingPage } from './pages/TrackingPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { CustomerProfilePage } from './pages/CustomerProfilePage';
-import { AuthModal } from './components/common/AuthModal';
-import { ReviewModal } from './components/common/ReviewModal';
-import { MerchantRegistrationModal } from './components/common/MerchantRegistrationModal';
-import { MerchantSetupScreen } from './components/common/MerchantSetupScreen';
-import { AddressSetupModal } from './components/common/AddressSetupModal';
-import { FloatingAiChatWidget } from './components/common/FloatingAiChatWidget';
-import { CustomerDepositQrModal, CustomerDepositNoticeData } from './components/common/CustomerDepositQrModal';
+import { Header, type NavTab } from './actors/common/components/Header';
+import { Footer } from './actors/common/components/Footer';
+import { HomePage } from './actors/customer/pages/HomePage';
+import { RestaurantPage } from './actors/customer/pages/RestaurantPage';
+import { CheckoutPage } from './actors/customer/pages/CheckoutPage';
+import { OrdersPage } from './actors/customer/pages/OrdersPage';
+import { CateringPage } from './actors/customer/pages/CateringPage';
+import { GroupOrderPage } from './actors/customer/pages/GroupOrderPage';
+import { VoucherHuntPage } from './actors/customer/pages/VoucherHuntPage';
+import { AiGuidePage } from './actors/customer/pages/AiGuidePage';
+import { TrackingPage } from './actors/driver/pages/DriverTrackingPage';
+import { DashboardPage } from './actors/common/DashboardPage';
+import { CustomerProfilePage } from './actors/customer/pages/CustomerProfilePage';
+import { AuthModal } from './actors/common/components/AuthModal';
+import { ReviewModal } from './actors/customer/components/ReviewModal';
+import { MerchantRegistrationModal } from './actors/merchant/components/MerchantRegistrationModal';
+import { MerchantSetupScreen } from './actors/merchant/components/MerchantSetupScreen';
+import { AddressSetupModal } from './actors/common/components/AddressSetupModal';
+import { FloatingAiChatWidget } from './actors/common/components/FloatingAiChatWidget';
+import { CustomerDepositQrModal, CustomerDepositNoticeData } from './actors/customer/components/CustomerDepositQrModal';
 import { CartProvider } from './context/CartContext';
 import { API_BASE_URL, MOCK_MERCHANTS, MOCK_MENU_ITEMS, MOCK_DRIVERS, MOCK_USERS, isDriverProfileVerified, adminApi } from './api/client';
 import type {
