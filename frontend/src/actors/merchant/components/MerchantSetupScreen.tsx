@@ -284,7 +284,7 @@ export const MerchantSetupScreen: React.FC<MerchantSetupScreenProps> = ({
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F8FAFC', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ height: '100vh', overflowY: 'auto', background: '#F8FAFC', display: 'flex', flexDirection: 'column' }}>
       {/* Top Bar */}
       <header
         style={{

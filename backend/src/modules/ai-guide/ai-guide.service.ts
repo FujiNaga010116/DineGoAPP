@@ -784,6 +784,28 @@ Hãy trả về DUY NHẤT một JSON object hợp lệ đúng định dạng sa
           reply,
           reply.length,
         );
+        // Keep only the 10 most recent AI widget sessions per user (preserve support sessions)
+        await this.prisma.$executeRawUnsafe(
+          `DELETE cm
+           FROM chat_messages cm
+           INNER JOIN (
+             SELECT id
+             FROM chat_sessions
+             WHERE user_id = @P1 AND id NOT LIKE 'sup-%' AND LEFT(title, 9) <> '[SUPPORT]'
+             ORDER BY updated_at DESC
+             OFFSET 10 ROWS
+           ) os ON cm.session_id = os.id;
+           DELETE cs
+           FROM chat_sessions cs
+           INNER JOIN (
+             SELECT id
+             FROM chat_sessions
+             WHERE user_id = @P1 AND id NOT LIKE 'sup-%' AND LEFT(title, 9) <> '[SUPPORT]'
+             ORDER BY updated_at DESC
+             OFFSET 10 ROWS
+           ) os ON cs.id = os.id;`,
+          resolvedUserId,
+        );
       } catch (e) {
         this.logger.warn(`Could not log widget chat to SQL Server: ${(e as Error).message}`);
       }
@@ -835,7 +857,7 @@ Hãy trả về DUY NHẤT một JSON object hợp lệ đúng định dạng sa
     let rows: Array<any> = [];
     try {
       rows = await this.prisma.$queryRawUnsafe(
-        `SELECT TOP 20
+        `SELECT TOP 10
            cs.id,
            cs.title,
            cs.updated_at,

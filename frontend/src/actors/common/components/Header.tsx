@@ -4,7 +4,7 @@
 // Fixed horizontal overflow so right-side profile & dropdown never clip
 // ==============================================================================
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ShoppingBag,
   MapPin,
@@ -82,6 +82,47 @@ export const Header: React.FC<HeaderProps> = ({
     currentUser?.address || '123 Nguyễn Huệ, P. Bến Nghé, Quận 1, TP. HCM',
   );
   const [addressModalOpen, setAddressModalOpen] = useState(false);
+  const [hoveredNav, setHoveredNav] = useState<NavTab | null>(null);
+  const navTrackRef = useRef<HTMLElement | null>(null);
+  const navBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const [navIndicator, setNavIndicator] = useState<{ left: number; width: number; ready: boolean }>({
+    left: 0,
+    width: 0,
+    ready: false,
+  });
+
+  useEffect(() => {
+    const updateIndicator = () => {
+      const track = navTrackRef.current;
+      const activeKey =
+        currentTab === 'restaurant'
+          ? 'home'
+          : (['home', 'catering', 'group-order', 'vouchers', 'tracking', 'orders'].includes(currentTab)
+              ? currentTab
+              : null);
+      if (!track || !activeKey) {
+        setNavIndicator((prev) => ({ ...prev, ready: false }));
+        return;
+      }
+      const btn = navBtnRefs.current[activeKey];
+      if (!btn) {
+        setNavIndicator((prev) => ({ ...prev, ready: false }));
+        return;
+      }
+      setNavIndicator({
+        left: btn.offsetLeft,
+        width: btn.offsetWidth,
+        ready: true,
+      });
+    };
+
+    const rafId = window.requestAnimationFrame(updateIndicator);
+    window.addEventListener('resize', updateIndicator);
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', updateIndicator);
+    };
+  }, [currentTab]);
 
   return (
     <header
@@ -95,67 +136,6 @@ export const Header: React.FC<HeaderProps> = ({
         boxSizing: 'border-box',
       }}
     >
-      {/* Top Customer Utility Bar (Address & Hotline only — no role-switching clutter) */}
-      <div
-        style={{
-          background: '#0F172A',
-          color: '#CBD5E1',
-          padding: '6px 0',
-          fontSize: '0.76rem',
-          borderBottom: '1px solid #1E293B',
-          width: '100%',
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1400,
-            margin: '0 auto',
-            padding: '0 20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 8,
-            boxSizing: 'border-box',
-          }}
-        >
-          {/* Left: Delivery Address Picker */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              cursor: 'pointer',
-              minWidth: 0,
-              flex: 1,
-            }}
-            onClick={() => setAddressModalOpen(true)}
-          >
-            <MapPin size={13} color="#00B14F" style={{ flexShrink: 0 }} />
-            <span style={{ color: '#94A3B8', flexShrink: 0 }}>Giao đến:</span>
-            <strong
-              style={{
-                color: '#F8FAFC',
-                fontWeight: 600,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {currentUser?.address || deliveryAddress}
-            </strong>
-            <ChevronDown size={12} color="#94A3B8" style={{ flexShrink: 0 }} />
-          </div>
-
-          {/* Right: Customer Support Info */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
-            <span style={{ color: '#94A3B8' }}>Giao nhanh 25 phút</span>
-            <span style={{ color: '#334155' }}>|</span>
-            <span style={{ color: '#CBD5E1', fontWeight: 600 }}>Tổng đài CSKH: 1900 8826</span>
-          </div>
-        </div>
-      </div>
-
       {/* Main Customer Navigation Bar */}
       <div
         style={{
@@ -176,23 +156,16 @@ export const Header: React.FC<HeaderProps> = ({
           style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}
           onClick={() => onNavigate('home')}
         >
-          <div
+          <img
+            src="/images/dinego-logo.png"
+            alt="DineGo Logo"
             style={{
-              width: 36,
-              height: 36,
-              borderRadius: 8,
-              background: '#00B14F',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-              fontWeight: 900,
-              fontSize: '0.98rem',
-              letterSpacing: -0.5,
+              width: 50,
+              height: 50,
+              objectFit: 'contain',
+              flexShrink: 0,
             }}
-          >
-            DG
-          </div>
+          />
           <div>
             <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0F172A', letterSpacing: -0.6, lineHeight: 1 }}>
               Dine<span style={{ color: '#00B14F' }}>Go</span>
@@ -205,11 +178,15 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Navigation Links (Responsive, scrollable without forcing container overflow) */}
         <nav
+          ref={navTrackRef}
+          aria-label="Điều hướng chính"
           style={{
+            position: 'relative',
             display: 'flex',
             alignItems: 'center',
-            gap: 2,
-            height: 66,
+            gap: 4,
+            height: 44,
+            padding: '0 4px',
             flex: 1,
             minWidth: 0,
             justifyContent: 'center',
@@ -217,18 +194,47 @@ export const Header: React.FC<HeaderProps> = ({
             scrollbarWidth: 'none',
           }}
         >
+          {/* Sliding Soft-Glass Active Pill */}
+          {navIndicator.ready && (
+            <div
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                top: 3,
+                bottom: 3,
+                left: navIndicator.left,
+                width: navIndicator.width,
+                borderRadius: 999,
+                background:
+                  'linear-gradient(135deg, rgba(236, 253, 245, 0.96) 0%, rgba(209, 250, 229, 0.72) 100%)',
+                border: '1px solid rgba(0, 177, 79, 0.24)',
+                boxShadow:
+                  'inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 2px 8px rgba(0, 177, 79, 0.1)',
+                transition:
+                  'left 0.32s cubic-bezier(0.22, 1, 0.36, 1), width 0.32s cubic-bezier(0.22, 1, 0.36, 1)',
+                pointerEvents: 'none',
+                zIndex: 0,
+              }}
+            />
+          )}
+
           {[
             { id: 'home' as NavTab, label: 'Đặt đồ ăn', activeMatch: ['home', 'restaurant'] },
             { id: 'catering' as NavTab, label: 'Đặt tiệc lưu động', activeMatch: ['catering'] },
             { id: 'group-order' as NavTab, label: 'Đặt đơn nhóm', activeMatch: ['group-order'] },
-            { id: 'vouchers' as NavTab, label: 'Săn Voucher', activeMatch: ['vouchers'] },
+            { id: 'vouchers' as NavTab, label: 'Săn Voucher', activeMatch: ['vouchers'], badge: 'Hot' },
             { id: 'tracking' as NavTab, label: 'Theo dõi đơn', activeMatch: ['tracking'] },
             { id: 'orders' as NavTab, label: 'Đơn hàng', activeMatch: ['orders'], requiresAuth: true },
           ].map((item) => {
             const isActive = item.activeMatch.includes(currentTab);
+            const isHovered = hoveredNav === item.id;
             return (
               <button
                 key={item.id}
+                ref={(el) => {
+                  navBtnRefs.current[item.id] = el;
+                }}
+                type="button"
                 onClick={() => {
                   if (item.requiresAuth && !currentUser) {
                     onOpenAuthModal('login', 'CUSTOMER');
@@ -236,20 +242,45 @@ export const Header: React.FC<HeaderProps> = ({
                     onNavigate(item.id);
                   }
                 }}
+                onMouseEnter={() => setHoveredNav(item.id)}
+                onMouseLeave={() => setHoveredNav(null)}
                 style={{
-                  height: '100%',
-                  padding: '0 9px',
-                  background: 'transparent',
-                  color: isActive ? '#00B14F' : '#334155',
+                  position: 'relative',
+                  zIndex: 1,
+                  height: 36,
+                  padding: '0 12px',
+                  background: !isActive && isHovered ? 'rgba(0, 177, 79, 0.06)' : 'transparent',
+                  color: isActive ? '#009643' : isHovered ? '#00B14F' : '#334155',
                   fontWeight: isActive ? 700 : 600,
-                  fontSize: '0.85rem',
-                  borderBottom: isActive ? '2.5px solid #00B14F' : '2.5px solid transparent',
-                  borderRadius: 0,
+                  fontSize: '0.84rem',
+                  borderRadius: 999,
                   whiteSpace: 'nowrap',
                   flexShrink: 0,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  cursor: 'pointer',
+                  transition: 'color 0.18s ease, background 0.18s ease',
                 }}
               >
-                {item.label}
+                <span>{item.label}</span>
+                {item.badge && (
+                  <span
+                    style={{
+                      background: 'linear-gradient(135deg, #FF5722 0%, #EA580C 100%)',
+                      color: '#FFFFFF',
+                      fontSize: '0.62rem',
+                      fontWeight: 800,
+                      padding: '1px 6px',
+                      borderRadius: 999,
+                      lineHeight: 1.35,
+                      letterSpacing: '0.02em',
+                      boxShadow: '0 2px 5px rgba(234, 88, 12, 0.25)',
+                    }}
+                  >
+                    {item.badge}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -313,11 +344,19 @@ export const Header: React.FC<HeaderProps> = ({
                 style={{
                   padding: '8px 14px',
                   borderRadius: 8,
-                  background: '#0F172A',
+                  background: '#00B14F',
                   color: '#FFFFFF',
                   fontSize: '0.84rem',
-                  fontWeight: 600,
+                  fontWeight: 700,
                   whiteSpace: 'nowrap',
+                  boxShadow: '0 2px 8px rgba(0, 177, 79, 0.22)',
+                  transition: 'background 0.18s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#009643';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#00B14F';
                 }}
               >
                 Đăng ký

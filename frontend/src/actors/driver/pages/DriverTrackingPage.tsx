@@ -1714,41 +1714,35 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
         <aside
           style={{
             width: 268,
-            background: '#0F172A',
-            color: '#F8FAFC',
+            background: '#FFFFFF',
+            color: '#0F172A',
             display: 'flex',
             flexDirection: 'column',
             flexShrink: 0,
-            borderRight: '1px solid #1E293B',
+            borderRight: '1px solid #E2E8F0',
             height: '100vh',
             overflowY: 'auto',
             zIndex: 40,
           }}
         >
           {/* Driver Brand Header */}
-          <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid #1E293B' }}>
+          <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid #F1F5F9' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div
+              <img
+                src="/images/dinego-logo.png"
+                alt="DineGo Logo"
                 style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 8,
-                  background: '#0284C7',
-                  color: '#FFFFFF',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 900,
-                  fontSize: '0.92rem',
+                  width: 46,
+                  height: 46,
+                  objectFit: 'contain',
+                  flexShrink: 0,
                 }}
-              >
-                DRV
-              </div>
+              />
               <div>
-                <div style={{ fontWeight: 800, fontSize: '1.02rem', color: '#FFFFFF', letterSpacing: -0.3 }}>
-                  DineGo Driver
+                <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0F172A', letterSpacing: -0.3 }}>
+                  Dine<span style={{ color: '#0284C7' }}>Go</span> Driver
                 </div>
-                <div style={{ fontSize: '0.68rem', color: '#94A3B8', fontWeight: 600 }}>
+                <div style={{ fontSize: '0.67rem', color: '#0284C7', fontWeight: 700, letterSpacing: 0.2 }}>
                   TÀI KHOẢN TÀI XẾ ĐỘC LẬP
                 </div>
               </div>
@@ -1756,13 +1750,13 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
           </div>
 
           {/* Driver Personal & Vehicle Info Box */}
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid #1E293B', background: '#1E293B' }}>
+          <div style={{ padding: '14px 18px', borderBottom: '1px solid #E2E8F0', background: '#F8FAFC' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
               {activeDriverAvatar ? (
                 <img
                   src={activeDriverAvatar}
                   alt={currentDriver.fullName}
-                  style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', border: '2px solid #38BDF8', flexShrink: 0 }}
+                  style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', border: '2px solid #0284C7', flexShrink: 0 }}
                 />
               ) : (
                 <div
@@ -1777,7 +1771,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                     justifyContent: 'center',
                     fontWeight: 800,
                     fontSize: '0.88rem',
-                    border: '2px solid #38BDF8',
+                    border: '2px solid #BAE6FD',
                     flexShrink: 0,
                   }}
                 >
@@ -1790,18 +1784,18 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                 </div>
               )}
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#F8FAFC' }}>{currentDriver.fullName}</div>
-                <div style={{ fontSize: '0.73rem', color: '#94A3B8' }}>{currentDriver.email}</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0F172A' }}>{currentDriver.fullName}</div>
+                <div style={{ fontSize: '0.73rem', color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentDriver.email}</div>
               </div>
             </div>
 
-            <div style={{ fontSize: '0.76rem', color: '#CBD5E1', marginBottom: 4 }}>
+            <div style={{ fontSize: '0.76rem', color: '#334155', marginBottom: 4 }}>
               Phương tiện: <strong>{currentDriver.vehicleType || 'Chưa đăng ký'}</strong>
             </div>
             <div
               style={{
                 fontSize: '0.76rem',
-                color: currentDriver.licensePlate ? '#38BDF8' : '#FBBF24',
+                color: currentDriver.licensePlate ? '#0284C7' : '#D97706',
                 fontWeight: 700,
                 marginBottom: 10,
               }}
@@ -1819,12 +1813,12 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                   fontWeight: 700,
                   color:
                     currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false
-                      ? '#EF4444'
+                      ? '#DC2626'
                       : !isDriverApproved
-                      ? '#FBBF24'
+                      ? '#D97706'
                       : driverOnline
-                      ? '#34D399'
-                      : '#94A3B8',
+                      ? '#059669'
+                      : '#64748B',
                 }}
               >
                 <span
@@ -1839,7 +1833,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                         ? '#F59E0B'
                         : driverOnline
                         ? '#10B981'
-                        : '#64748B',
+                        : '#94A3B8',
                   }}
                 />
                 {currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false
@@ -1862,23 +1856,27 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                 }
                 onClick={handleToggleDriverShiftOnline}
                 style={{
-                  padding: '4px 10px',
+                  padding: '5px 11px',
                   borderRadius: 6,
                   fontSize: '0.72rem',
                   fontWeight: 700,
                   background:
                     !isDriverApproved || currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false
-                      ? '#1E293B'
+                      ? '#E2E8F0'
                       : driverOnline
-                      ? '#334155'
+                      ? '#FFFFFF'
                       : '#0284C7',
                   border:
                     !isDriverApproved || currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false
-                      ? '1px solid #334155'
+                      ? '1px solid #CBD5E1'
+                      : driverOnline
+                      ? '1px solid #CBD5E1'
                       : 'none',
                   color:
                     !isDriverApproved || currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false
-                      ? '#64748B'
+                      ? '#94A3B8'
+                      : driverOnline
+                      ? '#334155'
                       : '#FFFFFF',
                   cursor:
                     !isDriverApproved || currentDriver.status === 'SUSPENDED' || currentUser?.isActive === false
@@ -1895,10 +1893,10 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                   marginTop: 8,
                   padding: '6px 9px',
                   borderRadius: 6,
-                  background: 'rgba(16, 185, 129, 0.12)',
-                  border: '1px solid rgba(52, 211, 153, 0.35)',
+                  background: '#ECFDF5',
+                  border: '1px solid #A7F3D0',
                   fontSize: '0.7rem',
-                  color: '#A7F3D0',
+                  color: '#047857',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -1966,10 +1964,10 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     gap: 10,
-                    padding: '11px 14px',
+                    padding: '10px 14px',
                     borderRadius: 8,
-                    background: active ? '#0284C7' : 'transparent',
-                    color: locked ? '#64748B' : active ? '#FFFFFF' : '#CBD5E1',
+                    background: active ? '#E0F2FE' : 'transparent',
+                    color: locked ? '#94A3B8' : active ? '#0284C7' : '#475569',
                     fontWeight: active ? 700 : 500,
                     fontSize: '0.86rem',
                     textAlign: 'left',

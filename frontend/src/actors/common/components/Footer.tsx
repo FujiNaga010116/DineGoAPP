@@ -3,7 +3,7 @@
 // ==============================================================================
 
 import React from 'react';
-import { Phone, Mail, MapPin } from 'lucide-react';
+import { Phone, Mail, MapPin, Store, Bike } from 'lucide-react';
 import type { Role } from '../../../types';
 import type { NavTab } from './Header';
 
@@ -14,188 +14,190 @@ interface FooterProps {
 }
 
 export const Footer: React.FC<FooterProps> = ({
-  onNavigate,
+  onOpenAuthModal,
+  onOpenMerchantRegisterModal,
 }) => {
   return (
     <footer
       style={{
-        background: '#0F172A',
-        color: '#94A3B8',
-        padding: '56px 0 32px',
+        background: 'linear-gradient(180deg, #FFFFFF 0%, #F2FBF6 55%, #E4F7ED 100%)',
+        color: '#374151',
+        padding: '26px 0 20px',
         marginTop: 'auto',
-        borderTop: '1px solid #1E293B',
+        borderTop: '1px solid #D1FAE5',
       }}
     >
       <div className="container">
+        {/* Main Row: Brand + Contact (Left) & Compact Partner Actions (Right) */}
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: '1.4fr 1fr 1fr 1.1fr',
-            gap: 40,
-            marginBottom: 44,
-          }}
-        >
-          {/* Column 1: Company Info */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <div
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 8,
-                  background: '#00B14F',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#FFFFFF',
-                  fontWeight: 900,
-                  fontSize: '0.95rem',
-                  letterSpacing: -0.5,
-                }}
-              >
-                DG
-              </div>
-              <span style={{ fontSize: '1.35rem', fontWeight: 800, color: '#FFFFFF', letterSpacing: '-0.5px' }}>
-                Dine<span style={{ color: '#00B14F' }}>Go</span>
-              </span>
-            </div>
-            <p style={{ color: '#94A3B8', fontSize: '0.86rem', lineHeight: 1.65, marginBottom: 18 }}>
-              Nền tảng đặt món trực tuyến, giao hàng tức thời và dịch vụ đặt tiệc lưu động dành cho gia đình và doanh nghiệp tại Việt Nam.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.82rem', color: '#CBD5E1' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <MapPin size={14} color="#64748B" />
-                <span>Tòa nhà Saigon Centre, 65 Lê Lợi, Phường Bến Nghé, Quận 1, TP. HCM</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Phone size={14} color="#64748B" />
-                <span>Tổng đài CSKH: 1900 8826 (07:00 - 23:00)</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Mail size={14} color="#64748B" />
-                <span>hotro@dinego.vn</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Column 2: Customer Services */}
-          <div>
-            <h4 style={{ color: '#F8FAFC', fontSize: '0.9rem', fontWeight: 700, marginBottom: 16, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Dịch vụ đặt món
-            </h4>
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.86rem', display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <li>
-                <button
-                  onClick={() => onNavigate?.('home')}
-                  style={{ background: 'transparent', color: '#94A3B8', fontSize: '0.86rem', padding: 0 }}
-                >
-                  Đặt đồ ăn giao nhanh
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => onNavigate?.('catering')}
-                  style={{ background: 'transparent', color: '#94A3B8', fontSize: '0.86rem', padding: 0 }}
-                >
-                  Đặt tiệc & Sự kiện lưu động
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => onNavigate?.('group-order')}
-                  style={{ background: 'transparent', color: '#94A3B8', fontSize: '0.86rem', padding: 0 }}
-                >
-                  Đặt đơn nhóm văn phòng
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => onNavigate?.('vouchers')}
-                  style={{ background: 'transparent', color: '#94A3B8', fontSize: '0.86rem', padding: 0 }}
-                >
-                  Săn Voucher Sự kiện & Lễ
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => onNavigate?.('ai-guide')}
-                  style={{ background: 'transparent', color: '#94A3B8', fontSize: '0.86rem', padding: 0 }}
-                >
-                  Tư vấn thực đơn theo khẩu vị
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => onNavigate?.('tracking')}
-                  style={{ background: 'transparent', color: '#94A3B8', fontSize: '0.86rem', padding: 0 }}
-                >
-                  Theo dõi hành trình đơn hàng
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => onNavigate?.('orders')}
-                  style={{ background: 'transparent', color: '#94A3B8', fontSize: '0.86rem', padding: 0 }}
-                >
-                  Tra cứu lịch sử đơn hàng
-                </button>
-              </li>
-            </ul>
-          </div>
-
-          {/* Column 3: Regional Specialties */}
-          <div>
-            <h4 style={{ color: '#F8FAFC', fontSize: '0.9rem', fontWeight: 700, marginBottom: 16, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Khu vực phục vụ
-            </h4>
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.86rem', display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <li>TP. Hồ Chí Minh (Quận 1 - Quận 12, Thủ Đức)</li>
-              <li>Hà Nội (Hoàn Kiếm, Ba Đình, Cầu Giấy)</li>
-              <li>Đà Nẵng (Hải Châu, Sơn Trà, Ngũ Hành Sơn)</li>
-              <li>Cần Thơ & Khu vực Đồng bằng Sông Cửu Long</li>
-            </ul>
-          </div>
-
-          {/* Column 4: Policies & Payment */}
-          <div>
-            <h4 style={{ color: '#F8FAFC', fontSize: '0.9rem', fontWeight: 700, marginBottom: 16, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Chính sách & Thanh toán
-            </h4>
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.86rem', display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
-              <li>Quy chế hoạt động sàn TMĐT</li>
-              <li>Chính sách bảo mật thông tin</li>
-              <li>Quy trình giải quyết tranh chấp</li>
-              <li>Tiêu chuẩn kiểm định VSATTP</li>
-            </ul>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ padding: '4px 10px', borderRadius: 6, background: '#1E293B', color: '#E2E8F0', fontSize: '0.75rem', fontWeight: 600 }}>
-                MoMo QR
-              </span>
-              <span style={{ padding: '4px 10px', borderRadius: 6, background: '#1E293B', color: '#E2E8F0', fontSize: '0.75rem', fontWeight: 600 }}>
-                Tiền mặt (COD)
-              </span>
-              <span style={{ padding: '4px 10px', borderRadius: 6, background: '#1E293B', color: '#E2E8F0', fontSize: '0.75rem', fontWeight: 600 }}>
-                VietQR
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div
-          style={{
-            borderTop: '1px solid #1E293B',
-            paddingTop: 22,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            fontSize: '0.8rem',
-            color: '#64748B',
             flexWrap: 'wrap',
-            gap: 12,
+            gap: 20,
+            paddingBottom: 18,
+            borderBottom: '1px solid rgba(0, 177, 79, 0.14)',
           }}
         >
-          <div>© 2026 Công ty Cổ phần Công nghệ Ẩm thực DineGo Việt Nam. GPKD số 0318992810.</div>
-          <div>Đã đăng ký Bộ Công Thương • Bảo mật thanh toán chuẩn PCI-DSS</div>
+          {/* Brand & High-Contrast Info */}
+          <div style={{ maxWidth: 480 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <img
+                src="/images/dinego-logo.png"
+                alt="DineGo Logo"
+                style={{
+                  width: 36,
+                  height: 36,
+                  objectFit: 'contain',
+                  flexShrink: 0,
+                }}
+              />
+              <span
+                style={{
+                  color: '#111827',
+                  fontSize: '1.15rem',
+                  fontWeight: 800,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                DineGo
+              </span>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  color: '#009643',
+                  background: '#ECFDF5',
+                  border: '1px solid #A7F3D0',
+                  padding: '2px 8px',
+                  borderRadius: 999,
+                }}
+              >
+                <MapPin size={11} />
+                TP. Hồ Chí Minh
+              </span>
+            </div>
+
+            <p style={{ fontSize: '0.84rem', color: '#4B5563', margin: '0 0 8px', lineHeight: 1.5 }}>
+              Đặt món giao nhanh, đặt tiệc lưu động và săn ưu đãi mỗi ngày.
+            </p>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, fontSize: '0.82rem', color: '#111827', fontWeight: 600 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <Phone size={14} color="#00B14F" />
+                1900 8826 <span style={{ color: '#6B7280', fontWeight: 500 }}>(07:00 – 23:00)</span>
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <Mail size={14} color="#FF5722" />
+                hotro@dinego.vn
+              </span>
+            </div>
+          </div>
+
+          {/* Compact Partner Actions */}
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+            <button
+              type="button"
+              onClick={() => onOpenMerchantRegisterModal?.()}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 7,
+                background: '#00B14F',
+                color: '#FFFFFF',
+                border: '1px solid #00B14F',
+                borderRadius: 10,
+                padding: '9px 15px',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(0, 177, 79, 0.22)',
+                transition: 'all 0.18s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#009643';
+                e.currentTarget.style.borderColor = '#009643';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#00B14F';
+                e.currentTarget.style.borderColor = '#00B14F';
+              }}
+            >
+              <Store size={14} />
+              Đăng ký mở quán
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onOpenAuthModal?.('register', 'DRIVER')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 7,
+                background: '#F9FAFB',
+                color: '#111827',
+                border: '1px solid #D1D5DB',
+                borderRadius: 10,
+                padding: '9px 15px',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.18s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#FFF7ED';
+                e.currentTarget.style.color = '#EA580C';
+                e.currentTarget.style.borderColor = '#FDBA74';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#F9FAFB';
+                e.currentTarget.style.color = '#111827';
+                e.currentTarget.style.borderColor = '#D1D5DB';
+              }}
+            >
+              <Bike size={14} color="#FF5722" />
+              Đăng ký tài xế
+            </button>
+          </div>
+        </div>
+
+        {/* Bottom Copyright & Payment Chips */}
+        <div
+          style={{
+            paddingTop: 14,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 12,
+            fontSize: '0.78rem',
+            color: '#4B5563',
+          }}
+        >
+          <span>© 2026 DineGo Việt Nam • Giao hàng nội thành TP. Hồ Chí Minh</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {['MoMo', 'VietQR', 'Tiền mặt'].map((method) => (
+              <span
+                key={method}
+                style={{
+                  background: '#FFFFFF',
+                  color: '#374151',
+                  border: '1px solid #D1FAE5',
+                  borderRadius: 6,
+                  padding: '3px 9px',
+                  fontSize: '0.74rem',
+                  fontWeight: 600,
+                  boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+                }}
+              >
+                {method}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
     </footer>

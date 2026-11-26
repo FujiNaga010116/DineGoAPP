@@ -2103,24 +2103,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-              <div
+              <img
+                src="/images/dinego-logo.png"
+                alt="DineGo Logo"
                 style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 9,
-                  background: '#0D9488',
-                  color: '#FFFFFF',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 800,
-                  fontSize: '0.9rem',
-                  letterSpacing: -0.5,
+                  width: 46,
+                  height: 46,
+                  objectFit: 'contain',
                   flexShrink: 0,
                 }}
-              >
-                DG
-              </div>
+              />
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: '1.08rem', fontWeight: 800, color: '#0F172A', letterSpacing: -0.4, lineHeight: 1.15 }}>
                   Dine<span style={{ color: '#0D9488' }}>Go</span>{' '}
@@ -6511,22 +6503,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         {/* Seller Brand & Store Switcher */}
         <div style={{ padding: '18px 20px', borderBottom: '1px solid #E2E8F0' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <div
+            <img
+              src="/images/dinego-logo.png"
+              alt="DineGo Logo"
               style={{
-                width: 34,
-                height: 34,
-                borderRadius: 8,
-                background: '#D97706',
-                color: '#FFFFFF',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 900,
-                fontSize: '0.9rem',
+                width: 46,
+                height: 46,
+                objectFit: 'contain',
+                flexShrink: 0,
               }}
-            >
-              DG
-            </div>
+            />
             <div>
               <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', letterSpacing: -0.3 }}>
                 DineGo Seller

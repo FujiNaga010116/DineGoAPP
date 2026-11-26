@@ -92,9 +92,37 @@ export const FloatingAiChatWidget: React.FC<FloatingAiChatWidgetProps> = ({
     Array<{ id: string; title: string; lastMessage: string; updatedAt: string }>
   >([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [showLoginGreeting, setShowLoginGreeting] = useState(false);
 
   const listEndRef = useRef<HTMLDivElement | null>(null);
   const widgetContainerRef = useRef<HTMLDivElement | null>(null);
+  const lastGreetedUserRef = useRef<string | null>(null);
+
+  // Show floating greeting bubble 5s after each login (reset when logging out)
+  useEffect(() => {
+    if (!currentUser?.id) {
+      if (lastGreetedUserRef.current) {
+        try {
+          sessionStorage.removeItem(`dinego_ai_greeted_${lastGreetedUserRef.current}`);
+        } catch {}
+        lastGreetedUserRef.current = null;
+      }
+      setShowLoginGreeting(false);
+      return;
+    }
+    lastGreetedUserRef.current = currentUser.id;
+    const greetedKey = `dinego_ai_greeted_${currentUser.id}`;
+    try {
+      if (sessionStorage.getItem(greetedKey)) return;
+    } catch {}
+    const timer = window.setTimeout(() => {
+      try {
+        sessionStorage.setItem(greetedKey, '1');
+      } catch {}
+      setShowLoginGreeting(true);
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [currentUser?.id]);
 
   // Auto-minimize chatbox when clicking anywhere outside the widget
   useEffect(() => {
@@ -836,13 +864,79 @@ export const FloatingAiChatWidget: React.FC<FloatingAiChatWidgetProps> = ({
         </div>
       )}
 
+      {/* Post-login AI Greeting Bubble */}
+      {!isOpen && showLoginGreeting && (
+        <>
+          <style>{`
+            @keyframes dinegoGreetingPop {
+              0% { opacity: 0; transform: translateY(14px) scale(0.84); }
+              70% { opacity: 1; transform: translateY(-2px) scale(1.02); }
+              100% { opacity: 1; transform: translateY(0) scale(1); }
+            }
+          `}</style>
+          <div
+            onClick={() => {
+              setIsOpen(true);
+              setShowLoginGreeting(false);
+            }}
+            style={{
+              position: 'relative',
+              maxWidth: 310,
+              background: '#FFFFFF',
+              color: '#1E293B',
+              borderRadius: 16,
+              padding: '12px 32px 12px 14px',
+              marginBottom: 10,
+              boxShadow: '0 14px 36px rgba(15, 23, 42, 0.18)',
+              border: '1px solid #E2E8F0',
+              cursor: 'pointer',
+              transformOrigin: 'bottom right',
+              animation: 'dinegoGreetingPop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+            }}
+          >
+            <button
+              type="button"
+              aria-label="Đóng lời chào"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowLoginGreeting(false);
+              }}
+              style={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                width: 20,
+                height: 20,
+                borderRadius: '50%',
+                border: 'none',
+                background: '#F1F5F9',
+                color: '#64748B',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <X size={12} />
+            </button>
+            <div style={{ fontSize: '0.82rem', lineHeight: 1.48, fontWeight: 500 }}>
+              {WELCOME_MSG.text}
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Small Circular Floating Launcher Button */}
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <button
           type="button"
-          onClick={() => setIsOpen((prev) => !prev)}
+          onClick={() => {
+            setIsOpen((prev) => !prev);
+            setShowLoginGreeting(false);
+          }}
           title="Hỗ trợ & Tư vấn AI DineGo"
           style={{
+            position: 'relative',
             width: 52,
             height: 52,
             padding: 0,
@@ -858,6 +952,20 @@ export const FloatingAiChatWidget: React.FC<FloatingAiChatWidgetProps> = ({
           }}
         >
           {isOpen ? <X size={22} /> : <MessageCircle size={24} />}
+          {!isOpen && showLoginGreeting && (
+            <span
+              style={{
+                position: 'absolute',
+                top: -2,
+                right: -2,
+                width: 14,
+                height: 14,
+                borderRadius: '50%',
+                background: '#EF4444',
+                border: '2px solid #FFFFFF',
+              }}
+            />
+          )}
         </button>
       </div>
     </div>
