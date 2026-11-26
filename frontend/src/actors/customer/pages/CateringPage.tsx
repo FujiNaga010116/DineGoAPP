@@ -10,17 +10,11 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
-  Award,
-  Briefcase,
-  Cake,
   Calendar,
   Check,
   CheckCircle2,
   Clock,
   DollarSign,
-  Flame,
-  Heart,
-  Home,
   MapPin,
   MessageSquare,
   Minus,
@@ -80,24 +74,6 @@ const STEP_ITEMS: { step: CateringStep; label: string; shortLabel: string }[] = 
 
 const getCateringStorageKey = (userId?: string | null) =>
   `dinego_catering_${userId ? userId : 'guest'}`;
-
-const renderPartyIcon = (id: PartyTypeId, color: string) => {
-  const props = { size: 28, color };
-  switch (id) {
-    case 'wedding':
-      return <Heart {...props} />;
-    case 'memorial':
-      return <Flame {...props} />;
-    case 'birthday':
-      return <Cake {...props} />;
-    case 'housewarming':
-      return <Home {...props} />;
-    case 'corporate':
-      return <Briefcase {...props} />;
-    case 'longevity':
-      return <Award {...props} />;
-  }
-};
 
 export const CateringPage: React.FC<CateringPageProps> = ({
   currentUser,
@@ -770,30 +746,12 @@ export const CateringPage: React.FC<CateringPageProps> = ({
         }}
       >
         <div>
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '4px 12px',
-              borderRadius: 999,
-              background: 'rgba(0, 177, 79, 0.1)',
-              color: 'var(--primary)',
-              fontSize: '0.74rem',
-              fontWeight: 800,
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              marginBottom: 6,
-            }}
-          >
-            <Sparkles size={13} /> Đặt Tiệc Lưu Động DineGo
-          </div>
           <h1
             style={{
               fontSize: '1.65rem',
               fontWeight: 800,
               color: 'var(--text-main)',
-              margin: 0,
+              margin: '0 0 4px 0',
               letterSpacing: '-0.02em',
             }}
           >
@@ -801,6 +759,11 @@ export const CateringPage: React.FC<CateringPageProps> = ({
               ? 'Hợp Đồng & Tiến Trình Đặt Tiệc'
               : 'Đặt Mâm Cỗ & Tổ Chức Tiệc Tại Gia'}
           </h1>
+          <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+            {viewMode === 'bookings'
+              ? 'Theo dõi báo giá, đề xuất chỉnh sửa món và tiến độ đặt cọc.'
+              : 'Nấu cỗ tận nơi • Setup bàn tiệc trọn gói tại TP. Hồ Chí Minh'}
+          </p>
         </div>
 
         <div
@@ -910,15 +873,20 @@ export const CateringPage: React.FC<CateringPageProps> = ({
       {/* ===================================================================== */}
       {viewMode === 'wizard' && (
         <>
-          {/* Progress Bar / Stepper */}
+          {/* Sticky Compact Progress Stepper with Back Button */}
           <div
             style={{
-              background: '#FFFFFF',
+              position: 'sticky',
+              top: 74,
+              zIndex: 40,
+              background: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
               border: '1px solid var(--border)',
-              borderRadius: 16,
-              padding: '18px 22px',
-              marginBottom: 24,
-              boxShadow: 'var(--shadow-xs)',
+              borderRadius: 14,
+              padding: '10px 14px 9px',
+              marginBottom: 20,
+              boxShadow: '0 6px 20px rgba(15, 23, 42, 0.06)',
             }}
           >
             <div
@@ -926,35 +894,136 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                marginBottom: 12,
                 gap: 8,
-                flexWrap: 'wrap',
+                overflowX: 'auto',
+                scrollbarWidth: 'none',
+                marginBottom: 8,
               }}
             >
-              <span
+              {currentStep > 1 && (
+                <button
+                  type="button"
+                  onClick={() => goToStep((currentStep - 1) as CateringStep)}
+                  title="Quay lại bước trước"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    padding: '6px 12px',
+                    borderRadius: 999,
+                    background: '#F8FAFC',
+                    border: '1px solid #CBD5E1',
+                    color: '#0F172A',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    transition: 'all 0.16s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#ECFDF5';
+                    e.currentTarget.style.borderColor = '#00B14F';
+                    e.currentTarget.style.color = '#009643';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#F8FAFC';
+                    e.currentTarget.style.borderColor = '#CBD5E1';
+                    e.currentTarget.style.color = '#0F172A';
+                  }}
+                >
+                  <ArrowLeft size={14} />
+                  <span>Quay lại</span>
+                </button>
+              )}
+
+              <div
                 style={{
-                  fontSize: '0.82rem',
-                  fontWeight: 700,
-                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  flex: 1,
+                  justifyContent: currentStep > 1 ? 'center' : 'space-between',
                 }}
               >
-                Bước {currentStep} / {STEP_ITEMS.length}:{' '}
-                <strong style={{ color: 'var(--primary)' }}>
-                  {STEP_ITEMS[currentStep - 1].label}
-                </strong>
-              </span>
+                {STEP_ITEMS.map((item) => {
+                  const isDone = item.step < currentStep;
+                  const isActive = item.step === currentStep;
+                  const clickable = canNavigateToStep(item.step);
+                  return (
+                    <button
+                      key={item.step}
+                      type="button"
+                      disabled={!clickable}
+                      onClick={() => clickable && goToStep(item.step)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 7,
+                        padding: '6px 12px',
+                        borderRadius: 999,
+                        background: isActive
+                          ? 'rgba(0, 177, 79, 0.1)'
+                          : isDone
+                            ? '#F8FAFC'
+                            : 'transparent',
+                        border: isActive
+                          ? '1px solid rgba(0, 177, 79, 0.25)'
+                          : '1px solid transparent',
+                        cursor: clickable ? 'pointer' : 'default',
+                        opacity: clickable || isActive ? 1 : 0.55,
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: '50%',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          background: isDone || isActive ? 'var(--primary)' : '#E5E7EB',
+                          color: isDone || isActive ? '#FFFFFF' : '#6B7280',
+                        }}
+                      >
+                        {isDone ? <Check size={12} /> : item.step}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '0.8rem',
+                          fontWeight: isActive ? 800 : 600,
+                          color: isActive
+                            ? 'var(--primary)'
+                            : isDone
+                              ? 'var(--text-main)'
+                              : 'var(--text-muted)',
+                        }}
+                      >
+                        {item.shortLabel}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
               {selectedPartyObj && currentStep > 1 && (
                 <span
                   style={{
-                    fontSize: '0.78rem',
+                    fontSize: '0.74rem',
                     fontWeight: 700,
                     color: selectedPartyObj.accentColor,
                     background: selectedPartyObj.accentBg,
                     padding: '4px 10px',
                     borderRadius: 999,
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
                   }}
                 >
-                  Loại tiệc: {selectedPartyObj.title}
+                  {selectedPartyObj.title}
                 </span>
               )}
             </div>
@@ -962,11 +1031,10 @@ export const CateringPage: React.FC<CateringPageProps> = ({
             {/* Linear Progress Track */}
             <div
               style={{
-                height: 6,
+                height: 4,
                 background: '#E5E7EB',
                 borderRadius: 999,
                 overflow: 'hidden',
-                marginBottom: 16,
               }}
             >
               <div
@@ -978,78 +1046,6 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                   transition: 'width 0.3s ease',
                 }}
               />
-            </div>
-
-            {/* Stepper Nodes */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
-                gap: 8,
-              }}
-            >
-              {STEP_ITEMS.map((item) => {
-                const isDone = item.step < currentStep;
-                const isActive = item.step === currentStep;
-                const clickable = canNavigateToStep(item.step);
-                return (
-                  <button
-                    key={item.step}
-                    type="button"
-                    disabled={!clickable}
-                    onClick={() => clickable && goToStep(item.step)}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 6,
-                      padding: '8px 6px',
-                      borderRadius: 12,
-                      background: isActive ? 'rgba(0, 177, 79, 0.08)' : 'transparent',
-                      cursor: clickable ? 'pointer' : 'default',
-                      opacity: clickable || isActive ? 1 : 0.55,
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 30,
-                        height: 30,
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '0.8rem',
-                        fontWeight: 800,
-                        background: isDone
-                          ? 'var(--primary)'
-                          : isActive
-                            ? 'var(--primary)'
-                            : '#F3F4F6',
-                        color: isDone || isActive ? '#FFFFFF' : '#6B7280',
-                        border: isActive
-                          ? '3px solid rgba(0, 177, 79, 0.25)'
-                          : '1px solid transparent',
-                      }}
-                    >
-                      {isDone ? <Check size={15} /> : item.step}
-                    </div>
-                    <span
-                      style={{
-                        fontSize: '0.78rem',
-                        fontWeight: isActive ? 800 : 600,
-                        color: isActive
-                          ? 'var(--primary)'
-                          : isDone
-                            ? 'var(--text-main)'
-                            : 'var(--text-muted)',
-                        textAlign: 'center',
-                      }}
-                    >
-                      {item.shortLabel}
-                    </span>
-                  </button>
-                );
-              })}
             </div>
           </div>
 
@@ -1109,98 +1105,133 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                           background: '#FFFFFF',
                           border: `2px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}`,
                           borderRadius: 16,
-                          padding: 20,
+                          padding: 0,
+                          overflow: 'hidden',
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: 12,
+                          cursor: 'pointer',
+                          transition: 'transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease',
                           boxShadow: isSelected
-                            ? '0 8px 22px rgba(0, 177, 79, 0.14)'
-                            : 'var(--shadow-xs)',
+                            ? '0 10px 24px rgba(0, 177, 79, 0.16)'
+                            : '0 2px 8px rgba(15, 23, 42, 0.05)',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'translateY(-3px)';
+                          e.currentTarget.style.boxShadow = '0 12px 26px rgba(15, 23, 42, 0.1)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow = isSelected
+                            ? '0 10px 24px rgba(0, 177, 79, 0.16)'
+                            : '0 2px 8px rgba(15, 23, 42, 0.05)';
                         }}
                       >
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'flex-start',
-                            width: '100%',
-                          }}
-                        >
-                          <div
+                        {/* Real Party / Banquet Photo */}
+                        <div style={{ position: 'relative', width: '100%', height: 158, overflow: 'hidden', background: '#F1F5F9' }}>
+                          <img
+                            src={party.imageUrl}
+                            alt={party.title}
+                            loading="lazy"
                             style={{
-                              width: 54,
-                              height: 54,
-                              borderRadius: 14,
-                              background: party.accentBg,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                              display: 'block',
                             }}
-                          >
-                            {renderPartyIcon(party.id, party.accentColor)}
-                          </div>
+                          />
+                          <div
+                            aria-hidden="true"
+                            style={{
+                              position: 'absolute',
+                              inset: 0,
+                              background: 'linear-gradient(180deg, rgba(15,23,42,0.06) 0%, rgba(15,23,42,0.42) 100%)',
+                            }}
+                          />
                           <span
                             style={{
+                              position: 'absolute',
+                              top: 10,
+                              left: 10,
                               fontSize: '0.72rem',
                               fontWeight: 800,
                               padding: '4px 10px',
                               borderRadius: 999,
-                              background: party.accentBg,
+                              background: 'rgba(255, 255, 255, 0.94)',
                               color: party.accentColor,
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
                             }}
                           >
                             {party.tag}
                           </span>
-                        </div>
-
-                        <div>
-                          <div
-                            style={{
-                              fontSize: '1.08rem',
-                              fontWeight: 800,
-                              color: 'var(--text-main)',
-                              marginBottom: 4,
-                            }}
-                          >
-                            {party.title}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: '0.84rem',
-                              color: 'var(--text-secondary)',
-                              lineHeight: 1.45,
-                            }}
-                          >
-                            {party.subtitle}
-                          </div>
-                        </div>
-
-                        <div
-                          style={{
-                            marginTop: 'auto',
-                            paddingTop: 12,
-                            borderTop: '1px dashed var(--border)',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            width: '100%',
-                            fontSize: '0.82rem',
-                          }}
-                        >
-                          <span style={{ fontWeight: 800, color: 'var(--primary)' }}>
-                            {party.priceHint}
-                          </span>
                           <span
                             style={{
-                              color: 'var(--text-muted)',
-                              fontWeight: 600,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 4,
+                              position: 'absolute',
+                              bottom: 10,
+                              right: 10,
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '3px 9px',
+                              borderRadius: 8,
+                              background: 'rgba(15, 23, 42, 0.72)',
+                              color: '#FFFFFF',
+                              backdropFilter: 'blur(4px)',
                             }}
                           >
-                            {party.recommendedTables} <ArrowRight size={14} color="var(--primary)" />
+                            {party.recommendedTables}
                           </span>
+                        </div>
+
+                        {/* Card Body */}
+                        <div style={{ padding: '14px 16px 16px', display: 'flex', flexDirection: 'column', gap: 10, flex: 1, width: '100%' }}>
+                          <div>
+                            <div
+                              style={{
+                                fontSize: '1.05rem',
+                                fontWeight: 800,
+                                color: 'var(--text-main)',
+                                marginBottom: 4,
+                              }}
+                            >
+                              {party.title}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: '0.83rem',
+                                color: 'var(--text-secondary)',
+                                lineHeight: 1.45,
+                              }}
+                            >
+                              {party.subtitle}
+                            </div>
+                          </div>
+
+                          <div
+                            style={{
+                              marginTop: 'auto',
+                              paddingTop: 10,
+                              borderTop: '1px dashed var(--border)',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              width: '100%',
+                              fontSize: '0.82rem',
+                            }}
+                          >
+                            <span style={{ fontWeight: 800, color: 'var(--primary)' }}>
+                              {party.priceHint}
+                            </span>
+                            <span
+                              style={{
+                                color: 'var(--primary)',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                              }}
+                            >
+                              Chọn mâm cỗ <ArrowRight size={14} color="var(--primary)" />
+                            </span>
+                          </div>
                         </div>
                       </button>
                     );
@@ -1288,22 +1319,12 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                   marginBottom: 16,
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    onClick={() => goToStep(1)}
-                    className="btn btn-secondary"
-                    style={{ padding: '8px 14px', borderRadius: 10, fontSize: '0.84rem' }}
-                  >
-                    <ArrowLeft size={15} /> Đổi loại tiệc
-                  </button>
-                  <div>
-                    <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
-                      Gợi ý Cửa hàng & Mâm cỗ {selectedPartyObj ? `cho ${selectedPartyObj.title}` : ''}
-                    </h2>
-                    <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                      Tìm thấy {filteredPackages.length} gói mâm cỗ đối tác đã xác thực chất lượng
-                    </div>
+                <div>
+                  <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+                    Gợi ý Cửa hàng &amp; Mâm cỗ {selectedPartyObj ? `cho ${selectedPartyObj.title}` : ''}
+                  </h2>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                    Tìm thấy {filteredPackages.length} gói mâm cỗ đối tác đã xác thực chất lượng
                   </div>
                 </div>
 
@@ -1606,20 +1627,6 @@ export const CateringPage: React.FC<CateringPageProps> = ({
           {/* ----------------------------------------------------------------- */}
           {currentStep === 3 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-                <button
-                  type="button"
-                  onClick={() => goToStep(2)}
-                  className="btn btn-secondary"
-                  style={{ padding: '8px 14px', borderRadius: 10, fontSize: '0.84rem' }}
-                >
-                  <ArrowLeft size={15} /> Quay lại chọn mâm khác
-                </button>
-                <span style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                  Bước 3: Xem thực đơn món & tùy chỉnh yêu cầu riêng
-                </span>
-              </div>
-
               {/* Selected Store & Package Hero Card */}
               <div
                 style={{
@@ -2064,17 +2071,6 @@ export const CateringPage: React.FC<CateringPageProps> = ({
           {/* ----------------------------------------------------------------- */}
           {currentStep === 4 && (
             <div>
-              <div style={{ marginBottom: 16 }}>
-                <button
-                  type="button"
-                  onClick={() => goToStep(3)}
-                  className="btn btn-secondary"
-                  style={{ padding: '8px 14px', borderRadius: 10, fontSize: '0.84rem' }}
-                >
-                  <ArrowLeft size={15} /> Quay lại tùy chỉnh mâm
-                </button>
-              </div>
-
               <div
                 style={{
                   display: 'grid',
@@ -2585,7 +2581,7 @@ export const CateringPage: React.FC<CateringPageProps> = ({
                     padding: 22,
                     boxShadow: 'var(--shadow-md)',
                     position: 'sticky',
-                    top: 90,
+                    top: 154,
                   }}
                 >
                   <h3 style={{ fontSize: '1.08rem', fontWeight: 800, margin: '0 0 16px 0', color: 'var(--text-main)' }}>
@@ -2748,17 +2744,6 @@ export const CateringPage: React.FC<CateringPageProps> = ({
           {/* ----------------------------------------------------------------- */}
           {currentStep === 5 && (
             <div style={{ maxWidth: 720, margin: '0 auto' }}>
-              <div style={{ marginBottom: 16 }}>
-                <button
-                  type="button"
-                  onClick={() => goToStep(4)}
-                  className="btn btn-secondary"
-                  style={{ padding: '8px 14px', borderRadius: 10, fontSize: '0.84rem' }}
-                >
-                  <ArrowLeft size={15} /> Quay lại chỉnh sửa thông tin
-                </button>
-              </div>
-
               <div
                 style={{
                   background: '#FFFFFF',

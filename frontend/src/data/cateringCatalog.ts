@@ -21,6 +21,7 @@ export interface PartyTypeOption {
   accentBg: string;
   accentColor: string;
   tag: string;
+  imageUrl: string;
 }
 
 export interface FeastPackage {
@@ -105,6 +106,7 @@ export const PARTY_TYPES: PartyTypeOption[] = [
     accentBg: '#FFF1F2',
     accentColor: '#E11D48',
     tag: 'Phổ biến nhất',
+    imageUrl: '/images/catering-wedding.jpg',
   },
   {
     id: 'memorial',
@@ -115,6 +117,7 @@ export const PARTY_TYPES: PartyTypeOption[] = [
     accentBg: '#FEF3C7',
     accentColor: '#B45309',
     tag: 'Chuẩn vị truyền thống',
+    imageUrl: '/images/catering-memorial.jpg',
   },
   {
     id: 'birthday',
@@ -125,6 +128,7 @@ export const PARTY_TYPES: PartyTypeOption[] = [
     accentBg: '#E0F2FE',
     accentColor: '#0284C7',
     tag: 'Gia đình yêu thích',
+    imageUrl: '/images/catering-birthday.jpg',
   },
   {
     id: 'housewarming',
@@ -135,6 +139,7 @@ export const PARTY_TYPES: PartyTypeOption[] = [
     accentBg: '#ECFDF5',
     accentColor: '#00B14F',
     tag: 'Tài lộc sung túc',
+    imageUrl: '/images/catering-housewarming.jpg',
   },
   {
     id: 'corporate',
@@ -145,6 +150,7 @@ export const PARTY_TYPES: PartyTypeOption[] = [
     accentBg: '#EEF2FF',
     accentColor: '#4F46E5',
     tag: 'Hỗ trợ xuất VAT',
+    imageUrl: '/images/catering-corporate.jpg',
   },
   {
     id: 'longevity',
@@ -155,6 +161,7 @@ export const PARTY_TYPES: PartyTypeOption[] = [
     accentBg: '#F3E8FF',
     accentColor: '#7E22CE',
     tag: 'Thanh đạm bổ dưỡng',
+    imageUrl: '/images/catering-longevity.jpg',
   },
 ];
 
@@ -174,7 +181,7 @@ export const FEAST_PACKAGES: FeastPackage[] = [
     description: 'Bữa tiệc 10 món thượng hạng, giao lưu họ hàng hai bên trọn vẹn hạnh phúc.',
     pricePerTable: 3800000,
     guestCountPerTable: 10,
-    imageUrl: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=600&auto=format&fit=crop&q=80',
+    imageUrl: '/images/feast-wedding.jpg',
     dishes: [
       'Khai vị 3 món thượng hạng',
       'Súp vi cá bào ngư hải sản',
@@ -205,7 +212,7 @@ export const FEAST_PACKAGES: FeastPackage[] = [
     description: 'Thực đơn 8 món đậm đà hương vị tiệc cưới Nam Bộ, phục vụ nóng tại bàn.',
     pricePerTable: 3200000,
     guestCountPerTable: 10,
-    imageUrl: 'https://images.unsplash.com/photo-1555244162-803834f70033?w=600&auto=format&fit=crop&q=80',
+    imageUrl: '/images/catering-memorial.jpg',
     dishes: [
       'Gỏi ngó sen tôm thịt bánh phồng',
       'Súp cua tóc tiên nấm đông cô',
@@ -234,7 +241,7 @@ export const FEAST_PACKAGES: FeastPackage[] = [
     description: 'Thực đơn 8 món chuẩn vị truyền thống mừng nhà mới, sung túc tài lộc.',
     pricePerTable: 2500000,
     guestCountPerTable: 6,
-    imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
+    imageUrl: '/images/catering-housewarming.jpg',
     dishes: [
       'Gỏi củ hũ dừa tôm thịt',
       'Gà ta hấp lá chanh gia truyền',
@@ -263,7 +270,7 @@ export const FEAST_PACKAGES: FeastPackage[] = [
     description: 'Mâm cỗ cúng gia tiên trang trọng với xôi gấc, gà luộc cánh tiên, nem rán.',
     pricePerTable: 1950000,
     guestCountPerTable: 6,
-    imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&auto=format&fit=crop&q=80',
+    imageUrl: '/images/feast-buffet.jpg',
     dishes: [
       'Gà ta luộc lá chanh tạo dáng cánh tiên',
       'Xôi gấc đậu xanh cốt dừa',
@@ -292,7 +299,7 @@ export const FEAST_PACKAGES: FeastPackage[] = [
     description: 'Thực đơn Á - Âu hài hòa, ít cay, dễ ăn cho cả trẻ nhỏ và người lớn.',
     pricePerTable: 1850000,
     guestCountPerTable: 6,
-    imageUrl: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&auto=format&fit=crop&q=80',
+    imageUrl: '/images/feast-bbq.jpg',
     dishes: [
       'Salad cá hồi sốt mè rang',
       'Súp bí đỏ kem tươi bánh mì bơ tỏi',
@@ -321,7 +328,7 @@ export const FEAST_PACKAGES: FeastPackage[] = [
     description: 'Mâm 10 người đầy đặn, hải sản tươi sống và bò Mỹ, phù hợp tiếp khách & gala.',
     pricePerTable: 2800000,
     guestCountPerTable: 10,
-    imageUrl: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=600&auto=format&fit=crop&q=80',
+    imageUrl: '/images/catering-longevity.jpg',
     dishes: [
       'Khai vị gỏi tiến vua tôm thịt & chả giò',
       'Súp hải sản rong biển trứng cua',
@@ -351,7 +358,7 @@ export const FEAST_PACKAGES: FeastPackage[] = [
     description: 'Thực đơn bổ dưỡng, thanh đạm phù hợp người cao tuổi mừng đại thọ.',
     pricePerTable: 2200000,
     guestCountPerTable: 6,
-    imageUrl: 'https://images.unsplash.com/photo-1547496502-affa22d38842?w=600&auto=format&fit=crop&q=80',
+    imageUrl: '/images/feast-salad.jpg',
     dishes: [
       'Súp gà xé nấm tuyết bồi bổ',
       'Gà ác tiềm thuốc bắc hạt sen',
