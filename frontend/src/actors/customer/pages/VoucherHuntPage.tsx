@@ -6,17 +6,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Ticket,
-  Sparkles,
   Store,
   Search,
-  Calendar,
   CheckCircle2,
-  Clock,
-  Flame,
   Copy,
   ArrowRight,
-  Gift,
-  ShieldCheck,
   Wallet,
 } from 'lucide-react';
 import { MOCK_MERCHANTS } from '../../../api/client';
@@ -44,6 +38,25 @@ export interface VoucherHuntPageProps {
   onNavigate?: (tab: NavTab) => void;
   onOpenAuthModal?: (mode: 'login' | 'register') => void;
 }
+
+const getVoucherMerchantThumb = (m?: Merchant | null, fallbackName?: string): string => {
+  const name = (m?.name || fallbackName || '').toLowerCase();
+  if (name.includes('phở')) return '/images/pho-thin.jpg';
+  if (name.includes('trà sữa') || name.includes('cà phê') || name.includes('gong cha')) {
+    return '/images/tra-sua-ca-phe.jpg';
+  }
+  if (name.includes('pizza') || name.includes('pasta')) return '/images/pizza-artisan.jpg';
+  if (name.includes('cơm')) return '/images/catering-housewarming.jpg';
+  if (name.includes('bún')) return '/images/feast-bbq.jpg';
+  if (name.includes('bánh')) return '/images/feast-buffet.jpg';
+  if (name.includes('cỗ') || name.includes('tiệc') || name.includes('hoàng gia')) {
+    return '/images/catering-memorial.jpg';
+  }
+  if (m?.coverUrl) return m.coverUrl;
+  if (m?.storeFrontImage) return m.storeFrontImage;
+  if (m?.logoUrl) return m.logoUrl;
+  return '/images/feast-buffet.jpg';
+};
 
 export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
   merchants = MOCK_MERCHANTS,
@@ -129,7 +142,7 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
     window.addEventListener('dinego_vouchers_updated', handleCustom);
     const interval = window.setInterval(() => {
       void syncAll();
-    }, 3000);
+    }, 10000);
 
     return () => {
       active = false;
@@ -259,96 +272,142 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
         </div>
       )}
 
-      {/* Hero Event Banner */}
+      {/* Scoped Hover Transitions for Voucher Cards & Buttons */}
+      <style>{`
+        .dinego-voucher-card {
+          transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+        .dinego-voucher-card:hover {
+          transform: translateY(-3px);
+          border-color: #86EFAC !important;
+          box-shadow: 0 12px 26px rgba(0, 177, 79, 0.12) !important;
+        }
+        .dinego-voucher-card .dinego-voucher-thumb {
+          transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .dinego-voucher-card:hover .dinego-voucher-thumb {
+          transform: scale(1.06);
+        }
+        .dinego-voucher-copy {
+          transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+        }
+        .dinego-voucher-copy:hover {
+          background-color: #ECFDF5 !important;
+          border-color: #00B14F !important;
+          color: #009643 !important;
+        }
+        .dinego-voucher-link {
+          transition: color 0.16s ease;
+        }
+        .dinego-voucher-link:hover {
+          color: #009643 !important;
+        }
+        .dinego-voucher-cta {
+          transition: background-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+        }
+        .dinego-voucher-cta:not(:disabled):hover {
+          background-color: #009643 !important;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(0, 177, 79, 0.28);
+        }
+        .dinego-voucher-cta:not(:disabled):active {
+          transform: translateY(0);
+        }
+        .dinego-voucher-used {
+          transition: background-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
+        }
+        .dinego-voucher-used:hover {
+          background-color: #00B14F !important;
+          color: #FFFFFF !important;
+          transform: translateY(-1px);
+        }
+      `}</style>
+
+      {/* Clean Editorial Header & Mode Switch */}
       <div
         style={{
-          background: 'linear-gradient(135deg, #064E3B 0%, #00B14F 58%, #F97316 100%)',
-          borderRadius: 22,
-          padding: '28px 30px',
-          color: '#FFFFFF',
-          marginBottom: 22,
-          boxShadow: '0 14px 34px rgba(0, 177, 79, 0.2)',
+          background: 'linear-gradient(135deg, #F0FDF4 0%, #FFFBEB 100%)',
+          border: '1px solid #DCFCE7',
+          borderRadius: 20,
+          padding: '22px 26px',
+          marginBottom: 20,
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
-          gap: 20,
+          gap: 18,
         }}
       >
-        <div style={{ maxWidth: 660 }}>
-          <div
+        <div style={{ maxWidth: 620 }}>
+          <h1
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              background: 'rgba(255, 255, 255, 0.18)',
-              padding: '5px 12px',
-              borderRadius: 999,
-              fontSize: '0.76rem',
-              fontWeight: 800,
-              marginBottom: 10,
-              backdropFilter: 'blur(4px)',
+              fontSize: '1.65rem',
+              fontWeight: 900,
+              margin: '0 0 6px 0',
+              color: '#0F172A',
+              letterSpacing: '-0.02em',
+              lineHeight: 1.25,
             }}
           >
-            <Flame size={14} color="#FDE047" />
-            <span>SĂN VOUCHER CỬA HÀNG • LỄ HỘI &amp; SỰ KIỆN ĐẶC BIỆT</span>
-          </div>
-          <h1 style={{ fontSize: '1.85rem', fontWeight: 900, margin: '0 0 8px 0', color: '#FFFFFF', lineHeight: 1.2 }}>
-            Săn Phiếu Giảm Giá Theo Sự Kiện &amp; Ngày Lễ
+            Săn Ưu Đãi &amp; Mã Giảm Giá
           </h1>
-          <p style={{ fontSize: '0.92rem', color: 'rgba(255, 255, 255, 0.92)', margin: 0, lineHeight: 1.5 }}>
-            Lưu ngay các mã ưu đãi độc quyền từ quán ăn yêu thích trong dịp Giáng Sinh, Lễ 30/4, Tết &amp; Flash Sale giờ vàng — kiểm duyệt trực tiếp bởi Quản trị viên DineGo.
+          <p style={{ fontSize: '0.9rem', color: '#475569', margin: 0, lineHeight: 1.5 }}>
+            Lưu mã giảm giá từ quán ăn yêu thích và các đợt ưu đãi theo mùa — áp dụng tự động khi thanh toán.
           </p>
         </div>
 
-        {/* Mode Switch: Hunt vs My Wallet */}
+        {/* Clean Segmented Switch: Săn Deal vs Ví của tôi */}
         <div
           style={{
-            display: 'flex',
-            background: 'rgba(15, 23, 42, 0.28)',
-            padding: 5,
-            borderRadius: 14,
-            gap: 6,
+            display: 'inline-flex',
+            background: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            padding: 4,
+            borderRadius: 999,
+            gap: 4,
+            boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
           }}
         >
           <button
             type="button"
             onClick={() => setViewMode('HUNT')}
             style={{
-              padding: '10px 18px',
-              borderRadius: 10,
+              padding: '8px 16px',
+              borderRadius: 999,
               border: 'none',
-              background: viewMode === 'HUNT' ? '#FFFFFF' : 'transparent',
-              color: viewMode === 'HUNT' ? '#065F46' : '#FFFFFF',
-              fontWeight: 800,
-              fontSize: '0.86rem',
+              background: viewMode === 'HUNT' ? '#00B14F' : 'transparent',
+              color: viewMode === 'HUNT' ? '#FFFFFF' : '#475569',
+              fontWeight: 700,
+              fontSize: '0.84rem',
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 7,
+              gap: 6,
+              transition: 'all 0.16s ease',
             }}
           >
-            <Gift size={16} />
+            <Ticket size={15} />
             <span>Săn Deal ({activeHuntCount})</span>
           </button>
           <button
             type="button"
             onClick={() => setViewMode('WALLET')}
             style={{
-              padding: '10px 18px',
-              borderRadius: 10,
+              padding: '8px 16px',
+              borderRadius: 999,
               border: 'none',
-              background: viewMode === 'WALLET' ? '#FFFFFF' : 'transparent',
-              color: viewMode === 'WALLET' ? '#065F46' : '#FFFFFF',
-              fontWeight: 800,
-              fontSize: '0.86rem',
+              background: viewMode === 'WALLET' ? '#00B14F' : 'transparent',
+              color: viewMode === 'WALLET' ? '#FFFFFF' : '#475569',
+              fontWeight: 700,
+              fontSize: '0.84rem',
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 7,
+              gap: 6,
+              transition: 'all 0.16s ease',
             }}
           >
-            <Wallet size={16} />
+            <Wallet size={15} />
             <span>Ví của tôi ({claimedCodes.length})</span>
           </button>
         </div>
@@ -358,33 +417,30 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
       <div
         style={{
           background: '#FFFFFF',
-          border: '1px solid var(--border)',
-          borderRadius: 18,
-          padding: '16px 20px',
+          border: '1px solid #E2E8F0',
+          borderRadius: 16,
+          padding: '14px 18px',
           marginBottom: 22,
-          boxShadow: 'var(--shadow-sm)',
+          boxShadow: '0 2px 8px rgba(15, 23, 42, 0.03)',
         }}
       >
         {/* Event / Holiday Pills */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-          <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: 5, marginRight: 4 }}>
-            <Calendar size={14} color="var(--primary)" /> Sự kiện / Ngày lễ:
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
           <button
             type="button"
             onClick={() => setSelectedEvent('ALL')}
             style={{
               padding: '6px 14px',
               borderRadius: 999,
-              border: selectedEvent === 'ALL' ? '1px solid var(--primary)' : '1px solid var(--border)',
-              background: selectedEvent === 'ALL' ? 'var(--primary)' : 'var(--bg-main)',
-              color: selectedEvent === 'ALL' ? '#FFFFFF' : 'var(--text-main)',
+              border: selectedEvent === 'ALL' ? '1px solid #00B14F' : '1px solid #E2E8F0',
+              background: selectedEvent === 'ALL' ? '#ECFDF5' : '#F8FAFC',
+              color: selectedEvent === 'ALL' ? '#009643' : '#334155',
               fontSize: '0.8rem',
               fontWeight: 700,
               cursor: 'pointer',
             }}
           >
-            Tất cả sự kiện
+            Tất cả
           </button>
           {EVENT_THEME_OPTIONS.map((ev) => {
             const active = selectedEvent === ev.value;
@@ -396,9 +452,9 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
                 style={{
                   padding: '6px 14px',
                   borderRadius: 999,
-                  border: active ? `1.5px solid ${ev.badgeColor}` : '1px solid var(--border)',
-                  background: active ? ev.badgeBg : 'var(--bg-main)',
-                  color: active ? ev.badgeColor : 'var(--text-main)',
+                  border: active ? `1px solid ${ev.badgeColor}` : '1px solid #E2E8F0',
+                  background: active ? ev.badgeBg : '#F8FAFC',
+                  color: active ? ev.badgeColor : '#334155',
                   fontSize: '0.8rem',
                   fontWeight: 700,
                   cursor: 'pointer',
@@ -411,9 +467,9 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
         </div>
 
         {/* Store Filter + Search */}
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 250px' }}>
-            <Store size={16} color="var(--primary)" />
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 240px' }}>
+            <Store size={15} color="#64748B" />
             <select
               value={selectedMerchantId}
               onChange={(e) => setSelectedMerchantId(e.target.value)}
@@ -421,17 +477,17 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
                 flex: 1,
                 padding: '9px 12px',
                 borderRadius: 10,
-                border: '1px solid var(--border)',
-                background: 'var(--bg-main)',
+                border: '1px solid #E2E8F0',
+                background: '#F8FAFC',
                 fontSize: '0.84rem',
                 fontWeight: 600,
-                color: 'var(--text-main)',
+                color: '#0F172A',
               }}
             >
               <option value="ALL">Tất cả cửa hàng &amp; Toàn sàn DineGo</option>
               {merchants.map((m) => (
                 <option key={m.id} value={m.id}>
-                  Chỉ quán: {m.name}
+                  {m.name}
                 </option>
               ))}
             </select>
@@ -440,20 +496,20 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
           <div style={{ position: 'relative', flex: '1 1 260px' }}>
             <Search
               size={15}
-              color="var(--text-muted)"
+              color="#94A3B8"
               style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}
             />
             <input
               type="text"
-              placeholder="Tìm mã giảm giá, tên quán hoặc sự kiện..."
+              placeholder="Tìm mã giảm giá, tên quán..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
                 width: '100%',
                 padding: '9px 12px 9px 36px',
                 borderRadius: 10,
-                border: '1px solid var(--border)',
-                background: 'var(--bg-main)',
+                border: '1px solid #E2E8F0',
+                background: '#F8FAFC',
                 fontSize: '0.84rem',
                 outline: 'none',
                 boxSizing: 'border-box',
@@ -501,16 +557,21 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(430px, 1fr))',
-            gap: 18,
+            gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 440px), 1fr))',
+            gap: 14,
           }}
         >
           {displayedVouchers.map((v) => {
             const themeStyle = getEventThemeStyle(v.eventTheme);
             const matchedMerchant =
               v.merchantId && v.merchantId !== 'ALL'
-                ? merchants.find((m) => m.id === v.merchantId)
+                ? merchants.find(
+                    (m) =>
+                      m.id === v.merchantId ||
+                      (v.merchantName && m.name.toLowerCase() === v.merchantName.toLowerCase()),
+                  )
                 : null;
+            const isStoreVoucher = Boolean(matchedMerchant || (v.merchantId && v.merchantId !== 'ALL'));
             const isClaimed = claimedCodes.includes(v.code.toUpperCase());
             const claimedOrUsed = Math.max(
               Number(v.claimedCount || 0),
@@ -521,164 +582,257 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
             const isSoldOut = claimedOrUsed >= maxQuota;
             const remaining = Math.max(0, maxQuota - claimedOrUsed);
 
+            const shortDiscount =
+              v.discountType === 'PERCENTAGE'
+                ? `${v.discountValue}%`
+                : v.discountValue >= 1000
+                  ? `${Math.round(v.discountValue / 1000)}K`
+                  : `${v.discountValue}đ`;
+            const golden = isWithinGoldenHours(v, nowMs);
+
             return (
               <div
                 key={v.id}
+                className="dinego-voucher-card"
                 style={{
                   background: '#FFFFFF',
-                  border: `1.5px solid ${isClaimed ? '#86EFAC' : 'var(--border)'}`,
-                  borderRadius: 18,
+                  border: `1px solid ${isClaimed ? '#86EFAC' : '#E2E8F0'}`,
+                  borderRadius: 14,
                   display: 'flex',
-                  overflow: 'hidden',
-                  boxShadow: 'var(--shadow-sm)',
+                  height: 128,
+                  overflow: 'visible',
+                  boxShadow: isClaimed
+                    ? '0 4px 12px rgba(0, 177, 79, 0.08)'
+                    : '0 2px 8px rgba(15, 23, 42, 0.04)',
                   position: 'relative',
                   opacity: v.isActive ? 1 : 0.7,
                 }}
               >
-                {/* Left Store / Platform Stub */}
+                {/* Left Ticket Stub — Compact Uniform 108px */}
                 <div
                   style={{
-                    width: 124,
+                    width: 108,
                     flexShrink: 0,
-                    background: matchedMerchant
+                    background: isStoreVoucher
                       ? '#0F172A'
-                      : 'linear-gradient(160deg, #00B14F 0%, #047857 100%)',
-                    color: '#FFFFFF',
-                    padding: 12,
+                      : 'linear-gradient(160deg, #ECFDF5 0%, #D1FAE5 100%)',
+                    borderRadius: '13px 0 0 13px',
+                    padding: '10px 8px',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    justifyContent: 'center',
+                    justifyContent: isStoreVoucher ? 'flex-end' : 'center',
                     textAlign: 'center',
-                    borderRight: '2px dashed #E2E8F0',
+                    borderRight: '1.5px dashed #CBD5E1',
                     position: 'relative',
                   }}
                 >
-                  {matchedMerchant ? (
-                    <img
-                      src={matchedMerchant.logoUrl || matchedMerchant.coverUrl}
-                      alt={matchedMerchant.name}
-                      style={{
-                        width: 56,
-                        height: 56,
-                        borderRadius: 14,
-                        objectFit: 'cover',
-                        border: '2px solid rgba(255,255,255,0.85)',
-                        marginBottom: 8,
-                      }}
-                    />
-                  ) : (
+                  {isStoreVoucher && (
                     <div
+                      aria-hidden="true"
                       style={{
-                        width: 54,
-                        height: 54,
-                        borderRadius: 14,
-                        background: 'rgba(255,255,255,0.2)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: 8,
+                        position: 'absolute',
+                        inset: 0,
+                        borderRadius: '13px 0 0 13px',
+                        overflow: 'hidden',
+                        pointerEvents: 'none',
                       }}
                     >
-                      <Sparkles size={26} color="#FFFFFF" />
+                      <img
+                        src={getVoucherMerchantThumb(matchedMerchant, v.merchantName)}
+                        alt=""
+                        loading="lazy"
+                        className="dinego-voucher-thumb"
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          display: 'block',
+                        }}
+                      />
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          background:
+                            'linear-gradient(180deg, rgba(15, 23, 42, 0.04) 0%, rgba(15, 23, 42, 0.25) 45%, rgba(15, 23, 42, 0.86) 100%)',
+                        }}
+                      />
                     </div>
                   )}
-                  <div style={{ fontSize: '0.75rem', fontWeight: 800, lineHeight: 1.25 }}>
-                    {matchedMerchant ? matchedMerchant.name : v.merchantName || 'Toàn sàn DineGo'}
+
+                  {/* Top & Bottom Ticket Cutout Notches */}
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      position: 'absolute',
+                      top: -6,
+                      right: -6,
+                      width: 11,
+                      height: 11,
+                      borderRadius: '50%',
+                      background: 'var(--bg-main)',
+                      borderBottom: '1px solid #E2E8F0',
+                      zIndex: 2,
+                    }}
+                  />
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      position: 'absolute',
+                      bottom: -6,
+                      right: -6,
+                      width: 11,
+                      height: 11,
+                      borderRadius: '50%',
+                      background: 'var(--bg-main)',
+                      borderTop: '1px solid #E2E8F0',
+                      zIndex: 2,
+                    }}
+                  />
+
+                  {!isStoreVoucher && (
+                    <img
+                      src="/images/dinego-logo.png"
+                      alt="DineGo"
+                      loading="lazy"
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: 9,
+                        objectFit: 'contain',
+                        background: '#FFFFFF',
+                        border: '1px solid #BBF7D0',
+                        padding: 3,
+                        marginBottom: 4,
+                        position: 'relative',
+                        zIndex: 1,
+                      }}
+                    />
+                  )}
+                  <div
+                    style={{
+                      position: 'relative',
+                      zIndex: 1,
+                      fontSize: '1.15rem',
+                      fontWeight: 900,
+                      color: isStoreVoucher ? '#FFFFFF' : '#009643',
+                      lineHeight: 1.05,
+                      marginBottom: 2,
+                      textShadow: isStoreVoucher ? '0 2px 6px rgba(0, 0, 0, 0.65)' : 'none',
+                    }}
+                  >
+                    -{shortDiscount}
+                  </div>
+                  <div
+                    style={{
+                      position: 'relative',
+                      zIndex: 1,
+                      width: '100%',
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      color: isStoreVoucher ? 'rgba(255, 255, 255, 0.95)' : '#047857',
+                      lineHeight: 1.2,
+                      textShadow: isStoreVoucher ? '0 1px 4px rgba(0, 0, 0, 0.75)' : 'none',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {matchedMerchant ? matchedMerchant.name : v.merchantName || 'Toàn sàn'}
                   </div>
                 </div>
 
-                {/* Right Ticket Body & Action */}
+                {/* Right Ticket Body — Uniform Compact Layout */}
                 <div
                   style={{
                     flex: 1,
-                    padding: '14px 16px',
+                    padding: '10px 14px',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
-                    gap: 10,
                     minWidth: 0,
                   }}
                 >
-                  <div>
-                    {/* Event Badge & Code Copy */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
-                      <span
-                        style={{
-                          background: themeStyle.badgeBg,
-                          color: themeStyle.badgeColor,
-                          fontSize: '0.7rem',
-                          fontWeight: 800,
-                          padding: '3px 9px',
-                          borderRadius: 999,
-                        }}
-                      >
-                        {v.eventTag || themeStyle.label}
-                      </span>
+                  {/* Top Row: Event Tag + Code Copy */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                    <span
+                      style={{
+                        background: themeStyle.badgeBg,
+                        color: themeStyle.badgeColor,
+                        fontSize: '0.66rem',
+                        fontWeight: 800,
+                        padding: '2px 8px',
+                        borderRadius: 999,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        maxWidth: 165,
+                      }}
+                    >
+                      {v.eventTag || themeStyle.label}
+                    </span>
 
-                      <button
-                        type="button"
-                        onClick={() => handleCopyCode(v.code)}
-                        style={{
-                          background: '#F1F5F9',
-                          border: '1px solid #CBD5E1',
-                          borderRadius: 6,
-                          padding: '2px 8px',
-                          fontSize: '0.72rem',
-                          fontWeight: 800,
-                          color: '#334155',
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                        }}
-                        title="Sao chép mã"
-                      >
-                        <Copy size={11} />
-                        <span>{copiedCode === v.code ? 'Đã chép' : v.code}</span>
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyCode(v.code)}
+                      className="dinego-voucher-copy"
+                      style={{
+                        background: '#F8FAFC',
+                        border: '1px dashed #CBD5E1',
+                        borderRadius: 6,
+                        padding: '2px 7px',
+                        fontSize: '0.68rem',
+                        fontWeight: 800,
+                        color: '#334155',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        flexShrink: 0,
+                      }}
+                      title="Sao chép mã"
+                    >
+                      <Copy size={10} />
+                      <span>{copiedCode === v.code ? 'Đã chép' : v.code}</span>
+                    </button>
+                  </div>
 
-                    {/* Discount Value */}
-                    <div style={{ fontSize: '1.16rem', fontWeight: 900, color: '#0F172A', marginBottom: 2 }}>
+                  {/* Middle: Headline + Single-Line Info */}
+                  <div style={{ minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: '0.98rem',
+                        fontWeight: 800,
+                        color: '#0F172A',
+                        lineHeight: 1.25,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
                       {v.discountType === 'PERCENTAGE'
-                        ? `Giảm ${v.discountValue}%${v.maxDiscountAmount ? ` (tối đa ${(v.maxDiscountAmount / 1000).toFixed(0)}k)` : ''}`
+                        ? `Giảm ${v.discountValue}%${v.maxDiscountAmount ? ` • Tối đa ${(v.maxDiscountAmount / 1000).toFixed(0)}k` : ''}`
                         : `Giảm ${v.discountValue.toLocaleString('vi-VN')}đ`}
                     </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.35 }}>
-                      {v.title}
+                    <div
+                      style={{
+                        fontSize: '0.74rem',
+                        color: '#64748B',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        marginTop: 2,
+                      }}
+                    >
+                      Đơn từ {Number(v.minOrder || 0).toLocaleString('vi-VN')}đ • HSD {v.endDate}
+                      {golden.label ? ` • ${golden.label}` : ''}
                     </div>
                   </div>
 
-                  {/* Quota Progress Bar */}
+                  {/* Bottom: Thin Progress + Actions */}
                   <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#64748B', fontWeight: 700, marginBottom: 4 }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                        <Clock size={11} /> HSD: {v.endDate}
-                        {(() => {
-                          const golden = isWithinGoldenHours(v, nowMs);
-                          if (!golden.label) return null;
-                          return (
-                            <span
-                              style={{
-                                color: golden.active ? '#C2410C' : '#B45309',
-                                background: golden.active ? '#FFEDD5' : '#FEF3C7',
-                                padding: '1px 6px',
-                                borderRadius: 999,
-                                fontWeight: 800,
-                                fontSize: '0.68rem',
-                              }}
-                            >
-                              ⚡ {golden.label} • {golden.countdownText}
-                            </span>
-                          );
-                        })()}
-                      </span>
-                      <span style={{ color: pct >= 85 ? '#DC2626' : '#047857' }}>
-                        {isSoldOut ? 'Đã hết suất' : `Đã săn ${pct}% (còn ${remaining} lượt)`}
-                      </span>
-                    </div>
-                    <div style={{ height: 6, borderRadius: 999, background: '#E2E8F0', overflow: 'hidden', marginBottom: 10 }}>
+                    <div style={{ height: 3, borderRadius: 999, background: '#F1F5F9', overflow: 'hidden', marginBottom: 7 }}>
                       <div
                         style={{
                           height: '100%',
@@ -690,79 +844,79 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
                       />
                     </div>
 
-                    {/* Action CTA */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                      <button
-                        type="button"
-                        onClick={() => setDetailVoucher(v)}
-                        style={{
-                          padding: '5px 10px',
-                          borderRadius: 8,
-                          border: '1px solid #CBD5E1',
-                          background: '#F8FAFC',
-                          color: '#334155',
-                          fontSize: '0.74rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Chi tiết
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.72rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => setDetailVoucher(v)}
+                          className="dinego-voucher-link"
+                          style={{
+                            padding: 0,
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#64748B',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            textDecoration: 'underline',
+                            textUnderlineOffset: 2,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Điều kiện
+                        </button>
+                        <span style={{ color: pct >= 85 ? '#DC2626' : '#009643', fontWeight: 700 }}>
+                          {isSoldOut ? 'Hết lượt' : `Còn ${remaining} lượt`}
+                        </span>
+                      </div>
 
                       {isClaimed ? (
                         <button
                           type="button"
                           onClick={() => handleUseNow(v)}
+                          className="dinego-voucher-used"
                           style={{
-                            padding: '7px 14px',
-                            borderRadius: 10,
-                            border: '1.5px solid var(--primary)',
+                            padding: '5px 12px',
+                            borderRadius: 999,
+                            border: '1px solid #00B14F',
                             background: '#ECFDF5',
-                            color: '#065F46',
+                            color: '#009643',
                             fontWeight: 800,
-                            fontSize: '0.8rem',
+                            fontSize: '0.76rem',
                             cursor: 'pointer',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: 5,
+                            gap: 4,
+                            flexShrink: 0,
                           }}
                         >
                           <span>Dùng ngay</span>
-                          <ArrowRight size={14} />
+                          <ArrowRight size={12} />
                         </button>
                       ) : (
                         <button
                           type="button"
-                          disabled={
-                            isSoldOut ||
-                            !v.isActive ||
-                            !isWithinGoldenHours(v, nowMs).active ||
-                            claimingCode === v.code
-                          }
+                          disabled={isSoldOut || !v.isActive || !golden.active || claimingCode === v.code}
                           onClick={() => void handleHuntVoucher(v)}
-                          className="btn btn-primary"
+                          className="dinego-voucher-cta"
                           style={{
-                            padding: '7px 16px',
-                            borderRadius: 10,
+                            padding: '5px 14px',
+                            borderRadius: 999,
+                            border: 'none',
+                            background: isSoldOut || !v.isActive || !golden.active ? '#E2E8F0' : '#00B14F',
+                            color: isSoldOut || !v.isActive || !golden.active ? '#64748B' : '#FFFFFF',
                             fontWeight: 800,
-                            fontSize: '0.8rem',
-                            opacity:
-                              isSoldOut || !v.isActive || !isWithinGoldenHours(v, nowMs).active
-                                ? 0.55
-                                : 1,
-                            cursor:
-                              isSoldOut || !v.isActive || !isWithinGoldenHours(v, nowMs).active
-                                ? 'not-allowed'
-                                : 'pointer',
+                            fontSize: '0.76rem',
+                            cursor: isSoldOut || !v.isActive || !golden.active ? 'not-allowed' : 'pointer',
+                            flexShrink: 0,
                           }}
                         >
                           {isSoldOut
                             ? 'Hết lượt'
-                            : !isWithinGoldenHours(v, nowMs).active
-                            ? isWithinGoldenHours(v, nowMs).countdownText || `Mở lúc ${v.goldenStartTime}`
+                            : !golden.active
+                            ? golden.countdownText || `Mở lúc ${v.goldenStartTime}`
                             : claimingCode === v.code
-                            ? 'Đang săn...'
-                            : 'Săn Ngay'}
+                            ? 'Đang lưu...'
+                            : 'Lưu mã'}
                         </button>
                       )}
                     </div>
@@ -859,7 +1013,7 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
                 </div>
 
                 <div style={{ fontSize: '0.78rem', color: '#475569', background: '#F8FAFC', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', lineHeight: 1.5 }}>
-                  <strong>Điều kiện áp dụng (BR-14):</strong>
+                  <strong>Điều kiện áp dụng:</strong>
                   <ul style={{ margin: '4px 0 0 18px', padding: 0 }}>
                     <li>Mỗi đơn hàng chỉ áp dụng tối đa 01 mã khuyến mãi.</li>
                     <li>Không áp dụng đồng thời với mã giảm giá khác, không quy đổi thành tiền mặt.</li>
@@ -887,20 +1041,37 @@ export const VoucherHuntPage: React.FC<VoucherHuntPageProps> = ({
                     >
                       Dùng ngay
                     </button>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={dvSoldOut || !dv.isActive || claimingCode === dv.code}
-                      onClick={() => {
-                        void handleHuntVoucher(dv);
-                        setDetailVoucher(null);
-                      }}
-                      className="btn btn-primary"
-                      style={{ padding: '9px 18px', borderRadius: 10, fontWeight: 800, fontSize: '0.82rem' }}
-                    >
-                      {dvSoldOut ? 'Hết lượt' : 'Săn Ngay'}
-                    </button>
-                  )}
+                  ) : (() => {
+                    const dvGolden = isWithinGoldenHours(dv, nowMs);
+                    const dvDisabled = dvSoldOut || !dv.isActive || !dvGolden.active || claimingCode === dv.code;
+                    return (
+                      <button
+                        type="button"
+                        disabled={dvDisabled}
+                        onClick={() => {
+                          void handleHuntVoucher(dv);
+                          setDetailVoucher(null);
+                        }}
+                        className="btn btn-primary"
+                        style={{
+                          padding: '9px 18px',
+                          borderRadius: 10,
+                          fontWeight: 800,
+                          fontSize: '0.82rem',
+                          opacity: dvDisabled ? 0.55 : 1,
+                          cursor: dvDisabled ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {dvSoldOut
+                          ? 'Hết lượt'
+                          : !dvGolden.active
+                          ? dvGolden.countdownText || `Mở lúc ${dv.goldenStartTime}`
+                          : claimingCode === dv.code
+                          ? 'Đang săn...'
+                          : 'Săn Ngay'}
+                      </button>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

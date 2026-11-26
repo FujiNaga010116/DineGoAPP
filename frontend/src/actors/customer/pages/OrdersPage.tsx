@@ -401,29 +401,11 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
         }}
       >
         <div>
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '4px 12px',
-              borderRadius: 999,
-              background: 'rgba(0, 177, 79, 0.1)',
-              color: 'var(--primary)',
-              fontSize: '0.74rem',
-              fontWeight: 800,
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              marginBottom: 6,
-            }}
-          >
-            <ClipboardList size={13} /> Tiến Trình Đơn Hàng Thời Gian Thực
-          </div>
-          <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+          <h1 style={{ fontSize: '1.7rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
             Đơn hàng của tôi
           </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '4px 0 0 0' }}>
-            Theo dõi tiến trình thời gian thực có sự phối hợp giữa Khách hàng, Quán ăn và Tài xế
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: '4px 0 0 0' }}>
+            Theo dõi trạng thái đơn đang giao và lịch sử đặt món của bạn
           </p>
         </div>
 
@@ -1271,12 +1253,12 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Clock size={16} color="var(--primary)" />
-                    <span>Tiến trình đơn hàng trực tiếp:</span>
+                    <span>Tiến trình đơn hàng</span>
                   </div>
                   <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                    Bước {Math.min(currentStepNum, 6)}/6: {STATUS_LABELS[selectedOrder.status]?.text}
+                    Bước {Math.min(currentStepNum, 6)}/6 • {STATUS_LABELS[selectedOrder.status]?.text}
                   </span>
                 </div>
 
@@ -1313,9 +1295,9 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                   {/* Step Nodes */}
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', position: 'relative', zIndex: 1 }}>
                     {TIMELINE_MILESTONES.map((m) => {
-                      const isPast = currentStepNum > m.stepNum;
-                      const isCurrent = currentStepNum === m.stepNum;
-                      const isFuture = currentStepNum < m.stepNum;
+                      const isDoneAll = currentStepNum >= 6 && m.stepNum === 6;
+                      const isPast = currentStepNum > m.stepNum || isDoneAll;
+                      const isCurrent = !isDoneAll && currentStepNum === m.stepNum;
 
                       return (
                         <div key={m.status} style={{ textAlign: 'center', width: 72 }}>
@@ -1325,16 +1307,12 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                               width: 32,
                               height: 32,
                               borderRadius: '50%',
-                              background: isPast
-                                ? '#00B14F'
-                                : isCurrent
-                                ? '#FFFFFF'
-                                : '#FFFFFF',
+                              background: isPast ? '#00B14F' : '#FFFFFF',
                               border: isPast
                                 ? '2px solid #00B14F'
                                 : isCurrent
                                 ? '3px solid #00B14F'
-                                : '2.5px solid #CBD5E1',
+                                : '2px solid #CBD5E1',
                               color: isPast
                                 ? '#FFFFFF'
                                 : isCurrent
@@ -1347,7 +1325,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                               fontSize: '0.84rem',
                               fontWeight: 800,
                               boxShadow: isCurrent
-                                ? '0 0 0 5px rgba(0, 177, 79, 0.22), 0 4px 10px rgba(0, 177, 79, 0.25)'
+                                ? '0 0 0 5px rgba(0, 177, 79, 0.2), 0 4px 10px rgba(0, 177, 79, 0.22)'
                                 : 'none',
                               transition: 'all 0.3s ease',
                             }}
@@ -1359,9 +1337,9 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                           <div
                             style={{
                               fontSize: '0.76rem',
-                              fontWeight: isCurrent ? 800 : isPast ? 700 : 600,
-                              color: isCurrent
-                                ? '#00B14F'
+                              fontWeight: isCurrent || isDoneAll ? 800 : isPast ? 700 : 600,
+                              color: isCurrent || isDoneAll
+                                ? '#009643'
                                 : isPast
                                 ? 'var(--text-main)'
                                 : 'var(--text-muted)',
@@ -1372,15 +1350,12 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                             {m.label}
                           </div>
 
-                          {/* Actor Badge */}
+                          {/* Clean Unified Subtitle */}
                           <div
                             style={{
-                              fontSize: '0.66rem',
+                              fontSize: '0.67rem',
                               fontWeight: 600,
-                              color: isCurrent || isPast ? m.actorColor : '#94A3B8',
-                              background: isCurrent || isPast ? '#FFFFFF' : 'transparent',
-                              padding: '2px 4px',
-                              borderRadius: 4,
+                              color: isCurrent || isPast ? '#64748B' : '#94A3B8',
                               display: 'inline-block',
                               whiteSpace: 'nowrap',
                             }}
@@ -1406,12 +1381,12 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                 marginBottom: 22,
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <ShieldCheck size={16} color="#0284C7" />
-                  <span>Điều phối liên tác nhân (Actor Coordination):</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+                <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <ShieldCheck size={16} color="#00B14F" />
+                  <span>Thông tin quán &amp; Tài xế</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                   <button
                     type="button"
                     onClick={() => handleOpenOrderChat(selectedOrder, 'CUSTOMER_MERCHANT')}
@@ -1419,14 +1394,15 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: 5,
-                      padding: '5px 12px',
-                      borderRadius: 8,
-                      background: '#059669',
+                      padding: '6px 12px',
+                      borderRadius: 999,
+                      background: '#00B14F',
                       color: '#FFFFFF',
                       fontSize: '0.76rem',
                       fontWeight: 700,
                       border: 'none',
                       cursor: 'pointer',
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     <MessageSquare size={13} />
@@ -1440,14 +1416,15 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: 5,
-                        padding: '5px 12px',
-                        borderRadius: 8,
-                        background: '#0284C7',
-                        color: '#FFFFFF',
+                        padding: '6px 12px',
+                        borderRadius: 999,
+                        background: '#EFF6FF',
+                        color: '#0284C7',
+                        border: '1px solid #BAE6FD',
                         fontSize: '0.76rem',
                         fontWeight: 700,
-                        border: 'none',
                         cursor: 'pointer',
+                        whiteSpace: 'nowrap',
                       }}
                     >
                       <Navigation size={12} />

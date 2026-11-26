@@ -3,7 +3,7 @@
 // Verified Partner Badge, Cover Banner, Category Filters, Dish Cards, Customizer Modal
 // ==============================================================================
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   ArrowLeft,
   Star,
@@ -14,14 +14,10 @@ import {
   Check,
   CheckCircle2,
   ShoppingBag,
-  Sparkles,
   ShieldCheck,
-  Tag,
   Search,
-  ThumbsUp,
   Share2,
   Ticket,
-  Store,
   AlertTriangle,
 } from 'lucide-react';
 import { MOCK_MENU_ITEMS } from '../../../api/client';
@@ -52,6 +48,22 @@ interface RestaurantPageProps {
   currentUser?: User | null;
   onRequireAddressSetup?: (afterSetup: () => void) => void;
 }
+
+const getStoreVoucherBg = (m: Merchant): string => {
+  const name = (m.name || '').toLowerCase();
+  if (name.includes('phở')) return '/images/pho-thin.jpg';
+  if (name.includes('trà sữa') || name.includes('cà phê') || name.includes('gong cha')) {
+    return '/images/tra-sua-ca-phe.jpg';
+  }
+  if (name.includes('pizza') || name.includes('pasta')) return '/images/pizza-artisan.jpg';
+  if (name.includes('cơm')) return '/images/catering-housewarming.jpg';
+  if (name.includes('bún')) return '/images/feast-bbq.jpg';
+  if (name.includes('bánh')) return '/images/feast-buffet.jpg';
+  if (name.includes('cỗ') || name.includes('tiệc') || name.includes('hoàng gia')) {
+    return '/images/catering-memorial.jpg';
+  }
+  return m.coverUrl || m.storeFrontImage || m.logoUrl || '/images/feast-buffet.jpg';
+};
 
 export const RestaurantPage: React.FC<RestaurantPageProps> = ({
   merchant,
@@ -200,29 +212,36 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
     };
   }, [currentUser?.id, merchant.id]);
 
-  // Active Shop Vouchers belonging exclusively to this restaurant
-  const shopVouchers = useMemo(
-    () =>
-      allVouchers.filter(
-        (v) =>
-          v.isActive !== false &&
-          v.merchantId === merchant.id &&
-          Number(v.usageCount || 0) < Number(v.maxUsage || 999999),
-      ),
-    [allVouchers, merchant.id],
-  );
+  // Active & non-expired Shop Vouchers belonging exclusively to this restaurant
+  const shopVouchers = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const merchantNameLower = (merchant.name || '').toLowerCase();
+    return allVouchers.filter(
+      (v) =>
+        v.isActive !== false &&
+        (!v.endDate || v.endDate >= todayStr) &&
+        (v.merchantId === merchant.id ||
+          (v.merchantId &&
+            v.merchantId !== 'ALL' &&
+            v.merchantName &&
+            v.merchantName.toLowerCase() === merchantNameLower)) &&
+        Math.max(Number(v.claimedCount || 0), Number(v.usageCount || 0)) <
+          Number(v.maxUsage || 999999),
+    );
+  }, [allVouchers, merchant.id, merchant.name]);
 
-  // Active Platform Vouchers usable at any restaurant
-  const platformVouchers = useMemo(
-    () =>
-      allVouchers.filter(
-        (v) =>
-          v.isActive !== false &&
-          (!v.merchantId || v.merchantId === 'ALL') &&
-          Number(v.usageCount || 0) < Number(v.maxUsage || 999999),
-      ),
-    [allVouchers],
-  );
+  // Active & non-expired Platform Vouchers usable at any restaurant
+  const platformVouchers = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return allVouchers.filter(
+      (v) =>
+        v.isActive !== false &&
+        (!v.endDate || v.endDate >= todayStr) &&
+        (!v.merchantId || v.merchantId === 'ALL') &&
+        Math.max(Number(v.claimedCount || 0), Number(v.usageCount || 0)) <
+          Number(v.maxUsage || 999999),
+    );
+  }, [allVouchers]);
 
   const handleSelectStoreVoucher = async (v: ManagedVoucher) => {
     const codeUpper = v.code.toUpperCase();
@@ -263,15 +282,51 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
 
   const rawMenuItems = (menuItems && menuItems[merchant.id]) || MOCK_MENU_ITEMS[merchant.id] || [];
 
-  // Group categories dynamically
+  // Group categories dynamically (aligned with category || categoryName in filter)
   const categories = useMemo(() => {
     const list = [{ id: 'all', label: 'Tất cả món' }];
-    const uniqueCats = Array.from(new Set(rawMenuItems.map((i) => i.category || 'Món chính')));
+    const uniqueCats = Array.from(
+      new Set(rawMenuItems.map((i) => i.category || i.categoryName || 'Món chính')),
+    );
     uniqueCats.forEach((cat) => {
       list.push({ id: cat, label: cat });
     });
     return list;
   }, [rawMenuItems]);
+
+  const catTrackRef = useRef<HTMLDivElement | null>(null);
+  const catBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const catDragRef = useRef<{ active: boolean; moved: boolean; startX: number; startLeft: number }>({
+    active: false,
+    moved: false,
+    startX: 0,
+    startLeft: 0,
+  });
+  const [catPill, setCatPill] = useState<{
+    left: number;
+    width: number;
+    dragging: boolean;
+    ready: boolean;
+  }>({ left: 0, width: 0, dragging: false, ready: false });
+
+  useEffect(() => {
+    const syncCatPill = () => {
+      const btn = catBtnRefs.current[activeCategory];
+      if (!btn) return;
+      setCatPill((prev) => ({
+        left: btn.offsetLeft,
+        width: btn.offsetWidth,
+        dragging: false,
+        ready: true,
+      }));
+    };
+    const rafId = window.requestAnimationFrame(syncCatPill);
+    window.addEventListener('resize', syncCatPill);
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', syncCatPill);
+    };
+  }, [activeCategory, categories.length]);
 
   const filteredMenuItems = useMemo(() => {
     return rawMenuItems.filter((dish) => {
@@ -439,53 +494,37 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
           marginBottom: 28,
         }}
       >
-        <div style={{ height: 240, position: 'relative' }}>
+        <div style={{ height: 220, position: 'relative', background: '#F1F5F9' }}>
           <img
-            src={merchant.coverUrl}
+            src={merchant.coverUrl || getStoreVoucherBg(merchant)}
             alt={merchant.name}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           />
           <div
             style={{
               position: 'absolute',
               inset: 0,
-              background: 'linear-gradient(to top, rgba(15, 23, 42, 0.85) 0%, rgba(15, 23, 42, 0.2) 60%, transparent 100%)',
+              background: 'linear-gradient(to top, rgba(15, 23, 42, 0.55) 0%, rgba(15, 23, 42, 0.08) 55%, transparent 100%)',
             }}
           />
-          {/* Status & Badge Pills on Cover */}
-          <div style={{ position: 'absolute', top: 16, left: 16, display: 'flex', gap: 8 }}>
+          {/* Single Clean Verified Partner Badge */}
+          <div style={{ position: 'absolute', top: 14, left: 14 }}>
             <span
               style={{
-                background: 'rgba(0, 177, 79, 0.95)',
-                color: '#fff',
-                padding: '6px 14px',
+                background: 'rgba(0, 177, 79, 0.92)',
+                color: '#FFFFFF',
+                padding: '5px 12px',
                 borderRadius: 999,
-                fontSize: '0.82rem',
+                fontSize: '0.78rem',
                 fontWeight: 700,
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
                 gap: 5,
                 backdropFilter: 'blur(4px)',
               }}
             >
               <ShieldCheck size={14} />
-              DineGo Partner Quán Chuẩn
-            </span>
-            <span
-              style={{
-                background: 'rgba(255, 87, 34, 0.95)',
-                color: '#fff',
-                padding: '6px 14px',
-                borderRadius: 999,
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-              }}
-            >
-              <ThumbsUp size={13} />
-              Quán ngon chọn lọc
+              Đối tác xác thực
             </span>
           </div>
         </div>
@@ -605,112 +644,28 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
                 <span>{merchant.address}</span>
               </div>
 
-              {/* KYC Anti-Fraud Verification Badge & Owner Name */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  marginTop: 10,
-                  flexWrap: 'wrap',
-                }}
-              >
-                <span
-                  style={{
-                    background: 'rgba(0, 177, 79, 0.1)',
-                    color: '#059669',
-                    padding: '4px 10px',
-                    borderRadius: 8,
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 5,
-                  }}
-                >
-                  <ShieldCheck size={14} /> Quán Thực Tế Đã Thẩm Định KYC
-                </span>
-                {merchant.ownerName && (
-                  <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                    Chủ quán: <strong style={{ color: 'var(--text-main)' }}>{merchant.ownerName}</strong>
-                  </span>
-                )}
-                {merchant.phoneNumber && (
-                  <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                    Hotline: <strong style={{ color: 'var(--primary)' }}>{merchant.phoneNumber}</strong>
-                  </span>
-                )}
-              </div>
-
-              {/* Promo Vouchers Ribbon (Only shows real vouchers created by Shop or Admin) */}
-              {(shopVouchers.length > 0 || platformVouchers.length > 0) && (
+              {(merchant.ownerName || merchant.phoneNumber) && (
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 10,
-                    marginTop: 16,
+                    gap: 14,
+                    marginTop: 8,
                     flexWrap: 'wrap',
+                    fontSize: '0.82rem',
+                    color: 'var(--text-muted)',
                   }}
                 >
-                  {shopVouchers.slice(0, 3).map((sv) => (
-                    <button
-                      key={sv.id}
-                      type="button"
-                      onClick={() => handleSelectStoreVoucher(sv)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        background: 'rgba(217, 119, 6, 0.1)',
-                        border: '1px dashed #D97706',
-                        padding: '6px 14px',
-                        borderRadius: 10,
-                        color: '#B45309',
-                        fontSize: '0.82rem',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <Store size={14} />
-                      <span>
-                        Voucher Quán {sv.code}:{' '}
-                        {sv.discountType === 'PERCENTAGE'
-                          ? `Giảm ${sv.discountValue}%${sv.maxDiscountAmount ? ` (tối đa ${(sv.maxDiscountAmount / 1000).toFixed(0)}k)` : ''}`
-                          : `Giảm ${(sv.discountValue / 1000).toFixed(0)}k`}{' '}
-                        đơn từ {(sv.minOrder / 1000).toFixed(0)}k
-                      </span>
-                    </button>
-                  ))}
-                  {platformVouchers.slice(0, 2).map((pv) => (
-                    <button
-                      key={pv.id}
-                      type="button"
-                      onClick={() => handleSelectStoreVoucher(pv)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        background: 'rgba(0, 177, 79, 0.08)',
-                        border: '1px dashed var(--primary)',
-                        padding: '6px 14px',
-                        borderRadius: 10,
-                        color: 'var(--primary)',
-                        fontSize: '0.82rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <Tag size={14} />
-                      <span>
-                        Mã Sàn {pv.code}:{' '}
-                        {pv.discountType === 'PERCENTAGE'
-                          ? `Giảm ${pv.discountValue}%`
-                          : `Giảm ${(pv.discountValue / 1000).toFixed(0)}k`}{' '}
-                        đơn từ {(pv.minOrder / 1000).toFixed(0)}k
-                      </span>
-                    </button>
-                  ))}
+                  {merchant.ownerName && (
+                    <span>
+                      Chủ quán: <strong style={{ color: 'var(--text-main)' }}>{merchant.ownerName}</strong>
+                    </span>
+                  )}
+                  {merchant.phoneNumber && (
+                    <span>
+                      Hotline: <strong style={{ color: 'var(--primary)' }}>{merchant.phoneNumber}</strong>
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -750,18 +705,61 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
         </div>
       </div>
 
-      {/* Storefront Exclusive Shop Vouchers & Platform Vouchers Section */}
+      {/* Storefront Exclusive Shop Vouchers & Platform Vouchers Section (Synced with VoucherHuntPage) */}
       {(shopVouchers.length > 0 || platformVouchers.length > 0) && (
         <div
           style={{
-            background: 'linear-gradient(135deg, #FFFBEB 0%, #FFFFFF 65%, #F0FDF4 100%)',
+            background: '#FFFFFF',
             borderRadius: 18,
-            padding: '18px 22px',
-            border: '1.5px solid #FDE68A',
-            boxShadow: 'var(--shadow-sm)',
+            padding: '18px 20px',
+            border: '1px solid #E2E8F0',
+            boxShadow: '0 2px 10px rgba(15, 23, 42, 0.04)',
             marginBottom: 24,
           }}
         >
+          <style>{`
+            .dinego-shop-voucher {
+              transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+            }
+            .dinego-shop-voucher:hover {
+              transform: translateY(-2px);
+              border-color: #86EFAC !important;
+              box-shadow: 0 10px 22px rgba(0, 177, 79, 0.12) !important;
+            }
+            .dinego-shop-voucher .dinego-shop-voucher-img {
+              transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+            }
+            .dinego-shop-voucher:hover .dinego-shop-voucher-img {
+              transform: scale(1.06);
+            }
+            .dinego-shop-voucher-btn {
+              transition: background-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+            }
+            .dinego-shop-voucher-btn:not(:disabled):hover {
+              background-color: #009643 !important;
+              transform: translateY(-1px);
+              box-shadow: 0 4px 10px rgba(0, 177, 79, 0.26);
+            }
+            .dinego-voucher-scroll {
+              scrollbar-width: thin;
+              scrollbar-color: rgba(0, 177, 79, 0.42) #F1F5F9;
+            }
+            .dinego-voucher-scroll::-webkit-scrollbar {
+              height: 6px;
+            }
+            .dinego-voucher-scroll::-webkit-scrollbar-track {
+              background: #F1F5F9;
+              border-radius: 999px;
+            }
+            .dinego-voucher-scroll::-webkit-scrollbar-thumb {
+              background: rgba(0, 177, 79, 0.36);
+              border-radius: 999px;
+              transition: background-color 0.2s ease;
+            }
+            .dinego-voucher-scroll::-webkit-scrollbar-thumb:hover {
+              background: rgba(0, 177, 79, 0.72);
+            }
+          `}</style>
           <div
             style={{
               display: 'flex',
@@ -778,21 +776,21 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
                   width: 36,
                   height: 36,
                   borderRadius: 10,
-                  background: '#FEF3C7',
-                  color: '#D97706',
+                  background: '#ECFDF5',
+                  color: '#009643',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <Ticket size={20} />
+                <Ticket size={19} />
               </div>
               <div>
-                <div style={{ fontSize: '1.02rem', fontWeight: 800, color: '#0F172A' }}>
-                  Mã Ưu Đãi Của Quán &amp; Khuyến Mãi Áp Dụng Tại {merchant.name}
+                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A' }}>
+                  Ưu đãi áp dụng tại {merchant.name}
                 </div>
-                <div style={{ fontSize: '0.8rem', color: '#64748B' }}>
-                  Bấm <strong>"Lưu &amp; Áp mã"</strong> để áp dụng trực tiếp vào đơn hàng của bạn tại quán
+                <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
+                  Lưu &amp; áp dụng mã trực tiếp vào giỏ hàng của bạn
                 </div>
               </div>
             </div>
@@ -800,25 +798,30 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
               style={{
                 padding: '4px 12px',
                 borderRadius: 999,
-                background: '#FEF3C7',
-                color: '#B45309',
-                fontSize: '0.78rem',
-                fontWeight: 800,
+                background: '#ECFDF5',
+                color: '#009643',
+                border: '1px solid #BBF7D0',
+                fontSize: '0.76rem',
+                fontWeight: 700,
               }}
             >
-              {shopVouchers.length} mã của quán • {platformVouchers.length} mã toàn sàn
+              {shopVouchers.length} mã quán • {platformVouchers.length} mã toàn sàn
             </span>
           </div>
 
           <div
+            className="dinego-voucher-scroll"
             style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))',
+              display: 'flex',
+              alignItems: 'stretch',
               gap: 12,
+              overflowX: 'auto',
+              padding: '4px 2px 10px',
+              scrollSnapType: 'x mandatory',
             }}
           >
-            {[...shopVouchers, ...platformVouchers.slice(0, 3)].map((v) => {
-              const isShopVoucher = v.merchantId && v.merchantId !== 'ALL';
+            {[...shopVouchers, ...platformVouchers].map((v) => {
+              const isShopVoucher = Boolean(v.merchantId && v.merchantId !== 'ALL');
               const codeUpper = v.code.toUpperCase();
               const isAppliedNow =
                 cart.merchantId === merchant.id &&
@@ -826,139 +829,295 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
                 cart.voucherCode.toUpperCase() === codeUpper;
               const isPreselected = !isAppliedNow && preselectedCode === codeUpper;
               const isClaimed = claimedCodes.includes(codeUpper);
-              const remaining = Math.max(0, Number(v.maxUsage || 200) - Number(v.usageCount || 0));
+              const claimedOrUsed = Math.max(Number(v.claimedCount || 0), Number(v.usageCount || 0));
+              const maxQuota = Math.max(1, Number(v.maxUsage || 200));
+              const pct = Math.min(100, Math.round((claimedOrUsed / maxQuota) * 100));
+              const remaining = Math.max(0, maxQuota - claimedOrUsed);
+              const shortDiscount =
+                v.discountType === 'PERCENTAGE'
+                  ? `${v.discountValue}%`
+                  : v.discountValue >= 1000
+                    ? `${Math.round(Number(v.discountValue) / 1000)}K`
+                    : `${v.discountValue}đ`;
+              const golden = isWithinGoldenHours(v, nowMs);
 
               return (
                 <div
                   key={v.id}
+                  className="dinego-shop-voucher"
                   style={{
+                    flex: '0 0 336px',
+                    maxWidth: '86vw',
+                    scrollSnapAlign: 'start',
                     background: '#FFFFFF',
                     borderRadius: 14,
                     border: isAppliedNow
-                      ? '2px solid #00B14F'
-                      : isShopVoucher
-                      ? '1.5px solid #F59E0B'
+                      ? '1.5px solid #00B14F'
                       : '1px solid #E2E8F0',
-                    padding: '12px 14px',
+                    height: 114,
                     display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                    boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
+                    overflow: 'visible',
+                    boxShadow: isAppliedNow
+                      ? '0 4px 12px rgba(0, 177, 79, 0.1)'
+                      : '0 2px 6px rgba(15, 23, 42, 0.04)',
+                    position: 'relative',
                   }}
                 >
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
-                      <span
+                  {/* Left Perforated Stub */}
+                  <div
+                    style={{
+                      width: 92,
+                      flexShrink: 0,
+                      background: isShopVoucher
+                        ? '#0F172A'
+                        : 'linear-gradient(160deg, #ECFDF5 0%, #D1FAE5 100%)',
+                      borderRadius: '13px 0 0 13px',
+                      padding: '8px 6px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: isShopVoucher ? 'flex-end' : 'center',
+                      textAlign: 'center',
+                      borderRight: '1.5px dashed #CBD5E1',
+                      position: 'relative',
+                    }}
+                  >
+                    {isShopVoucher && (
+                      <div
+                        aria-hidden="true"
                         style={{
-                          padding: '2px 8px',
-                          borderRadius: 6,
-                          fontSize: '0.68rem',
-                          fontWeight: 800,
-                          background: isShopVoucher ? '#FEF3C7' : '#EEF2FF',
-                          color: isShopVoucher ? '#B45309' : '#4F46E5',
+                          position: 'absolute',
+                          inset: 0,
+                          borderRadius: '13px 0 0 13px',
+                          overflow: 'hidden',
+                          pointerEvents: 'none',
                         }}
                       >
-                        {isShopVoucher ? '🏪 Voucher Quán' : '🌐 Toàn sàn'}
+                        <img
+                          src={getStoreVoucherBg(merchant)}
+                          alt=""
+                          loading="lazy"
+                          className="dinego-shop-voucher-img"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                        />
+                        <div
+                          style={{
+                            position: 'absolute',
+                            inset: 0,
+                            background:
+                              'linear-gradient(180deg, rgba(15,23,42,0.04) 0%, rgba(15,23,42,0.28) 45%, rgba(15,23,42,0.85) 100%)',
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: 'absolute',
+                        top: -6,
+                        right: -6,
+                        width: 11,
+                        height: 11,
+                        borderRadius: '50%',
+                        background: '#FFFFFF',
+                        borderBottom: '1px solid #E2E8F0',
+                        zIndex: 2,
+                      }}
+                    />
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: 'absolute',
+                        bottom: -6,
+                        right: -6,
+                        width: 11,
+                        height: 11,
+                        borderRadius: '50%',
+                        background: '#FFFFFF',
+                        borderTop: '1px solid #E2E8F0',
+                        zIndex: 2,
+                      }}
+                    />
+
+                    {!isShopVoucher && (
+                      <img
+                        src="/images/dinego-logo.png"
+                        alt="DineGo"
+                        loading="lazy"
+                        style={{
+                          width: 30,
+                          height: 30,
+                          borderRadius: 8,
+                          objectFit: 'contain',
+                          background: '#FFFFFF',
+                          border: '1px solid #BBF7D0',
+                          padding: 3,
+                          marginBottom: 4,
+                          position: 'relative',
+                          zIndex: 1,
+                        }}
+                      />
+                    )}
+                    <div
+                      style={{
+                        position: 'relative',
+                        zIndex: 1,
+                        fontSize: '1.08rem',
+                        fontWeight: 900,
+                        color: isShopVoucher ? '#FFFFFF' : '#009643',
+                        lineHeight: 1.05,
+                        textShadow: isShopVoucher ? '0 2px 6px rgba(0,0,0,0.65)' : 'none',
+                      }}
+                    >
+                      -{shortDiscount}
+                    </div>
+                    <div
+                      style={{
+                        position: 'relative',
+                        zIndex: 1,
+                        fontSize: '0.64rem',
+                        fontWeight: 700,
+                        color: isShopVoucher ? 'rgba(255,255,255,0.92)' : '#047857',
+                        marginTop: 2,
+                      }}
+                    >
+                      {isShopVoucher ? 'Tại quán' : 'Toàn sàn'}
+                    </div>
+                  </div>
+
+                  {/* Right Body */}
+                  <div
+                    style={{
+                      flex: 1,
+                      padding: '9px 12px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      minWidth: 0,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                      <span
+                        style={{
+                          background: '#F8FAFC',
+                          border: '1px dashed #CBD5E1',
+                          borderRadius: 6,
+                          padding: '1px 7px',
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          color: '#0F172A',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {v.code}
                       </span>
-                      <span style={{ fontWeight: 900, fontSize: '0.9rem', color: '#0F172A' }}>{v.code}</span>
                       {isClaimed && (
-                        <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#059669' }}>
-                          • Đã lưu ví
+                        <span style={{ fontSize: '0.66rem', fontWeight: 700, color: '#009643', whiteSpace: 'nowrap' }}>
+                          Đã lưu ví
                         </span>
                       )}
                     </div>
-                    <div style={{ fontWeight: 800, fontSize: '0.88rem', color: isShopVoucher ? '#D97706' : '#00B14F' }}>
-                      {v.discountType === 'PERCENTAGE'
-                        ? `Giảm ${v.discountValue}%${v.maxDiscountAmount ? ` (Tối đa ${(v.maxDiscountAmount / 1000).toFixed(0)}k)` : ''}`
-                        : `Giảm ${Number(v.discountValue).toLocaleString('vi-VN')}đ`}
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: 2 }}>
-                      Đơn tối thiểu {Number(v.minOrder).toLocaleString('vi-VN')}đ • Còn {remaining} lượt
-                    </div>
-                    {(() => {
-                      const golden = isWithinGoldenHours(v, nowMs);
-                      if (!golden.label) return null;
-                      return (
-                        <div
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            marginTop: 5,
-                            padding: '2px 8px',
-                            borderRadius: 999,
-                            background: golden.active ? '#FFEDD5' : '#FEF3C7',
-                            color: golden.active ? '#C2410C' : '#B45309',
-                            fontSize: '0.7rem',
-                            fontWeight: 800,
-                          }}
-                        >
-                          ⚡ {golden.label} • {golden.countdownText}
-                        </div>
-                      );
-                    })()}
-                  </div>
 
-                  {isAppliedNow ? (
-                    <button
-                      type="button"
-                      onClick={() => removeVoucher()}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: 10,
-                        background: '#DCFCE7',
-                        color: '#15803D',
-                        border: '1px solid #86EFAC',
-                        fontSize: '0.76rem',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      ✓ Đang áp dụng
-                    </button>
-                  ) : (() => {
-                    const golden = isWithinGoldenHours(v, nowMs);
-                    return (
-                      <button
-                        type="button"
-                        disabled={!golden.active}
-                        onClick={() => handleSelectStoreVoucher(v)}
+                    <div style={{ minWidth: 0 }}>
+                      <div
                         style={{
-                          padding: '8px 14px',
-                          borderRadius: 10,
-                          background: !golden.active
-                            ? '#E2E8F0'
-                            : isPreselected
-                            ? '#FEF3C7'
-                            : isShopVoucher
-                            ? '#D97706'
-                            : 'var(--primary)',
-                          color: !golden.active
-                            ? '#64748B'
-                            : isPreselected
-                            ? '#B45309'
-                            : '#FFFFFF',
-                          border: isPreselected && golden.active ? '1px solid #F59E0B' : 'none',
-                          fontSize: '0.78rem',
                           fontWeight: 800,
-                          cursor: !golden.active ? 'not-allowed' : 'pointer',
+                          fontSize: '0.92rem',
+                          color: '#0F172A',
                           whiteSpace: 'nowrap',
-                          boxShadow:
-                            !golden.active || isPreselected
-                              ? 'none'
-                              : '0 4px 10px rgba(217, 119, 6, 0.2)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
                         }}
                       >
-                        {!golden.active
-                          ? golden.countdownText || `Mở lúc ${v.goldenStartTime}`
-                          : isPreselected
-                          ? '⏳ Đã chọn mã'
-                          : 'Lưu & Áp mã'}
-                      </button>
-                    );
-                  })()}
+                        {v.discountType === 'PERCENTAGE'
+                          ? `Giảm ${v.discountValue}%${v.maxDiscountAmount ? ` • Tối đa ${(v.maxDiscountAmount / 1000).toFixed(0)}k` : ''}`
+                          : `Giảm ${Number(v.discountValue).toLocaleString('vi-VN')}đ`}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '0.72rem',
+                          color: '#64748B',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        Đơn từ {Number(v.minOrder).toLocaleString('vi-VN')}đ
+                        {golden.label ? ` • ${golden.label}` : ''}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div style={{ height: 3, borderRadius: 999, background: '#F1F5F9', overflow: 'hidden', marginBottom: 6 }}>
+                        <div
+                          style={{
+                            height: '100%',
+                            width: `${pct}%`,
+                            background: pct >= 85 ? '#EF4444' : '#00B14F',
+                            borderRadius: 999,
+                          }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 700, color: pct >= 85 ? '#DC2626' : '#009643' }}>
+                          Còn {remaining} lượt
+                        </span>
+
+                        {isAppliedNow ? (
+                          <button
+                            type="button"
+                            onClick={() => removeVoucher()}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: 999,
+                              background: '#ECFDF5',
+                              color: '#009643',
+                              border: '1px solid #00B14F',
+                              fontSize: '0.72rem',
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            ✓ Đang áp dụng
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={!golden.active}
+                            onClick={() => handleSelectStoreVoucher(v)}
+                            className="dinego-shop-voucher-btn"
+                            style={{
+                              padding: '4px 12px',
+                              borderRadius: 999,
+                              background: !golden.active
+                                ? '#E2E8F0'
+                                : isPreselected
+                                ? '#ECFDF5'
+                                : '#00B14F',
+                              color: !golden.active
+                                ? '#64748B'
+                                : isPreselected
+                                ? '#009643'
+                                : '#FFFFFF',
+                              border: isPreselected && golden.active ? '1px solid #00B14F' : 'none',
+                              fontSize: '0.72rem',
+                              fontWeight: 800,
+                              cursor: !golden.active ? 'not-allowed' : 'pointer',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {!golden.active
+                              ? golden.countdownText || `Mở lúc ${v.goldenStartTime}`
+                              : isPreselected
+                              ? 'Đã chọn mã'
+                              : 'Lưu & Áp mã'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               );
             })}
@@ -982,28 +1141,166 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
           gap: 14,
         }}
       >
-        {/* Category Tabs */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              style={{
-                padding: '8px 18px',
-                borderRadius: 999,
-                fontSize: '0.88rem',
-                fontWeight: activeCategory === cat.id ? 700 : 500,
-                background: activeCategory === cat.id ? 'var(--primary)' : 'var(--bg-main)',
-                color: activeCategory === cat.id ? '#FFFFFF' : 'var(--text-main)',
-                border: activeCategory === cat.id ? '1px solid var(--primary)' : '1px solid var(--border)',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              {cat.label}
-            </button>
-          ))}
+        {/* Liquid Glass Draggable & Clickable Category Filter */}
+        <div style={{ maxWidth: '100%', overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 2 }}>
+          <div
+            ref={catTrackRef}
+            onPointerDown={(e) => {
+              const track = catTrackRef.current;
+              if (!track) return;
+              catDragRef.current = {
+                active: true,
+                moved: false,
+                startX: e.clientX,
+                startLeft: catPill.left,
+              };
+            }}
+            onPointerMove={(e) => {
+              if (!catDragRef.current.active) return;
+              const track = catTrackRef.current;
+              if (!track) return;
+              const dx = e.clientX - catDragRef.current.startX;
+              if (Math.abs(dx) > 5) {
+                catDragRef.current.moved = true;
+                try {
+                  if (!track.hasPointerCapture(e.pointerId)) {
+                    track.setPointerCapture(e.pointerId);
+                  }
+                } catch {}
+              }
+              if (!catDragRef.current.moved) return;
+              const maxLeft = Math.max(0, track.clientWidth - catPill.width - 4);
+              const clampedLeft = Math.min(maxLeft, Math.max(4, catDragRef.current.startLeft + dx));
+              setCatPill((prev) => ({ ...prev, left: clampedLeft, dragging: true }));
+
+              const center = clampedLeft + catPill.width / 2;
+              let closest = categories[0]?.id || 'all';
+              let bestDist = Infinity;
+              for (const c of categories) {
+                const btn = catBtnRefs.current[c.id];
+                if (!btn) continue;
+                const btnCenter = btn.offsetLeft + btn.offsetWidth / 2;
+                const dist = Math.abs(center - btnCenter);
+                if (dist < bestDist) {
+                  bestDist = dist;
+                  closest = c.id;
+                }
+              }
+              if (closest !== activeCategory) {
+                setActiveCategory(closest);
+              }
+            }}
+            onPointerUp={(e) => {
+              if (!catDragRef.current.active) return;
+              const wasMoved = catDragRef.current.moved;
+              catDragRef.current.active = false;
+              catDragRef.current.moved = false;
+              const track = catTrackRef.current;
+              if (track) {
+                try {
+                  if (track.hasPointerCapture(e.pointerId)) {
+                    track.releasePointerCapture(e.pointerId);
+                  }
+                } catch {}
+              }
+              if (wasMoved) {
+                const btn = catBtnRefs.current[activeCategory];
+                if (btn) {
+                  setCatPill({
+                    left: btn.offsetLeft,
+                    width: btn.offsetWidth,
+                    dragging: false,
+                    ready: true,
+                  });
+                }
+              }
+            }}
+            onPointerCancel={() => {
+              catDragRef.current.active = false;
+              catDragRef.current.moved = false;
+              const btn = catBtnRefs.current[activeCategory];
+              if (btn) {
+                setCatPill({
+                  left: btn.offsetLeft,
+                  width: btn.offsetWidth,
+                  dragging: false,
+                  ready: true,
+                });
+              }
+            }}
+            style={{
+              position: 'relative',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 3,
+              padding: 4,
+              borderRadius: 999,
+              background: 'rgba(241, 245, 249, 0.85)',
+              border: '1px solid rgba(203, 213, 225, 0.7)',
+              boxShadow: 'inset 0 1px 2px rgba(15, 23, 42, 0.05)',
+              userSelect: 'none',
+              touchAction: 'pan-y',
+              cursor: catPill.dragging ? 'grabbing' : 'grab',
+            }}
+          >
+            {catPill.ready && (
+              <div
+                aria-hidden="true"
+                style={{
+                  position: 'absolute',
+                  top: 4,
+                  bottom: 4,
+                  left: catPill.left,
+                  width: catPill.width,
+                  borderRadius: 999,
+                  background:
+                    'linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0.56) 54%, rgba(0, 177, 79, 0.12) 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.94)',
+                  boxShadow:
+                    'inset 0 1.5px 2px rgba(255, 255, 255, 0.98), inset 0 -2px 5px rgba(0, 177, 79, 0.14), 0 4px 12px rgba(15, 23, 42, 0.10)',
+                  transform: catPill.dragging ? 'scale(1.04, 1.07)' : 'scale(1)',
+                  transition: catPill.dragging
+                    ? 'transform 0.12s ease'
+                    : 'left 0.34s cubic-bezier(0.22, 1, 0.36, 1), width 0.34s cubic-bezier(0.22, 1, 0.36, 1), transform 0.22s ease',
+                  pointerEvents: 'none',
+                  zIndex: 1,
+                }}
+              />
+            )}
+            {categories.map((cat) => {
+              const isSelected = activeCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  ref={(el) => {
+                    catBtnRefs.current[cat.id] = el;
+                  }}
+                  type="button"
+                  onClick={() => {
+                    if (!catDragRef.current.moved) {
+                      setActiveCategory(cat.id);
+                    }
+                  }}
+                  style={{
+                    position: 'relative',
+                    zIndex: 2,
+                    padding: '7px 15px',
+                    borderRadius: 999,
+                    border: 'none',
+                    background: 'transparent',
+                    color: isSelected ? '#009643' : '#334155',
+                    fontSize: '0.84rem',
+                    fontWeight: isSelected ? 800 : 600,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    transition: 'color 0.18s ease',
+                  }}
+                >
+                  {cat.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Search Input in Menu */}
@@ -1035,12 +1332,11 @@ export const RestaurantPage: React.FC<RestaurantPageProps> = ({
 
       {/* Dishes Section */}
       <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
-          <Sparkles size={20} color="var(--primary)" />
-          <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-            {activeCategory === 'all' ? 'Tất cả các món thơm ngon' : activeCategory}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 18 }}>
+          <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+            {activeCategory === 'all' ? 'Thực đơn món ăn' : activeCategory}
           </h2>
-          <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 600 }}>
+          <span style={{ color: 'var(--text-muted)', fontSize: '0.88rem', fontWeight: 600 }}>
             ({filteredMenuItems.length} món)
           </span>
         </div>

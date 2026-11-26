@@ -45,6 +45,9 @@ import {
   Award,
   Upload,
   Eye,
+  EyeOff,
+  Pause,
+  Play,
   Check,
   Briefcase,
   CreditCard,
@@ -5442,15 +5445,15 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem', fontVariantNumeric: 'tabular-nums' }}>
                       <thead>
-                        <tr style={{ background: '#FAFAFA', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#64748B', fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          <th style={{ padding: '11px 18px' }}>Mã Voucher</th>
-                          <th style={{ padding: '11px 14px' }}>Sự kiện / Lễ</th>
-                          <th style={{ padding: '11px 14px' }}>Phạm vi áp dụng</th>
-                          <th style={{ padding: '11px 14px' }}>Mức giảm &amp; Điều kiện</th>
-                          <th style={{ padding: '11px 14px' }}>Đã săn / Dùng / Tổng</th>
-                          <th style={{ padding: '11px 14px' }}>Hạn dùng</th>
-                          <th style={{ padding: '11px 14px' }}>Trạng thái</th>
-                          <th style={{ padding: '11px 18px', textAlign: 'right' }}>Thao tác</th>
+                        <tr style={{ background: '#FAFAFA', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#64748B', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                          <th style={{ padding: '10px 12px' }}>Mã Voucher</th>
+                          <th style={{ padding: '10px 10px' }}>Sự kiện / Lễ</th>
+                          <th style={{ padding: '10px 10px' }}>Phạm vi áp dụng</th>
+                          <th style={{ padding: '10px 10px' }}>Mức giảm &amp; Điều kiện</th>
+                          <th style={{ padding: '10px 10px' }}>Đã săn / Dùng / Tổng</th>
+                          <th style={{ padding: '10px 10px' }}>Hạn dùng</th>
+                          <th style={{ padding: '10px 10px' }}>Trạng thái</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'right' }}>Thao tác</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -5559,68 +5562,103 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                     {v.isFlashHunt !== false ? 'Hiển thị Săn Voucher' : 'Ẩn khỏi Săn Voucher'}
                                   </div>
                                 </td>
-                                <td style={{ padding: '12px 18px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                  <div style={{ display: 'inline-flex', gap: 5, justifyContent: 'flex-end' }}>
+                                <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
                                     <button
                                       type="button"
                                       onClick={() => handleStartEditAdminVoucher(v)}
+                                      title="Chỉnh sửa mã"
+                                      aria-label="Chỉnh sửa mã"
                                       style={{
-                                        padding: '5px 10px',
-                                        borderRadius: 6,
+                                        width: 28,
+                                        height: 28,
+                                        padding: 0,
+                                        borderRadius: 7,
                                         border: '1px solid #E2E8F0',
                                         background: '#F8FAFC',
-                                        color: '#0F172A',
-                                        fontSize: '0.74rem',
-                                        fontWeight: 600,
+                                        color: '#334155',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
                                         cursor: 'pointer',
+                                        transition: 'all 0.15s ease',
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        e.currentTarget.style.borderColor = '#93C5FD';
+                                        e.currentTarget.style.background = '#EFF6FF';
+                                        e.currentTarget.style.color = '#2563EB';
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        e.currentTarget.style.borderColor = '#E2E8F0';
+                                        e.currentTarget.style.background = '#F8FAFC';
+                                        e.currentTarget.style.color = '#334155';
                                       }}
                                     >
-                                      Sửa
+                                      <Edit3 size={13} />
                                     </button>
+
                                     <button
                                       type="button"
                                       onClick={() => toggleVoucherFlashHunt(v.id)}
+                                      title={v.isFlashHunt !== false ? 'Đang hiện ở Săn Voucher (bấm để ẩn)' : 'Đang ẩn khỏi Săn Voucher (bấm để mở)'}
+                                      aria-label={v.isFlashHunt !== false ? 'Ẩn khỏi Săn Voucher' : 'Hiển thị trên Săn Voucher'}
                                       style={{
-                                        padding: '5px 10px',
-                                        borderRadius: 6,
-                                        border: '1px solid #E2E8F0',
-                                        background: '#FFFFFF',
-                                        color: '#475569',
-                                        fontSize: '0.74rem',
-                                        fontWeight: 600,
+                                        width: 28,
+                                        height: 28,
+                                        padding: 0,
+                                        borderRadius: 7,
+                                        border: v.isFlashHunt !== false ? '1px solid #BBF7D0' : '1px solid #E2E8F0',
+                                        background: v.isFlashHunt !== false ? '#F0FDF4' : '#F8FAFC',
+                                        color: v.isFlashHunt !== false ? '#059669' : '#94A3B8',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
                                         cursor: 'pointer',
+                                        transition: 'all 0.15s ease',
                                       }}
                                     >
-                                      {v.isFlashHunt !== false ? 'Ẩn Săn' : 'Mở Săn'}
+                                      {v.isFlashHunt !== false ? <Eye size={13} /> : <EyeOff size={13} />}
                                     </button>
+
                                     <button
                                       type="button"
                                       onClick={() => toggleVoucherStatus(v.id)}
+                                      title={v.isActive ? 'Tạm dừng mã' : 'Kích hoạt mã'}
+                                      aria-label={v.isActive ? 'Tạm dừng mã' : 'Kích hoạt mã'}
                                       style={{
-                                        padding: '5px 10px',
-                                        borderRadius: 6,
-                                        border: '1px solid #E2E8F0',
-                                        background: '#FFFFFF',
-                                        color: '#334155',
-                                        fontSize: '0.74rem',
-                                        fontWeight: 600,
+                                        width: 28,
+                                        height: 28,
+                                        padding: 0,
+                                        borderRadius: 7,
+                                        border: v.isActive ? '1px solid #FDE68A' : '1px solid #A7F3D0',
+                                        background: v.isActive ? '#FFFBEB' : '#ECFDF5',
+                                        color: v.isActive ? '#B45309' : '#059669',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
                                         cursor: 'pointer',
+                                        transition: 'all 0.15s ease',
                                       }}
                                     >
-                                      {v.isActive ? 'Tạm dừng' : 'Kích hoạt'}
+                                      {v.isActive ? <Pause size={13} /> : <Play size={13} />}
                                     </button>
+
                                     <button
                                       type="button"
                                       onClick={() => handleDeleteVoucher(v.id, v.code)}
                                       style={{
-                                        padding: '5px 8px',
-                                        borderRadius: 6,
+                                        width: 28,
+                                        height: 28,
+                                        padding: 0,
+                                        borderRadius: 7,
                                         border: '1px solid #E2E8F0',
                                         background: '#FFFFFF',
-                                        color: '#64748B',
-                                        fontSize: '0.74rem',
-                                        fontWeight: 600,
+                                        color: '#94A3B8',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
                                         cursor: 'pointer',
+                                        transition: 'all 0.15s ease',
                                       }}
                                       onMouseEnter={(e) => {
                                         e.currentTarget.style.borderColor = '#FECACA';
@@ -5630,9 +5668,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                                       onMouseLeave={(e) => {
                                         e.currentTarget.style.borderColor = '#E2E8F0';
                                         e.currentTarget.style.background = '#FFFFFF';
-                                        e.currentTarget.style.color = '#64748B';
+                                        e.currentTarget.style.color = '#94A3B8';
                                       }}
                                       title="Xóa mã"
+                                      aria-label="Xóa mã"
                                     >
                                       <Trash2 size={13} />
                                     </button>
